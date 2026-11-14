@@ -61,6 +61,15 @@ function encodeFromPrinted(item,grams,unitFils){
   const first12=prefix+String(priceVerifier(price))+String(price).padStart(5,"0");
   return first12+String(checkDigit(first12));
 }
+// Recover a missed printed unit price only when barcode, weight, and printed total agree.
+function fillCatalogUnit(decoded,fields){
+  if(!decoded || decoded.error || fields.unit)return {...fields};
+  const unit=RATE[decoded.code],grams=fixed3(fields.weight),total=fixed3(fields.printed);
+  if(!unit || grams===null || grams<1 || grams>10000 || total===null)return {...fields};
+  if(total!==decoded.price || roundedPrice(grams,unit)!==total ||
+     encodeFromPrinted(decoded.code,grams,unit)!==decoded.barcode)return {...fields};
+  return {...fields,unit:fmtMoney(unit),unitSource:"catalog"};
+}
 function verify(entry){
   const info=decode(entry.barcode);
   if(info.error)return {ok:false,reason:info.error};
@@ -89,10 +98,20 @@ function verify(entry){
   return {ok:true,info,grams,unit,printed};
 }
 function persist(){
-  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,unit,printed,photoName,ocrProduct,confirmed,autoConfirmed,source})=>({id,barcode,weight,unit,printed,photoName,ocrProduct,confirmed,autoConfirmed,source}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
+  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,unit,unitSource,printed,photoName,ocrProduct,confirmed,autoConfirmed,source})=>({id,barcode,weight,unit,unitSource,printed,photoName,ocrProduct,confirmed,autoConfirmed,source}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
 }
 function restore(){
-  try{const v=JSON.parse(localStorage.getItem(STORAGE)||"[]");if(Array.isArray(v))entries=v.slice(0,250).filter(x=>x&&typeof x.barcode==="string").map(x=>({id:makeId(),barcode:x.barcode,weight:String(x.weight||""),unit:String(x.unit||""),printed:String(x.printed||""),photoName:String(x.photoName||""),ocrProduct:x.ocrProduct||null,confirmed:Boolean(x.confirmed),autoConfirmed:Boolean(x.autoConfirmed),source:x.source||"saved"}));}catch(_){}
+  try{
+    const v=JSON.parse(localStorage.getItem(STORAGE)||"[]");
+    if(!Array.isArray(v))return;
+    entries=v.slice(0,250).filter(x=>x&&typeof x.barcode==="string").map(x=>{
+      const row={id:makeId(),barcode:x.barcode,weight:String(x.weight||""),unit:String(x.unit||""),
+        unitSource:x.unitSource||"label",printed:String(x.printed||""),photoName:String(x.photoName||""),
+        ocrProduct:x.ocrProduct||null,confirmed:Boolean(x.confirmed),autoConfirmed:Boolean(x.autoConfirmed),
+        source:x.source||"saved"};
+      return fillCatalogUnit(decode(row.barcode),row);
+    });
+  }catch(_){}
 }
 function field(name,val,placeholder,onChange,extra){
   const lbl=document.createElement("label");if(extra)lbl.className=extra;
@@ -114,9 +133,14 @@ function buildRow(entry,i){
     ["Unit price (BD/kg) *","unit","Enter price per kg",""],
     ["Printed total price (BD) *","printed","Enter total price",""]
   ]){
-    fields.append(field(name,entry[key],placeholder,v=>{entry[key]=v;entry.confirmed=false;entry.autoConfirmed=false;persist();refreshRow(box,entry);refreshSummary()},cls));
+    fields.append(field(name,entry[key],placeholder,v=>{entry[key]=v;entry.confirmed=false;entry.autoConfirmed=false;if(key==="unit")entry.unitSource="manual";persist();refreshRow(box,entry);refreshSummary()},cls));
   }
   box.append(fields);
+  if(entry.unitSource==="catalog"){
+    const inferred=document.createElement("p");inferred.className="fineprint catalog-rate";
+    inferred.textContent="Unit price filled from saved product rate ("+entry.unit+" BD/kg), not read from the photo. Check if the store price has changed.";
+    box.append(inferred);
+  }
   const msg=document.createElement("div");msg.className="message"+(status.ok?"":" warn");
   msg.textContent=status.ok?(entry.confirmed?"Printed values and EAN-13 barcode agree. Label confirmed.":"All values agree. Compare them with the actual printed label, then tap Confirm printed values."):status.reason;
   box.append(msg);
@@ -153,6 +177,10 @@ function refreshRow(box,entry){
   box.className="label-card "+(v.ok?(entry.confirmed?"good":""):"bad");
   box.querySelector(".label-card-head h3").textContent="Label "+(entries.indexOf(entry)+1)+" · "+(decode(entry.barcode).code?PRODUCT[decode(entry.barcode).code]:"Check barcode");
   box.querySelector(".status").textContent=v.ok?(entry.confirmed?"Confirmed":"Ready to confirm"):"Needs review";
+  const priorNote=box.querySelector(".catalog-rate");
+  if(priorNote)priorNote.textContent=entry.unitSource==="catalog"
+    ?"Unit price filled from saved product rate ("+entry.unit+" BD/kg), not read from the photo. Check if the store price has changed."
+    :"";
   const msg=box.querySelector(".message");
   msg.className="message"+(v.ok?"":" warn");
   msg.textContent=v.ok?(entry.confirmed?"Printed values and EAN-13 barcode agree. Label confirmed.":"All values agree. Compare them with the actual printed label, then tap Confirm printed values."):v.reason;
@@ -198,7 +226,7 @@ function refreshSummary(){
   show("balanceText",t.error||"All labels confirmed. Recipe Issue and GRN match.",t.error?"warn":"");
 }
 function addLabel(entry={}){
-  entries.push({id:makeId(),barcode:entry.barcode||"",weight:entry.weight||"",unit:entry.unit||"",printed:entry.printed||"",photoName:entry.photoName||"",ocrProduct:entry.ocrProduct||null,confirmed:!!entry.confirmed,autoConfirmed:!!entry.autoConfirmed,source:entry.source||"manual"});
+  entries.push({id:makeId(),barcode:entry.barcode||"",weight:entry.weight||"",unit:entry.unit||"",unitSource:entry.unitSource||"label",printed:entry.printed||"",photoName:entry.photoName||"",ocrProduct:entry.ocrProduct||null,confirmed:!!entry.confirmed,autoConfirmed:!!entry.autoConfirmed,source:entry.source||"manual"});
   persist();render();
 }
 function imgPreview(file){
@@ -307,7 +335,14 @@ async function readFieldsForBarcode(worker,canvas,region,decoded){
     }catch(_){}
   }
   if(shouldAutoConfirm({barcode:region.barcode,...fields},true,good)){
-    fields.autoReady=true;return fields;
+    fields.autoReady=true;fields.unitSource="label";return fields;
+  }
+  if(!fields.unit && good>=2){
+    const filled=fillCatalogUnit(decoded,{barcode:region.barcode,...fields});
+    if(filled.unitSource==="catalog"){
+      fields.unit=filled.unit;fields.unitSource="catalog";fields.autoReady=true;
+      return fields;
+    }
   }
   // Unclear text is a review exception. Never auto-approve from an estimate.
   try{
@@ -319,6 +354,11 @@ async function readFieldsForBarcode(worker,canvas,region,decoded){
         if(!fields[kind])fields[kind]=hint[kind];
     }
   }catch(_){}
+  if(!fields.unit){
+    const filled=fillCatalogUnit(decoded,{barcode:region.barcode,...fields});
+    if(filled.unitSource==="catalog"){fields.unit=filled.unit;fields.unitSource="catalog"}
+  }
+  if(fields.unit&&!fields.unitSource)fields.unitSource="label";
   return fields;
 }
 
@@ -367,17 +407,17 @@ async function readLabelCloseup(file,entry){
     }
     worker=await(await loadOCR()).createWorker("eng");
     const result=await worker.recognize(file);
-    const fields=ocrFields(result.data.text||"",known);
+    const fields=fillCatalogUnit(known,{barcode:entry.barcode,...ocrFields(result.data.text||"",known)});
     // A close-up should show only one label. Refuse OCR assignments if it looks like a sticker sheet.
     if(validCountInCloseup>1){show("scanMsg","This close-up contains multiple barcodes. Crop it to just one label before re-reading.","warn");return}
     if(!fields.weight&&!fields.unit&&!fields.printed){
       show("scanMsg","The close-up was not clear enough to extract printed values. Enter the exact weight and prices manually.","warn");return;
     }
     if(fields.weight)entry.weight=fields.weight;
-    if(fields.unit)entry.unit=fields.unit;
+    if(fields.unit){entry.unit=fields.unit;entry.unitSource=fields.unitSource||"label"}
     if(fields.printed)entry.printed=fields.printed;
     if(fields.ocrProduct)entry.ocrProduct=fields.ocrProduct;
-    entry.photoName=file.name;entry.confirmed=false;persist();render();
+    entry.photoName=file.name;entry.confirmed=false;entry.autoConfirmed=false;persist();render();
     show("scanMsg","Close-up processed. Recheck every extracted number against the actual printed label, then confirm it.");
   }catch(e){show("scanMsg","Could not read close-up: "+e.message+". You can enter the label values manually.","warn")}
   finally{if(worker)try{await worker.terminate()}catch(_){}}
@@ -458,7 +498,7 @@ function preparePaper(){
   if(p.m>0)tbody.append(tr(["6780","Pakistani Beef Minced","kg",fmtKg(p.m)]));
   if(p.b>0)tbody.append(tr(["6781","Pakistani Beef Without Bone","kg",fmtKg(p.b)]));
   if(mode()==="with-bones"&&p.waste>0)tbody.append(tr(["—","Bones / trimming (calculated)","kg",fmtKg(p.waste)]));
-  const labels=$("ppLabels");labels.replaceChildren();entries.forEach((e,i)=>{const v=verify(e);labels.append(tr([i+1,v.info.code,fmtKg(v.grams),fmtMoney(v.unit),fmtMoney(v.printed),e.barcode]))});
+  const labels=$("ppLabels");labels.replaceChildren();entries.forEach((e,i)=>{const v=verify(e);labels.append(tr([i+1,v.info.code,fmtKg(v.grams),fmtMoney(v.unit)+(e.unitSource==="catalog"?"*":""),fmtMoney(v.printed),e.barcode]))});
 }
 function exportCsv(){
   const p=paperState();if(p.error)return;
@@ -494,7 +534,7 @@ $("sampleBtn").addEventListener("click",()=>{
   // These examples are only demonstrations; verify the barcodes before use.
   for(const s of sample)addLabel({...s,source:"demo"});render();show("scanMsg","Demonstration rows loaded. They are not confirmed real labels. Review and confirm each barcode and printed price before producing a paper.","warn");
 });
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted};
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 restore();render();
 })();
