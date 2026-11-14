@@ -66,9 +66,9 @@ function verify(entry){
   if(unit===null||unit<=0)return {ok:false,reason:"Read or enter the unit price printed on the label."};
   const printed=fixed3(entry.printed);
   if(printed===null||printed<0)return {ok:false,reason:"Read or enter the total price printed on the label."};
-  if(printed!==info.price)return {ok:false,reason:"Printed total "+fmtMoney(printed)+" BD does not match barcode price "+fmtMoney(info.price)+" BD."};
+  if(printed!==info.price)return {ok:false,reason:"Printed total "+fmtMoney(printed)+" BD does not match this barcode\u0027s "+fmtMoney(info.price)+" BD. This number may belong to another sticker. Recheck the total printed on THIS label."};
   const expected=roundedPrice(grams,unit);
-  if(expected!==info.price)return {ok:false,reason:"Printed weight × unit price rounds to "+fmtMoney(expected)+" BD, but barcode and total say "+fmtMoney(info.price)+" BD."};
+  if(expected!==info.price)return {ok:false,reason:"Weight "+fmtKg(grams)+" kg × "+fmtMoney(unit)+" BD/kg rounds to "+fmtMoney(expected)+" BD, but the barcode encodes "+fmtMoney(info.price)+" BD. Check that the weight is from the SAME label."};
   if(entry.ocrProduct&&entry.ocrProduct!==info.code)return {ok:false,reason:"Printed product name seems to disagree with the barcode. Review the label."};
   return {ok:true,info,grams,unit,printed};
 }
@@ -209,13 +209,64 @@ async function detectAll(canvas){
   }
   return results.sort((a,b)=>a.y-b.y||a.x-b.x);
 }
+// Crop by the barcode's position, not the whole sticker sheet.
+// AlHelli's price, weight and barcode appear in separate consistent rows.
+// A neighboring sticker must never contribute its values to this barcode.
 function photoRegion(canvas,r){
-  const width=Math.max(r.w,100),height=Math.max(r.h,45);
-  const x=Math.max(0,Math.floor(r.x-width*.38));
-  const y=Math.max(0,Math.floor(r.y-Math.max(height*3.5,width*.9)));
-  const w=Math.min(canvas.width-x,Math.ceil(width*2.7)),h=Math.min(canvas.height-y,Math.ceil(r.y+r.h*1.6-y));
-  return crop(canvas,x,y,w,h);
+  const width=Math.max(r.w,85);
+  const x=Math.max(0,Math.floor(r.x-width*.32));
+  const y=Math.max(0,Math.floor(r.y-width*1.15));
+  const right=Math.min(canvas.width,Math.ceil(r.x+width*2.62));
+  const bottom=Math.min(canvas.height,Math.ceil(r.y+r.h+width*.05));
+  return crop(canvas,x,y,Math.max(1,right-x),Math.max(1,bottom-y));
 }
+function fieldRegion(canvas,r,which){
+  const width=Math.max(r.w,85);
+  // [relative x, relative y, relative width, relative height]
+  const offsets={
+    weight:[.24,-.50,1.00,.43],
+    unit:[1.33,-.50,1.22,.43],
+    printed:[1.30,-.06,1.25,.52]
+  };
+  const [dx,dy,dw,dh]=offsets[which];
+  const x=Math.max(0,Math.floor(r.x+dx*width));
+  const y=Math.max(0,Math.floor(r.y+dy*width));
+  const right=Math.min(canvas.width,Math.ceil(r.x+(dx+dw)*width));
+  const bottom=Math.min(canvas.height,Math.ceil(r.y+(dy+dh)*width));
+  return crop(canvas,x,y,Math.max(1,right-x),Math.max(1,bottom-y));
+}
+function readUniqueDecimal(text){
+  const found=[...String(text||"").replace(/,/g,".").matchAll(/(?:^|[^\d])(\d{1,2}\.\d{3})(?!\d)/gm)].map(x=>x[1]);
+  const unique=[...new Set(found)];
+  return unique.length===1?unique[0]:"";
+}
+async function readFieldsForBarcode(worker,canvas,region,decoded){
+  // Whole-label OCR is used for product-name context only. Actual numeric fields
+  // are read separately from the visual positions for THIS barcode.
+  let context="";
+  try{
+    const labelImage=photoRegion(canvas,region);
+    context=(await worker.recognize(labelImage)).data.text||"";
+  }catch(_){}
+  const hint=ocrFields(context,decoded);
+  const fields={weight:"",unit:"",printed:"",ocrProduct:hint.ocrProduct};
+  for(const kind of ["weight","unit","printed"]){
+    try{
+      const image=fieldRegion(canvas,region,kind);
+      fields[kind]=readUniqueDecimal((await worker.recognize(image)).data.text||"");
+    }catch(_){}
+  }
+  // If a field-specific crop is unreadable, only use a number from the
+  // isolated whole-label crop when the values are mutually consistent.
+  const fallback=verify({barcode:region.barcode,...hint});
+  if(fallback.ok){
+    for(const kind of ["weight","unit","printed"])
+      if(!fields[kind])fields[kind]=hint[kind];
+  }
+  // Do not turn a price-derived weight into a confirmed printed weight.
+  return fields;
+}
+
 function ocrFields(text,decoded){
   const normalized=text.replace(/,/g,".");
   const nums=[...normalized.matchAll(/(^|[^\d])(\d{1,2}\.\d{3})(?!\d)/gm)].map(x=>x[2]);
@@ -246,12 +297,14 @@ async function readLabelCloseup(file,entry){
   if(known.error){show("scanMsg","Enter or correct the 13-digit barcode first, then re-read a close-up label image.","warn");return}
   show("scanMsg","Reading close-up photo for "+PRODUCT[known.code]+"…");
   let worker=null;
+  let validCountInCloseup=0;
   try{
     if("BarcodeDetector" in window){
       try{
         const bitmap=await createImageBitmap(file);const detector=new BarcodeDetector({formats:["ean_13"]});
         const found=await detector.detect(bitmap);bitmap.close();
         const valid=found.map(x=>String(x.rawValue).replace(/\s/g,"")).filter(x=>!decode(x).error);
+        validCountInCloseup=valid.length;
         if(valid.length>0 && !valid.includes(entry.barcode)){
           show("scanMsg","Close-up shows a different product/price barcode. No values were changed. Check that you selected the correct label.","warn");return;
         }
@@ -260,6 +313,8 @@ async function readLabelCloseup(file,entry){
     worker=await(await loadOCR()).createWorker("eng");
     const result=await worker.recognize(file);
     const fields=ocrFields(result.data.text||"",known);
+    // A close-up should show only one label. Refuse OCR assignments if it looks like a sticker sheet.
+    if(validCountInCloseup>1){show("scanMsg","This close-up contains multiple barcodes. Crop it to just one label before re-reading.","warn");return}
     if(!fields.weight&&!fields.unit&&!fields.printed){
       show("scanMsg","The close-up was not clear enough to extract printed values. Enter the exact weight and prices manually.","warn");return;
     }
@@ -279,6 +334,7 @@ function fallbackBarcodesFromText(text){
 }
 async function scanPhotos(){
   if(!photos.length||scanning)return;
+  if(entries.length){if(!confirm("Start a fresh photo scan? This will replace the existing label rows (including any saved examples)."))return;entries=[];persist();render();}
   scanning=true;updatePhotoQueue();$("scanBtn").textContent="Scanning…";
   let detected=0;let added=0;let worker=null;let errorCount=0;
   try{
@@ -298,7 +354,7 @@ async function scanPhotos(){
             const r=await worker.recognize(canvas);fallbackText=r.data.text||"";
             const codes=fallbackBarcodesFromText(fallbackText);
             for(const code of codes){
-              addLabel({barcode:code,photoName:file.name,source:"OCR barcode",...ocrFields(fallbackText,decode(code))});
+              addLabel({barcode:code,photoName:file.name,source:"OCR barcode only - review required"});
               added++;
             }
           }catch(e){errorCount++;show("scanMsg","Photo "+(i+1)+": "+e.message+" Add labels manually if necessary.","warn")}
@@ -313,9 +369,7 @@ async function scanPhotos(){
           show("scanMsg","Photo "+(i+1)+"/"+photos.length+", label "+(j+1)+"/"+regions.length+": checking written weight and prices…");
           let fields={weight:"",unit:"",printed:"",ocrProduct:null};
           try{
-            const labelImage=photoRegion(canvas,region);
-            const result=await worker.recognize(labelImage);
-            fields=ocrFields(result.data.text||"",decoded);
+            fields=await readFieldsForBarcode(worker,canvas,region,decoded);
           }catch(_){errorCount++}
           addLabel({barcode:region.barcode,...fields,photoName:file.name,source:"BarcodeDetector + OCR"});added++;
         }
