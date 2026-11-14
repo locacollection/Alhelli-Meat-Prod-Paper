@@ -71,6 +71,15 @@ assert.match(missingWeight.reason,/approximately 1.000 kg/);
 assert.equal(verify({barcode:"9667812045004",weight:"1.000",unit:"4.500",printed:"4.500"}).ok,true);
 const automaticMinced={barcode:"9667802045007",weight:"1.000",unit:"4.500",printed:"4.500"};
 const automaticBoneless={barcode:"9667812045004",weight:"1.000",unit:"4.500",printed:"4.500"};
+const recovered=fillCatalogUnit(decode("9667807018006"),{
+  barcode:"9667807018006",weight:"0.400",printed:"1.800",unit:""
+});
+assert.equal(recovered.unit,"4.500");
+assert.equal(recovered.unitSource,"catalog");
+assert.equal(verify(recovered).ok,true);
+assert.equal(fillCatalogUnit(decode("9667807018006"),{barcode:"9667807018006",weight:"0.500",printed:"1.800",unit:""}).unit,"");
+assert.equal(fillCatalogUnit(decode("9667807018006"),{barcode:"9667807018006",weight:"0.400",printed:"1.805",unit:""}).unit,"");
+assert.equal(fillCatalogUnit(decode("9667807018006"),{barcode:"9667807018006",weight:"0.400",printed:"1.800",unit:"5.000"}).unit,"5.000");
 assert.equal(shouldAutoConfirm(automaticMinced,true,3),true);
 assert.equal(shouldAutoConfirm(automaticBoneless,true,3),true);
 assert.equal(shouldAutoConfirm(automaticMinced,false,3),false);
