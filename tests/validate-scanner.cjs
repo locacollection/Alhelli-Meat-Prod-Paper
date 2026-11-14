@@ -368,6 +368,25 @@ const beforeImageTotal=totals().m;
   assert.ok(readOnlyNodes.some(node=>node.tagName==="STRONG"&&node.textContent==="0.690"));
   assert.ok(readOnlyNodes.some(node=>node.tagName==="STRONG"&&node.textContent==="3.105"));
   assert.ok(readOnlyNodes.some(node=>node.tagName==="STRONG"&&node.textContent==="4.500"));
+  const primary=readOnlyNodes.find(node=>node.className==="label-primary");
+  assert.ok(primary,"Barcode and weight should be displayed together");
+  assert.ok(elements(primary).some(node=>node.tagName==="STRONG"&&node.textContent==="0.690"));
+  assert.ok(!elements(primary).some(node=>node.tagName==="STRONG"&&node.textContent==="3.105"),
+    "Total price must not be visible in the primary scan result");
+  assert.ok(!elements(primary).some(node=>node.tagName==="STRONG"&&node.textContent==="4.500"),
+    "Unit price must not be visible in the primary scan result");
+  const pricePanels=readOnlyNodes.filter(node=>node.className==="label-price-details");
+  assert.equal(pricePanels.length,1,"Every label should have one optional price panel");
+  assert.equal(pricePanels[0].tagName,"DETAILS");
+  assert.notEqual(pricePanels[0].open,true,"Price details should remain collapsed by default");
+  assert.equal(pricePanels[0].children[0].tagName,"SUMMARY");
+  assert.equal(pricePanels[0].children[0].textContent,"Price details");
+  assert.ok(elements(pricePanels[0]).some(node=>node.tagName==="STRONG"&&node.textContent==="3.105"),
+    "The total price must remain available for audit on demand");
+  assert.ok(elements(pricePanels[0]).some(node=>node.tagName==="STRONG"&&node.textContent==="4.500"),
+    "The unit price must remain available for audit on demand");
+  assert.ok(!readOnlyNodes.some(node=>node.className==="label-overview"),
+    "No always-expanded price grid should remain");
   assert.equal(readOnlyNodes.filter(node=>node.tagName==="INPUT"&&node.type==="text").length,0,
     "There must be no editable text boxes in any label card");
   assert.equal(readOnlyNodes.filter(node=>node.tagName==="INPUT"&&node.type==="number").length,0,
