@@ -4,44 +4,57 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#183c32">
-<meta name="description" content="Scan printed minced and boneless beef labels, double-check price and weight, and prepare Recipe Issue and GRN production paper.">
+<meta name="description" content="Scan normal and bone-in beef production sheets, pair 6777 original meat with finished 6780 and 6781 labels, and print one combined Recipe Issue and GRN production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=read-only-results-10">
+<link rel="stylesheet" href="scanner.css?v=combined-sheets-11">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong><small>Label-based production paper</small></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
 <main class="container noprint">
-  <div class="intro"><span class="kicker">Recipe Issue + Recipe GRN</span><h1>Scan labels. Get your production paper.</h1><p>Photograph your sticker sheet. The scanner reads each 6780 or 6781 barcode, finds its weight in the saved 5-gram catalog, and totals your production paper. Printed text is only used as a secondary check.</p></div>
+  <div class="intro"><span class="kicker">Recipe Issue + Recipe GRN</span><h1>Scan labels. Get your production paper.</h1><p>Scan both production types for the same day. Normal sheets contain 6780/6781 finished labels; bone-in sheets contain a 6777 original label immediately followed by the 6780 minced made from it (or occasionally 6781). The site combines them into one production paper.</p></div>
 
   <div class="workgrid">
     <div class="maincol">
       <section class="panel">
         <div class="section-top"><div><span class="kicker">Step 1</span><h2>Upload and scan automatically</h2></div><span class="tag">Multiple labels</span></div>
-        <div class="upload-area">
-          <div class="upload-symbol">▣</div>
-          <p class="upload-title">Add clear photos of the sticker sheet</p>
-          <p class="muted">Make sure all 13-digit barcodes are visible. Printed numbers help cross-check but are not required for automatic barcode weight lookup.</p>
-          <div class="buttons"><label class="btn" for="sheetPhotos">Scan photos<input id="sheetPhotos" type="file" accept="image/*" multiple hidden></label><label class="btn btn-light" for="cameraPhoto">Use camera<input id="cameraPhoto" type="file" accept="image/*" capture="environment" hidden></label></div>
+        <div class="source-cards">
+          <div class="source-card">
+            <div class="source-card-header"><strong>Normal meat production</strong><span>6780 / 6781</span></div>
+            <p>No original 6777 sticker on these sheets. Issue is calculated from the finished minced and boneless totals; wastage is zero.</p>
+            <div class="buttons"><label class="btn" for="sheetPhotos">Scan normal sheet<input id="sheetPhotos" type="file" accept="image/*" multiple hidden></label><label class="btn btn-light" for="cameraPhoto">Use camera<input id="cameraPhoto" type="file" accept="image/*" capture="environment" hidden></label></div>
+          </div>
+          <div class="source-card bone-source-card">
+            <div class="source-card-header"><strong>Meat processed from bones</strong><span>6777 → 6780</span></div>
+            <p>Separate sheet, in order: original weighed 6777, then finished 6780 minced. Repeat for each portion. 6781 is also accepted if you make boneless meat.</p>
+            <div class="buttons"><label class="btn" for="bonePhotos">Scan bone-in sheet<input id="bonePhotos" type="file" accept="image/*" multiple hidden></label><label class="btn btn-light" for="boneCamera">Use camera<input id="boneCamera" type="file" accept="image/*" capture="environment" hidden></label></div>
+          </div>
         </div>
         <div id="photoQueue" class="photo-queue"></div>
         <div class="buttons"><button id="quickPrintBtn" class="btn" type="button" disabled>Print production paper</button><button id="scanBtn" class="btn btn-light" type="button" disabled>Retry queued photos</button><button id="clearPhotos" class="btn btn-outline" type="button" disabled>Remove queued photos</button></div>
-        <div id="scanMsg" class="message" role="status" aria-live="polite">Choose a photo or open the camera. Scanning starts automatically on your device. Photos are not uploaded.</div>
-        <p class="fineprint">The price barcode identifies a weight in the saved 5 g catalog, but not necessarily the exact scale weight. Check the detected sticker count before printing; printed weights may differ by a few grams.</p>
+        <div id="scanMsg" class="message" role="status" aria-live="polite">Choose a normal or bone-in sheet. Scanning runs on your device; both types are added to the same daily production paper. Images are not uploaded.</div>
+        <p class="fineprint">The 6777 and 6780/6781 barcodes provide the 5 g catalog weights. Review that all stickers were detected and every bone-in 6777 is paired with the following finished label before printing.</p>
       </section>
 
       <section class="panel">
         <div class="section-top"><div><span class="kicker">Step 2</span><h2>Automatic label checks</h2></div><span id="labelCount" class="tag">0 labels</span></div>
-        <p class="muted">Scanned barcodes are shown as read-only results. Open the confirmed-label section to review weights and prices, or tap Preview label to compare a cropped sticker. Use manual barcode entry only if a label was missed.</p>
+        <p class="muted">Labels remain read-only and grouped by source sheet. Bone-in pairs must follow the sequence 6777 then 6780/6781. Tap Preview label for a cropped sticker; enter a barcode manually only if scanning misses it.</p>
         <div id="labels" class="labels"><p class="empty">No labels yet. Scan your photos or add a missing label manually.</p></div>
         <div class="buttons"><button id="addLabel" type="button" class="btn btn-light">+ Enter barcode manually</button><button id="clearLabels" type="button" class="btn btn-outline">New production paper</button></div>
         <form id="manualBarcodeForm" class="manual-barcode-form" hidden>
           <label for="manualBarcode">Enter the 13-digit barcode from an unreadable sticker</label>
+          <div class="manual-source-selects">
+            <label for="manualSource">Production source<select id="manualSource">
+              <option value="normal">Normal sheet (6780/6781)</option>
+              <option value="bone-new">New bone-in sheet (6777 first)</option>
+            </select></label>
+            <label for="manualInsert" id="manualInsertBlock" hidden>Position on bone-in sheet<select id="manualInsert"><option value="end">After last label</option></select></label>
+          </div>
           <div class="manual-barcode-controls">
             <input id="manualBarcode" type="text" inputmode="numeric" pattern="[0-9]{13}" maxlength="13" autocomplete="off" spellcheck="false" placeholder="e.g. 9667800031057" required>
             <button class="btn" type="submit">Add barcode</button>
             <button id="cancelManualBarcode" class="btn btn-outline" type="button">Cancel</button>
           </div>
-          <p class="fineprint">Only the barcode is entered manually. The product, weight and prices are calculated from the verified catalog.</p>
+          <p class="fineprint">Enter only the barcode. For a missed label on a bone-in sheet, choose that existing sheet and insert it at the correct sticker position; the weight and prices remain read-only.</p>
           <p id="manualBarcodeError" class="manual-barcode-error" role="alert" aria-live="polite"></p>
         </form>
       </section>
@@ -54,11 +67,11 @@
           <label>Staff name (optional)<input id="staff" maxlength="90" placeholder="Employee name"></label>
           <label>Reference (optional)<input id="reference" maxlength="80" placeholder="Production paper reference"></label>
         </div>
-        <div class="mode-select">
-          <label class="mode"><input type="radio" name="materialMode" value="no-bones" checked><span><strong>Meat without bones</strong><small>Issue 6777 = total finished minced + boneless. No wastage.</small></span></label>
-          <label class="mode"><input type="radio" name="materialMode" value="with-bones"><span><strong>Meat with bones / trimming</strong><small>Use the original weighed 6777 portion to calculate the difference.</small></span></label>
+        <div class="combined-method">
+          <strong>One combined production paper</strong>
+          <p>Normal issue equals all normal finished meat. Bone-in issue equals the original 6777 weights printed on separate sheets. Wastage equals each original 6777 minus its following finished output.</p>
+          <p>No original 6777 weight needs to be typed when its barcode was scanned.</p>
         </div>
-        <div id="originalWeightBlock" class="field-block hidden"><label>Original 6777 weighed amount (kg)<input id="originalWeight" inputmode="decimal" type="number" min="0" step=".001" placeholder="Example: 10.500"></label><p class="fineprint">Required only when the original 6777 meat contained bones/trimming. This is not estimated from the finished labels.</p></div>
         <div id="paperWarning" class="message warn">Add and verify at least one minced or boneless label to create the GRN paper.</div>
         <div class="buttons"><button id="printBtn" class="btn" disabled>Print production paper / Save PDF</button><button id="exportBtn" class="btn btn-light" disabled>Export reviewed labels CSV</button></div>
       </section>
@@ -69,15 +82,25 @@
         <div class="total highlight"><span>Recipe Issue · 6777</span><strong id="issueTotal">0.000 kg</strong></div>
         <div class="total"><span>GRN · 6780 Minced</span><strong id="mincedTotal">0.000 kg</strong></div>
         <div class="total"><span>GRN · 6781 Without Bone</span><strong id="bonelessTotal">0.000 kg</strong></div>
+        <div class="total"><span>Normal 6777 issue (inferred)</span><strong id="normalIssueTotal">0.000 kg</strong></div>
+        <div class="total"><span>Bone-in 6777 issue (scanned)</span><strong id="boneIssueTotal">0.000 kg</strong></div>
         <div class="total"><span>Bones / trimming</span><strong id="wasteTotal">0.000 kg</strong></div>
+        <div id="boneBatchContainer" class="bone-batches" hidden>
+          <h3>Bone-in portions</h3>
+          <div id="boneBatchSummary"></div>
+        </div>
         <div class="total"><span>Barcodes ready</span><strong id="verifiedTotal">0 / 0</strong></div>
         <p id="balanceText" class="message">No verified finished weights yet.</p>
       </section>
-      <section class="panel example"><div class="kicker">Your exact example</div><h2>No-bones conversion</h2><p>Original 6777 weight was not recorded. You prepared two finished products:</p>
-        <div class="sample"><span>6780 · Minced</span><b>3.500 kg</b></div><div class="sample"><span>6781 · Without Bone</span><b>6.500 kg</b></div><div class="sample"><span>6777 · Recipe Issue</span><b>10.000 kg</b></div><div class="sample"><span>Wastage</span><b>0.000 kg</b></div>
-        <button id="sampleBtn" type="button" class="btn btn-outline">Load demonstration data</button>
+      <section class="panel example"><div class="kicker">Combined example</div><h2>Both workflows, one paper</h2>
+        <p>Normal sheet: 2.000 kg minced and 6.000 kg boneless. Separate bone-in sheet: 5.000 kg original 6777 followed by 3.000 kg minced.</p>
+        <div class="sample"><span>6777 · Recipe Issue</span><b>13.000 kg</b></div>
+        <div class="sample"><span>6780 · Total minced</span><b>5.000 kg</b></div>
+        <div class="sample"><span>6781 · Total boneless</span><b>6.000 kg</b></div>
+        <div class="sample"><span>Wastage from bone-in sheet</span><b>2.000 kg</b></div>
+        <button id="sampleBtn" type="button" class="btn btn-outline">Load combined example</button>
       </section>
-      <section class="panel"><div class="kicker">Important</div><p class="muted">Barcode-first mode uses saved product rates to recover each weight from the 5 g catalog. A barcode encodes rounded price, not exact scale weight. If unit prices change or exact gram-level accuracy is required, consult the printed labels.</p><p class="fineprint">All scanning and worksheet data stays in this browser. No Supabase upload or staff account is required on this scanner page.</p></section>
+      <section class="panel"><div class="kicker">Important</div><p class="muted">6777 is priced at the saved 3.190 BD/kg rate; 6780 and 6781 at 4.500 BD/kg. Barcode weights are catalog-derived in 5 g increments. Confirm the actual printed weights and current prices before using the form for stock records.</p><p class="fineprint">All scanning and worksheet data stays in this browser. No Supabase upload or staff account is required on this scanner page.</p></section>
     </aside>
   </div>
 </main>
@@ -121,5 +144,5 @@
   </table>
   <p class="paper-auditnote">Calculated from price-encoded barcodes. Check exact weights against original scale labels before signing.</p>
 </section>
-<script src="scanner.js?v=read-only-results-10"></script>
+<script src="scanner.js?v=combined-sheets-11"></script>
 </body></html>
