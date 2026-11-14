@@ -7,6 +7,12 @@ const PREFIX={ "966780":"6780", "966781":"6781" };
 const STORAGE="alhelli-label-scanner-v2";
 const photos=[];
 const scannedPhotoKeys=new Set();
+const CROPS_DB="meat-production-label-crops-v1";
+let cropDbPromise=null;
+let cropNumber=0;
+function createCropKey(){
+  return "label-"+Date.now().toString(36)+"-"+(++cropNumber).toString(36)+"-"+Math.random().toString(36).slice(2,9);
+}
 function photoKey(f){return [f.name,f.size,f.lastModified].join(":")}
 let entries=[];
 let scanning=false;
@@ -161,8 +167,159 @@ function verify(entry){
   if(entry.ocrProduct&&entry.ocrProduct!==info.code)return {ok:false,reason:"Printed product name seems to disagree with the barcode. Review the label."};
   return {ok:true,info,grams,unit,printed};
 }
+// Each sticker image is keyed by a unique scan-record key, never by barcode.
+// Two identical barcodes on different packages must keep different photos.
+// Image bytes are stored locally in IndexedDB, not in GitHub, Supabase, CSV or PDF.
+function cropDatabase(){
+  if(cropDbPromise)return cropDbPromise;
+  cropDbPromise=new Promise(resolve=>{
+    if(!window.indexedDB){resolve(null);return}
+    let request;
+    try{request=window.indexedDB.open(CROPS_DB,1)}
+    catch(_){resolve(null);return}
+    request.onupgradeneeded=()=>{
+      if(!request.result.objectStoreNames.contains("labels"))
+        request.result.createObjectStore("labels");
+    };
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>resolve(null);
+    request.onblocked=()=>resolve(null);
+  });
+  return cropDbPromise;
+}
+function cropStoreAction(operation,key,blob){
+  return cropDatabase().then(db=>new Promise(resolve=>{
+    if(!db){resolve(null);return}
+    try{
+      const tx=db.transaction("labels",operation==="get"?"readonly":"readwrite");
+      const store=tx.objectStore("labels");
+      const req=operation==="put"?store.put(blob,key):
+        operation==="delete"?store.delete(key):store.get(key);
+      let result=null;
+      req.onsuccess=()=>{result=req.result||null};
+      req.onerror=()=>resolve(null);
+      tx.oncomplete=()=>resolve(operation==="put"?true:result);
+      tx.onerror=()=>resolve(null);
+      tx.onabort=()=>resolve(null);
+    }catch(_){resolve(null)}
+  }));
+}
+function clearEntryCrop(entry){
+  if(entry.cropUrl){
+    try{URL.revokeObjectURL(entry.cropUrl)}catch(_){}
+    entry.cropUrl="";
+  }
+  if(entry.cropKey)void cropStoreAction("delete",entry.cropKey);
+}
+function clearAllCrops(oldEntries){
+  for(const entry of oldEntries)clearEntryCrop(entry);
+}
+async function keepLabelCrop(entry,blob,kind="auto"){
+  if(!blob||!entries.includes(entry))return;
+  if(entry.cropUrl)try{URL.revokeObjectURL(entry.cropUrl)}catch(_){}
+  entry.cropKey=entry.cropKey||createCropKey();
+  entry.cropUrl=URL.createObjectURL(blob);
+  entry.cropKind=kind;
+  persist();render();
+  // Persistence may be blocked by browser storage settings. The session
+  // image still works, and the UI never falsely claims cloud backup.
+  const saved=await cropStoreAction("put",entry.cropKey,blob);
+  if(!saved)entry.cropTemporary=true;
+}
+async function recoverLabelCrops(){
+  const records=entries.filter(e=>e.cropKey);
+  if(!records.length)return;
+  await Promise.all(records.map(async entry=>{
+    const blob=await cropStoreAction("get",entry.cropKey);
+    if(blob&&entries.includes(entry)){
+      if(entry.cropUrl)URL.revokeObjectURL(entry.cropUrl);
+      entry.cropUrl=URL.createObjectURL(blob);
+    }
+  }));
+  render();
+}
+function labelCropBounds(canvas,region,regions=[]){
+  const w=Math.max(85,Number(region.w)||85),h=Math.max(12,Number(region.h)||12);
+  let left=Math.max(0,Math.floor(region.x-.42*w));
+  let top=Math.max(0,Math.floor(region.y-1.34*w));
+  let right=Math.min(canvas.width,Math.ceil(region.x+2.50*w));
+  let bottom=Math.min(canvas.height,Math.ceil(region.y+h+.13*w));
+  // Avoid incorporating the barcode/total from the previous stacked label.
+  for(const other of regions){
+    if(other===region)continue;
+    const sameColumn=Math.abs((other.x+other.w/2)-(region.x+region.w/2))<Math.max(w,other.w||w)*1.30;
+    if(sameColumn&&other.y+other.h<=region.y&&other.y+other.h>top)
+      top=Math.max(top,Math.ceil(other.y+other.h+Math.max(4,w*.04)));
+    // Neighboring stickers on the same horizontal row should not overlap.
+    const sameRow=Math.abs((other.y+other.h/2)-(region.y+h/2))<Math.max(w,other.w||w)*.55;
+    if(sameRow&&other.x>=region.x+w)
+      right=Math.min(right,Math.floor((region.x+w+other.x)/2));
+    if(sameRow&&other.x+other.w<=region.x)
+      left=Math.max(left,Math.ceil((other.x+other.w+region.x)/2));
+  }
+  right=Math.max(Math.min(canvas.width,region.x+w),right);
+  bottom=Math.max(Math.min(canvas.height,region.y+h),bottom);
+  // Cropping may still be imperfect if stickers are heavily overlapping.
+  // The thumbnail always remains attached to this barcode's scan record.
+  return {x:left,y:top,w:Math.max(1,right-left),h:Math.max(1,bottom-top)};
+}
+function canvasBlob(canvas,quality=.88){
+  return new Promise(resolve=>{
+    if(canvas.toBlob)canvas.toBlob(blob=>resolve(blob||null),"image/jpeg",quality);
+    else resolve(null);
+  });
+}
+async function croppedLabelBlob(canvas,region,regions){
+  const box=labelCropBounds(canvas,region,regions);
+  const source=crop(canvas,box.x,box.y,box.w,box.h);
+  const scale=Math.min(1,1024/Math.max(source.width,source.height));
+  if(scale>=1)return canvasBlob(source);
+  const target=document.createElement("canvas");
+  target.width=Math.max(1,Math.round(source.width*scale));
+  target.height=Math.max(1,Math.round(source.height*scale));
+  target.getContext("2d").drawImage(source,0,0,target.width,target.height);
+  return canvasBlob(target);
+}
+async function attachLabelFromFile(file,entry){
+  if(!file||!file.type.startsWith("image/"))return;
+  let bitmap=null;
+  try{
+    bitmap=await createImageBitmap(file);
+    const c=createScaledCanvas(bitmap);bitmap.close();bitmap=null;
+    // User-provided replacement images must show this ONE label.
+    // Never attach a cropped area from an unrelated barcode as proof.
+    if("BarcodeDetector" in window){
+      const detector=new BarcodeDetector({formats:["ean_13"]});
+      const detected=await detector.detect(c);
+      const valid=detected.map(d=>String(d.rawValue||"").replace(/\s/g,"")).filter(code=>!decode(code).error);
+      if(valid.length>1||valid.length===1&&valid[0]!==entry.barcode){
+        show("scanMsg","That photo contains another barcode or several stickers. Please crop to the selected label before attaching.","warn");return;
+      }
+    }
+    const blob=await canvasBlob(c);
+    await keepLabelCrop(entry,blob,"attached");
+    show("scanMsg","Label photo attached to this barcode. Tap the thumbnail to review it.");
+  }catch(err){show("scanMsg","Could not attach label photo: "+err.message,"warn")}
+  finally{bitmap?.close?.()}
+}
+function previewEntryCrop(entry){
+  if(!entry.cropUrl)return;
+  const dialog=$("cropDialog");
+  $("cropHeading").textContent=PRODUCT[decode(entry.barcode).code]||"Scanned label";
+  $("cropImage").src=entry.cropUrl;
+  $("cropImage").alt="Cropped sticker associated with barcode "+entry.barcode;
+  $("cropDetails").textContent="Barcode "+entry.barcode+" · "+(entry.weight||"—")+" kg · "+(entry.printed||"—")+" BD";
+  if(dialog.showModal)dialog.showModal();
+  else dialog.setAttribute("open","");
+}
+function closeEntryPreview(){
+  const dialog=$("cropDialog");
+  if(dialog.close)dialog.close();else dialog.removeAttribute("open");
+  $("cropImage").removeAttribute("src");
+}
+
 function persist(){
-  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source})=>({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
+  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source,cropKey,cropKind})=>({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source,cropKey,cropKind}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
 }
 function restore(){
   try{
@@ -328,7 +485,7 @@ function addLabel(entry={}){
     unit:derived.unit||"",unitSource:derived.unitSource||"manual",
     printed:derived.printed||"",printedSource:derived.printedSource||"manual",
     ocrConflict:derived.ocrConflict||"",ocrWarning:derived.ocrWarning||"",ocrChecked:!!derived.ocrChecked,
-    photoName:derived.photoName||"",ocrProduct:derived.ocrProduct||null,
+    photoName:derived.photoName||"",ocrProduct:derived.ocrProduct||null, cropKey:derived.cropKey||"",cropKind:derived.cropKind||"",cropUrl:derived.cropUrl||"",
     confirmed:!!derived.confirmed,autoConfirmed:!!derived.autoConfirmed,source:derived.source||"manual"});
   persist();render();
   return entries[entries.length-1];
