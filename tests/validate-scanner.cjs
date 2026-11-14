@@ -54,6 +54,11 @@ for(const x of [
  {barcode:"9667818292501",weight:"6.500",unit:"4.500",printed:"29.250"}
 ])assert.equal(verify(x).ok,true,JSON.stringify(verify(x)));
 assert.equal(verify({barcode:"9667806157508",weight:"3.500",unit:"4.500",printed:"15.745"}).ok,false);
+const missingWeight=verify({barcode:"9667812045004",weight:"",unit:"4.500",printed:"4.500"});
+assert.equal(missingWeight.ok,false);
+assert.match(missingWeight.reason,/Printed weight missing/);
+assert.match(missingWeight.reason,/approximately 1.000 kg/);
+assert.equal(verify({barcode:"9667812045004",weight:"1.000",unit:"4.500",printed:"4.500"}).ok,true);
 assert.equal(verify({barcode:"9667806157508",weight:"3.400",unit:"4.500",printed:"15.750"}).ok,false);
 assert.equal(verify({barcode:"9667806157500",weight:"3.500",unit:"4.500",printed:"15.750"}).ok,false);
 assert.equal(verify({barcode:"9667770031903",weight:"1.000",unit:"3.190",printed:"3.190"}).ok,false);
