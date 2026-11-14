@@ -41,7 +41,10 @@ assert.equal(getId("mincedTotal").textContent,"0.000 kg");
 assert.equal(getId("bonelessTotal").textContent,"0.000 kg");
 assert.equal(getId("wasteTotal").textContent,"0.000 kg");
 assert.equal(getId("printBtn").disabled,true);
-assert.equal(getId("exportBtn").disabled,true);
+assert.equal(getId("saveBtn").disabled,true);
+assert.equal(getId("extraWeight").textContent,"0.000 kg");
+assert.equal(getId("extraPrice").textContent,"0.000 BD");
+
 assert.ok(source.includes('initialCropCleanup=cropStoreAction("clear")'),
   "Old IndexedDB sticker photos must be cleared on page initialization");
 assert.ok(source.includes('operation==="clear"?store.clear()'),
@@ -250,6 +253,16 @@ assert.equal(getId("ppGrn").children[0].children[3].textContent,"0.400");
 assert.equal(getId("ppGrn").children[1].children[0].textContent,"6781");
 assert.equal(getId("ppGrn").children[1].children[3].textContent,"0.810");
 assert.equal(getId("ppGrn").children[2].children[1].textContent,"");
+
+// Date-based paper snapshots must contain checked, complete production quantities.
+// Value information counts only finished 6780 and 6781 labels, not original 6777 twice.
+assert.ok(source.includes("window.MeatProductionApp={paperSnapshot,preparePaper,paperState}"));
+const pageHtml=fs.readFileSync("index.html","utf8");
+for(const id of ["printBtn","saveBtn","paperPreviewDialog","savePaperDialog","savedPaperList","extraWeight","extraPrice"])
+  assert.ok(pageHtml.includes('id="'+id+'"'),"Missing paper UI "+id);
+assert.ok(!pageHtml.includes("Print production paper / Save PDF"));
+assert.ok(pageHtml.includes("Preview Paper")&&pageHtml.includes("Save Paper"));
+assert.ok(pageHtml.includes('id="alsoPdf"'),"Optional PDF checkbox must exist");
 console.log("A4 store-form print tests passed: 6777 issue, 6780/6781 GRN, no individual sticker rows.");
 const explicitWrongWeight=addLabel({barcode:"9667800031057",weight:"0.691",
   unit:"4.500",printed:"3.108",confirmed:true});
