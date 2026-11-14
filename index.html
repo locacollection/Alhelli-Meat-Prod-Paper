@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#183c32">
 <meta name="description" content="Meat production barcode scanner and production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=concise-ui-14">
+<link rel="stylesheet" href="scanner.css?v=auto-sheet-15">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
@@ -16,15 +16,9 @@
     <div class="maincol">
       <section class="panel">
         <div class="section-top"><div><h2>Scan sheets</h2></div></div>
-        <div class="source-cards">
-          <div class="source-card">
-            <div class="source-card-header"><strong>Normal</strong><span>6780 / 6781</span></div>
-            <div class="buttons"><label class="btn" for="sheetPhotos">Scan normal sheet<input id="sheetPhotos" type="file" accept="image/*" multiple hidden></label><label class="btn btn-light" for="cameraPhoto">Use camera<input id="cameraPhoto" type="file" accept="image/*" capture="environment" hidden></label></div>
-          </div>
-          <div class="source-card bone-source-card">
-            <div class="source-card-header"><strong>Bone-in</strong><span>6777 → 6780 / 6781</span></div>
-            <div class="buttons"><label class="btn" for="bonePhotos">Scan bone-in sheet<input id="bonePhotos" type="file" accept="image/*" multiple hidden></label><label class="btn btn-light" for="boneCamera">Use camera<input id="boneCamera" type="file" accept="image/*" capture="environment" hidden></label></div>
-          </div>
+        <div class="buttons unified-scan">
+          <label class="btn" for="sheetPhotos">Scan sheets<input id="sheetPhotos" type="file" accept="image/*" multiple hidden></label>
+          <label class="btn btn-light" for="cameraPhoto">Use camera<input id="cameraPhoto" type="file" accept="image/*" capture="environment" hidden></label>
         </div>
         <div id="photoQueue" class="photo-queue"></div>
         <div class="buttons"><button id="quickPrintBtn" class="btn" type="button" disabled>Print production paper</button><button id="scanBtn" class="btn btn-light" type="button" disabled>Scan queued</button><button id="clearPhotos" class="btn btn-outline" type="button" disabled>Clear queue</button></div>
@@ -122,5 +116,5 @@
     </tbody>
   </table>
 </section>
-<script src="scanner.js?v=concise-ui-14"></script>
+<script src="scanner.js?v=auto-sheet-15"></script>
 </body></html>
