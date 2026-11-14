@@ -24,3 +24,10 @@ input:focus,select:focus{outline:2px solid #8eb49c;border-color:#448967}.mode-se
 .closeup-upload{display:inline-flex;align-items:center;justify-content:center;cursor:pointer;white-space:nowrap}
 .closeup-upload:hover{background:#e7f5e9}
 @media(max-width:520px){.label-actions{flex-wrap:wrap}}
+
+/* Photo-first production: verified labels collapsed, only exceptions need review. */
+.auto-verified{border:1px solid #b7dbbd;border-radius:12px;background:#f2fbf4;padding:8px 11px;margin-bottom:10px}
+.auto-verified summary{cursor:pointer;color:#176442;font-size:14px;font-weight:800;line-height:1.5;padding:7px}
+.auto-verified .label-card{margin:10px 0;background:#fff}
+.review-heading{font-size:14px;font-weight:800;color:#826121;padding:11px;border-radius:10px;background:#fff7e8}
+#quickPrintBtn:not(:disabled){background:#167045;border-color:#167045}
