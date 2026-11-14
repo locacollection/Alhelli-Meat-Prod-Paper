@@ -176,11 +176,6 @@ assert.equal(ocrWeightIncorrect.confirmed,true);
 assert.equal(ocrWeightIncorrect.weight,"0.690");
 assert.equal(ocrWeightIncorrect.weightSource,"catalog");
 assert.match(ocrWeightIncorrect.ocrWarning,/0.691/);
-const explicitWrongWeight=addLabel({barcode:"9667800031057",weight:"0.691",
-  unit:"4.500",printed:"3.108",confirmed:true});
-assert.equal(explicitWrongWeight.weight,"0.690");
-assert.equal(explicitWrongWeight.printed,"3.105");
-assert.equal(verify(explicitWrongWeight).ok,true);
 
 const realFourth=fromBarcode("9667808036450");
 assert.equal(realFourth.confirmed,true);
@@ -232,5 +227,11 @@ assert.equal(getId("ppGrn").children[1].children[0].textContent,"6781");
 assert.equal(getId("ppGrn").children[1].children[3].textContent,"0.810");
 assert.equal(getId("ppGrn").children[2].children[1].textContent,"");
 console.log("A4 store-form print tests passed: 6777 issue, 6780/6781 GRN, no individual sticker rows.");
+const explicitWrongWeight=addLabel({barcode:"9667800031057",weight:"0.691",
+  unit:"4.500",printed:"3.108",confirmed:true});
+assert.equal(explicitWrongWeight.weight,"0.690");
+assert.equal(explicitWrongWeight.printed,"3.105");
+assert.equal(verify(explicitWrongWeight).ok,true);
+
 console.log("Barcode-first scanner checks passed: catalog 0.400 + 0.810 kg, OCR optional, GRN/issue 1.210 kg.");
 console.log("Scanner validation tests passed: verified EAN, internal price digit, rounding, label consistency, and product constraints.");
