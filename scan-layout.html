@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#183c32">
+<meta name="description" content="Scan printed minced and boneless beef labels, double-check price and weight, and prepare Recipe Issue and GRN production paper.">
+<title>Meat Production | Scan Label Sheets</title>
+<link rel="stylesheet" href="scanner.css">
+</head>
+<body>
+<header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong><small>Label-based production paper</small></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
+<main class="container noprint">
+  <div class="intro"><span class="kicker">Recipe Issue + Recipe GRN</span><h1>Turn your printed labels into a production paper</h1><p>Photograph all the minced (6780) and boneless (6781) labels attached to your plastic sheet. The tool reads each barcode, tries to read its printed weight and prices, and highlights anything that needs checking.</p></div>
+
+  <div class="workgrid">
+    <div class="maincol">
+      <section class="panel">
+        <div class="section-top"><div><span class="kicker">Step 1</span><h2>Scan the label sheet</h2></div><span class="tag">Multiple labels</span></div>
+        <div class="upload-area">
+          <div class="upload-symbol">▣</div>
+          <p class="upload-title">Add clear photos of the sticker sheet</p>
+          <p class="muted">Include every printed weight, unit price, total price and barcode. You can select several pictures.</p>
+          <div class="buttons"><label class="btn" for="sheetPhotos">Choose photos<input id="sheetPhotos" type="file" accept="image/*" multiple hidden></label><label class="btn btn-light" for="cameraPhoto">Take photo<input id="cameraPhoto" type="file" accept="image/*" capture="environment" hidden></label></div>
+        </div>
+        <div id="photoQueue" class="photo-queue"></div>
+        <div class="buttons"><button id="scanBtn" class="btn" type="button" disabled>Scan all photos</button><button id="clearPhotos" class="btn btn-light" type="button" disabled>Remove photos</button></div>
+        <div id="scanMsg" class="message" role="status" aria-live="polite">No photos selected yet. Barcode/photo recognition runs on your device. Photos are not uploaded.</div>
+        <p class="fineprint">For best results, keep labels straight, well lit and fully readable. Missed or unclear labels can be added manually below. Never rely on a barcode alone for the exact weight.</p>
+      </section>
+
+      <section class="panel">
+        <div class="section-top"><div><span class="kicker">Step 2</span><h2>Review every detected label</h2></div><span id="labelCount" class="tag">0 labels</span></div>
+        <p class="muted">For every label, confirm that the 13-digit barcode, printed weight, printed unit price and printed total price agree. You can correct OCR mistakes here.</p>
+        <div id="labels" class="labels"><p class="empty">No labels yet. Scan your photos or add a missing label manually.</p></div>
+        <div class="buttons"><button id="addLabel" type="button" class="btn btn-light">+ Add missing label manually</button><button id="clearLabels" type="button" class="btn btn-outline">Clear all labels</button></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-top"><div><span class="kicker">Step 3</span><h2>Production paper details</h2></div></div>
+        <div class="two-fields">
+          <label>Production date<input id="date" type="date"></label>
+          <label>Plant / Section<input id="plant" value="Seef Arad / Meat" maxlength="90"></label>
+          <label>Staff name (optional)<input id="staff" maxlength="90" placeholder="Employee name"></label>
+          <label>Reference (optional)<input id="reference" maxlength="80" placeholder="Production paper reference"></label>
+        </div>
+        <div class="mode-select">
+          <label class="mode"><input type="radio" name="materialMode" value="no-bones" checked><span><strong>Meat without bones</strong><small>Issue 6777 = total finished minced + boneless. No wastage.</small></span></label>
+          <label class="mode"><input type="radio" name="materialMode" value="with-bones"><span><strong>Meat with bones / trimming</strong><small>Use the original weighed 6777 portion to calculate the difference.</small></span></label>
+        </div>
+        <div id="originalWeightBlock" class="field-block hidden"><label>Original 6777 weighed amount (kg)<input id="originalWeight" inputmode="decimal" type="number" min="0" step=".001" placeholder="Example: 10.500"></label><p class="fineprint">Required only when the original 6777 meat contained bones/trimming. This is not estimated from the finished labels.</p></div>
+        <div id="paperWarning" class="message warn">Add and verify at least one minced or boneless label to create the GRN paper.</div>
+        <div class="buttons"><button id="printBtn" class="btn" disabled>Print production paper / Save PDF</button><button id="exportBtn" class="btn btn-light" disabled>Export reviewed labels CSV</button></div>
+      </section>
+    </div>
+
+    <aside>
+      <section class="panel summary-panel"><div class="kicker">Live production balance</div><h2>Paper preview totals</h2>
+        <div class="total highlight"><span>Recipe Issue · 6777</span><strong id="issueTotal">0.000 kg</strong></div>
+        <div class="total"><span>GRN · 6780 Minced</span><strong id="mincedTotal">0.000 kg</strong></div>
+        <div class="total"><span>GRN · 6781 Without Bone</span><strong id="bonelessTotal">0.000 kg</strong></div>
+        <div class="total"><span>Bones / trimming</span><strong id="wasteTotal">0.000 kg</strong></div>
+        <div class="total"><span>Labels confirmed</span><strong id="verifiedTotal">0 / 0</strong></div>
+        <p id="balanceText" class="message">No verified finished weights yet.</p>
+      </section>
+      <section class="panel example"><div class="kicker">Your exact example</div><h2>No-bones conversion</h2><p>Original 6777 weight was not recorded. You prepared two finished products:</p>
+        <div class="sample"><span>6780 · Minced</span><b>3.500 kg</b></div><div class="sample"><span>6781 · Without Bone</span><b>6.500 kg</b></div><div class="sample"><span>6777 · Recipe Issue</span><b>10.000 kg</b></div><div class="sample"><span>Wastage</span><b>0.000 kg</b></div>
+        <button id="sampleBtn" type="button" class="btn btn-outline">Load demonstration data</button>
+      </section>
+      <section class="panel"><div class="kicker">Important</div><p class="muted">The printed weight is essential. The barcode records price, not exact weight, and different nearby weights can produce the same rounded price. This page checks both, and requires you to correct missing or inconsistent values before printing.</p><p class="fineprint">All scanning and worksheet data stays in this browser. No Supabase upload or staff account is required on this scanner page.</p></section>
+    </aside>
+  </div>
+</main>
+<section id="printPaper" class="paper printonly" aria-label="Production in store paper">
+  <header class="paper-head"><h1>Production in store form</h1><h2>MEAT PRODUCTION</h2></header>
+  <table class="paper-meta"><tr><th>Plant</th><td id="ppPlant"></td><th>Date</th><td id="ppDate"></td></tr><tr><th>Section</th><td>Meat</td><th>Staff</th><td id="ppStaff"></td></tr><tr><th>Reference</th><td id="ppReference"></td><th>Process</th><td>6777 → 6780 / 6781</td></tr></table>
+  <h3>Recipe Issue (Sub Contract PO)</h3>
+  <table class="paper-table"><thead><tr><th>Barcode</th><th>Item Name</th><th>UOM</th><th>QTY</th></tr></thead><tbody><tr><td>6777</td><td>Pakistani Beef With Bone</td><td>kg</td><td id="ppIssue"></td></tr></tbody></table>
+  <h3>Recipe GRN (Bundling)</h3>
+  <table class="paper-table"><thead><tr><th>Barcode</th><th>Item Name</th><th>UOM</th><th>QTY</th></tr></thead><tbody id="ppGrn"></tbody></table>
+  <div class="paper-method" id="ppMode"></div>
+  <h3>Checked printed label details</h3>
+  <table class="paper-table"><thead><tr><th>#</th><th>Item</th><th>Weight (kg)</th><th>Unit Price (BD/kg)</th><th>Price (BD)</th><th>EAN-13</th></tr></thead><tbody id="ppLabels"></tbody></table>
+  <p class="paper-footnote">Weights and prices checked against printed scale labels and 13-digit barcodes. Barcode price is rounded; written weight controls the total. Attach original printed labels to the paper if required by store procedure.</p>
+  <div class="signature"><span>Prepared by: __________________________</span><span>Supervisor: __________________________</span></div>
+</section>
+<script src="scanner.js"></script>
+</body></html>
