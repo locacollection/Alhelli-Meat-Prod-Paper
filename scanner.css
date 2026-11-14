@@ -90,3 +90,56 @@ input:focus,select:focus{outline:2px solid #8eb49c;border-color:#448967}.mode-se
 .crop-details{font-size:13px;font-weight:800;margin:9px 0 4px;overflow-wrap:anywhere}
 .crop-caption{font-size:12px;color:#698072;line-height:1.5;margin:0}
 @media print{.crop-dialog,.label-preview-button{display:none!important}}
+
+/* Compact, read-only scan results: no editable barcode, weight or price fields. */
+.read-only-card{padding:16px 16px 14px}
+.read-only-card .label-card-head{align-items:flex-start;margin-bottom:13px}
+.label-card-heading{min-width:0;display:flex;flex-direction:column;gap:4px}
+.label-sequence{font-size:10px;font-weight:850;letter-spacing:.11em;color:#728c7a}
+.read-only-card .label-card-head h3{font-size:16px;line-height:1.36;max-width:315px}
+.read-only-card .status{flex-shrink:0;font-size:11px}
+.label-barcode-block{display:flex;flex-direction:column;gap:5px;padding:12px 13px;margin-bottom:12px;
+  background:#f5f8f5;border:1px solid #dbe7de;border-radius:12px;min-width:0}
+.label-value-title{font-size:11px;line-height:1.35;font-weight:700;color:#718578;letter-spacing:.01em}
+.label-barcode{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#1a4b36;font-weight:800;
+  font-size:clamp(17px,4.3vw,22px);letter-spacing:.025em;overflow-wrap:anywhere}
+.label-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.label-value{padding:12px 13px;border-radius:12px;border:1px solid #dce7dd;background:#fff;min-width:0}
+.label-value.weight{background:#ecf6ee;border-color:#cee5d3}
+.label-value.price{background:#f2f7ed;border-color:#dbe9cd}
+.label-value.rate{grid-column:1 / -1;background:#f8faf8}
+.label-value-number{display:flex;align-items:baseline;flex-wrap:wrap;gap:5px;margin-top:7px;color:#1c4631;
+  font-variant-numeric:tabular-nums}
+.label-value-number strong{font-size:clamp(21px,5.7vw,27px);line-height:1.05;font-weight:850}
+.label-value.rate .label-value-number strong{font-size:18px}
+.label-value-number span{font-size:12px;font-weight:750;color:#688272}
+.label-evidence{display:flex;flex-direction:column;gap:3px;padding:10px 1px 0}
+.label-evidence small{font-size:11px;line-height:1.5;color:#788d7c}
+.label-evidence .label-source-photo{overflow-wrap:anywhere;color:#819287}
+.label-validation-warning{margin:11px 0 0}
+.label-actions.read-only-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:8px;
+  margin-top:14px;padding-top:12px;border-top:1px solid #e4ece5}
+.read-only-actions .mini,.read-only-actions .closeup-upload{display:inline-flex;align-items:center;justify-content:center;
+  min-height:39px;padding:9px 11px;line-height:1.25;text-align:center}
+.read-only-actions .label-preview-button{margin:0}
+.read-only-actions .remove-label{margin-left:auto;color:#85534a}
+.read-only-actions .closeup-upload{border-radius:8px;border:1px solid #bccdc1;background:#fff}
+.manual-barcode-form{margin-top:15px;padding:15px;border:1px solid #bbd4c3;border-radius:13px;background:#f8fbf9}
+.manual-barcode-form[hidden]{display:none!important}
+.manual-barcode-form > label{display:block;margin-bottom:10px}
+.manual-barcode-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.manual-barcode-controls input{flex:1 1 195px;min-width:0}
+.manual-barcode-controls button{white-space:nowrap}
+.manual-barcode-error{font-size:13px;color:#9b3d36;font-weight:700}
+.manual-barcode-error:empty{display:none}
+@media(min-width:690px){
+  .label-overview{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .label-value.rate{grid-column:auto}
+}
+@media(max-width:440px){
+  .read-only-card{padding:13px}
+  .read-only-card .label-card-head h3{font-size:15px}
+  .label-value{padding:12px 10px}
+  .read-only-actions .mini,.read-only-actions .closeup-upload{font-size:12px}
+}
+@media print{.read-only-card,.manual-barcode-form{display:none!important}}
