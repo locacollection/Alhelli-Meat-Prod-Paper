@@ -6,6 +6,8 @@ const PRODUCT={ "6780":"Pakistani Beef Minced", "6781":"Pakistani Beef Without B
 const PREFIX={ "966780":"6780", "966781":"6781" };
 const STORAGE="alhelli-label-scanner-v2";
 const photos=[];
+const scannedPhotoKeys=new Set();
+function photoKey(f){return [f.name,f.size,f.lastModified].join(":")}
 let entries=[];
 let scanning=false;
 let seq=0;
@@ -191,7 +193,19 @@ function imgPreview(file){
 function updatePhotoQueue(){
   $("photoQueue").replaceChildren();photos.forEach(f=>$("photoQueue").append(imgPreview(f)));$("scanBtn").disabled=!photos.length||scanning;$("clearPhotos").disabled=!photos.length||scanning;
 }
-function addPhotos(files){for(const file of files){if(file.type.startsWith("image/")&&photos.length<30)photos.push(file)}updatePhotoQueue();show("scanMsg",photos.length+" photo(s) queued. Tap Scan all photos to read the labels.")}
+function addPhotos(files){
+  let count=0;
+  for(const file of files){
+    if(file.type.startsWith("image/")&&photos.length<30&&!scannedPhotoKeys.has(photoKey(file))){
+      photos.push(file);count++;
+    }
+  }
+  updatePhotoQueue();
+  if(count){
+    show("scanMsg",count+" photo(s) selected. Reading the labels automatically now...");
+    void scanPhotos();
+  }else show("scanMsg","These photos have already been scanned in this production paper. Use New production paper to start again.","warn");
+}
 function createScaledCanvas(bitmap,maxDimension=2600){
   const scale=Math.min(1,maxDimension/Math.max(bitmap.width,bitmap.height));
   const canvas=document.createElement("canvas");canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);
@@ -361,56 +375,61 @@ function fallbackBarcodesFromText(text){
 }
 async function scanPhotos(){
   if(!photos.length||scanning)return;
-  if(entries.length){if(!confirm("Start a fresh photo scan? This will replace the existing label rows (including any saved examples)."))return;entries=[];persist();render();}
-  scanning=true;updatePhotoQueue();$("scanBtn").textContent="Scanning…";
-  let detected=0;let added=0;let worker=null;let errorCount=0;
+  scanning=true;
+  const batch=photos.splice(0,photos.length);
+  $("scanBtn").textContent="Scanning…";updatePhotoQueue();
+  let added=0,auto=0,errorCount=0,worker=null;
   try{
-    for(let i=0;i<photos.length;i++){
-      const file=photos[i];show("scanMsg","Photo "+(i+1)+" of "+photos.length+": finding all visible 13-digit barcodes…");
+    for(let i=0;i<batch.length;i++){
+      const file=batch[i];
+      show("scanMsg","Scanning photo "+(i+1)+" of "+batch.length+"…");
       let bitmap=null;
       try{
         bitmap=await createImageBitmap(file);
-        const canvas=createScaledCanvas(bitmap);
-        bitmap.close();bitmap=null;
-        let regions=await detectAll(canvas);
-        let fallbackText="";
+        const canvas=createScaledCanvas(bitmap);bitmap.close();bitmap=null;
+        const regions=await detectAll(canvas);
         if(!regions.length){
-          show("scanMsg","Photo "+(i+1)+": barcode detection missed the labels. Trying printed-digit recognition…","warn");
+          show("scanMsg","No machine-readable barcodes in "+file.name+". Trying text recognition…","warn");
           try{
             if(!worker)worker=await (await loadOCR()).createWorker("eng");
-            const r=await worker.recognize(canvas);fallbackText=r.data.text||"";
-            const codes=fallbackBarcodesFromText(fallbackText);
+            const result=await worker.recognize(canvas);
+            const codes=fallbackBarcodesFromText(result.data.text||"");
             for(const code of codes){
-              addLabel({barcode:code,photoName:file.name,source:"OCR barcode only - review required"});
-              added++;
+              addLabel({barcode:code,photoName:file.name,source:"OCR barcode - needs printed weight review"});added++;
             }
-          }catch(e){errorCount++;show("scanMsg","Photo "+(i+1)+": "+e.message+" Add labels manually if necessary.","warn")}
-          continue;
+          }catch(err){errorCount++}
+        }else{
+          try{if(!worker)worker=await (await loadOCR()).createWorker("eng")}catch(err){errorCount++}
+          for(let j=0;j<regions.length;j++){
+            const region=regions[j],decoded=decode(region.barcode);
+            if(decoded.error)continue;
+            show("scanMsg","Photo "+(i+1)+"/"+batch.length+" · label "+(j+1)+"/"+regions.length+" · checking weight and price…");
+            let fields={weight:"",unit:"",printed:"",ocrProduct:null,autoReady:false};
+            if(worker){
+              try{fields=await readFieldsForBarcode(worker,canvas,region,decoded)}catch(err){errorCount++}
+            }
+            const ok=shouldAutoConfirm({barcode:region.barcode,...fields},fields.autoReady,3);
+            addLabel({barcode:region.barcode,...fields,photoName:file.name,
+              confirmed:ok,autoConfirmed:ok,
+              source:ok?"Barcode + written values auto-checked":"Needs label review"});
+            added++;if(ok)auto++;
+          }
         }
-        detected+=regions.length;
-        if(!worker)worker=await (await loadOCR()).createWorker("eng");
-        for(let j=0;j<regions.length;j++){
-          const region=regions[j];
-          const decoded=decode(region.barcode);
-          if(decoded.error)continue;
-          show("scanMsg","Photo "+(i+1)+"/"+photos.length+", label "+(j+1)+"/"+regions.length+": checking written weight and prices…");
-          let fields={weight:"",unit:"",printed:"",ocrProduct:null};
-          try{
-            fields=await readFieldsForBarcode(worker,canvas,region,decoded);
-          }catch(_){errorCount++}
-          addLabel({barcode:region.barcode,...fields,photoName:file.name,source:"BarcodeDetector + OCR"});added++;
-        }
-      }catch(e){errorCount++;show("scanMsg","Photo "+(i+1)+": "+e.message,"warn")}
+        scannedPhotoKeys.add(photoKey(file));
+      }catch(err){errorCount++;show("scanMsg","Could not process "+file.name+": "+err.message,"warn")}
       finally{bitmap?.close?.()}
     }
   }finally{
     if(worker)try{await worker.terminate()}catch(_){}
-    scanning=false;$("scanBtn").textContent="Scan all photos";updatePhotoQueue();
+    scanning=false;$("scanBtn").textContent="Retry queued photos";updatePhotoQueue();
+    render();
     show("scanMsg",added
-      ? "Found "+added+" label(s) from "+photos.length+" photo(s). Review every written weight and price below. "+(errorCount?"Some text could not be read. ":"")+"If labels were missed, add them manually."
-      :"No usable 6780/6781 barcodes were found. Try sharp, closer photos of smaller groups of labels, or add their numbers and written values manually.",added?"":"warn");
+      ? "Done: "+added+" label(s) found; "+auto+" auto-checked. "+(added-auto?((added-auto)+" need attention. "):"Ready to print after checking that every label was detected. ")+(errorCount?"Some text could not be read.":"")
+      :"No labels detected. Try a sharper image showing all stickers, or photograph smaller groups.",added?"":"warn");
+    if(photos.length)void scanPhotos();
   }
 }
+
 function td(text){const e=document.createElement("td");e.textContent=String(text);return e}
 function tr(values){const e=document.createElement("tr");values.forEach(v=>e.append(td(v)));return e}
 function preparePaper(){
@@ -441,8 +460,13 @@ $("cameraPhoto").addEventListener("change",e=>{addPhotos(e.target.files);e.targe
 $("scanBtn").addEventListener("click",scanPhotos);
 $("clearPhotos").addEventListener("click",()=>{photos.splice(0);updatePhotoQueue();show("scanMsg","Photos removed from the queue. Previously scanned label values are unchanged.")});
 $("addLabel").addEventListener("click",()=>addLabel());
-$("clearLabels").addEventListener("click",()=>{if(entries.length&&confirm("Clear all scanned and manually entered labels?")){entries=[];persist();render()}});
+$("clearLabels").addEventListener("click",()=>{
+  if(entries.length&&!confirm("Start a new production paper and clear all labels?"))return;
+  entries=[];photos.splice(0);scannedPhotoKeys.clear();persist();render();updatePhotoQueue();
+  show("scanMsg","New production paper ready. Choose photos to scan automatically.");
+});
 $("printBtn").addEventListener("click",()=>{if(paperState().error)return;preparePaper();window.print()});
+$("quickPrintBtn")?.addEventListener("click",()=>{if(paperState().error)return;preparePaper();window.print()});
 $("exportBtn").addEventListener("click",exportCsv);
 document.querySelectorAll('input[name="materialMode"]').forEach(el=>el.addEventListener("change",render));
 $("originalWeight").addEventListener("input",render);
