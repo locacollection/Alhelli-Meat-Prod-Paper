@@ -90,8 +90,8 @@ function catalogFromBarcode(barcode){
 function fromBarcode(barcode,original={}){
   const result=catalogFromBarcode(barcode);
   if(!result.ok)return {...original,barcode,confirmed:false,ocrConflict:result.reason};
-  const keepManual=Boolean(original.confirmed&&!original.autoConfirmed&&verify(original).ok);
-  if(keepManual)return {...original,barcode};
+  // The stored barcode catalog is authoritative. Older manual/OCR weights
+  // must not override its 5 g entries when reconstructing a scanned record.
   return {...original,barcode,weight:fmtKg(result.grams),unit:fmtMoney(result.unit),
     printed:fmtMoney(result.price),weightSource:"catalog",unitSource:"catalog",
     printedSource:"barcode",ocrProduct:null,ocrChecked:false,ocrConflict:"",ocrWarning:"",confirmed:true,autoConfirmed:true};
@@ -99,6 +99,7 @@ function fromBarcode(barcode,original={}){
 function matchPrintedOCR(entry,ocr={}){
   const reference=catalogFromBarcode(entry.barcode);
   if(!reference.ok)return {...entry,confirmed:false,ocrConflict:reference.reason};
+  const base=fromBarcode(entry.barcode,{photoName:entry.photoName,source:entry.source});
   const differences=[],reads=[];
   for(const [field,expected] of [["weight",reference.grams],["unit",reference.unit],["printed",reference.price]]){
     const raw=String(ocr[field]??"").trim();
@@ -111,26 +112,24 @@ function matchPrintedOCR(entry,ocr={}){
   // A possible mismatch in the product category needs review because it can
   // change the Recipe GRN code (6780 vs 6781).
   if(ocr.ocrProduct && ocr.ocrProduct!==reference.info.code)
-    return {...entry,confirmed:false,autoConfirmed:false,ocrChecked:false,ocrWarning:"",
+    return {...base,confirmed:false,autoConfirmed:false,ocrChecked:false,ocrWarning:"",
       ocrConflict:"Product category differs: barcode identifies "+PRODUCT[reference.info.code]+
       ", but photo text looks like "+PRODUCT[ocr.ocrProduct]+". Check the barcode."};
   // The barcode is authoritative for price. OCR may read 3.105 as 3.108.
-  const result={...entry,confirmed:true,autoConfirmed:true,ocrConflict:"",
+  const result={...base,confirmed:true,autoConfirmed:true,ocrConflict:"",
     ocrChecked:reads.length>0&&differences.length===0,
     ocrWarning:differences.length?"Possible photo-reading mistake: "+differences.join("; ")+". Barcode values kept.":"",
     source:differences.length?"Barcode used; OCR warning":"Barcode-derived"};
-  if(reads.includes("weight")&&!differences.length){
-    const grams=fixed3(ocr.weight);
-    if(grams!==null&&grams!==reference.grams&&roundedPrice(grams,reference.unit)===reference.price){
-      result.weight=fmtKg(grams);result.weightSource="ocr";
-    }else result.weightSource="catalog";
-  }
+  // OCR is strictly a second opinion. Never replace catalog weight/price
+  // with photo text, even if a 1 g weight rounds to the same barcode price.
   return result;
 }
 function verify(entry){
   if(entry.ocrConflict)return {ok:false,reason:entry.ocrConflict};
   const info=decode(entry.barcode);
   if(info.error)return {ok:false,reason:info.error};
+  const catalog=catalogFromBarcode(entry.barcode);
+  if(!catalog.ok)return {ok:false,reason:catalog.reason};
   const grams=fixed3(entry.weight);
   if(grams===null||grams<1||grams>10000){
     const missing=!String(entry.weight??"").trim();
@@ -141,10 +140,17 @@ function verify(entry){
     }
     return {ok:false,reason:"The printed weight is invalid. Enter the exact number from the label, between 0.001 and 10.000 kg."};
   }
+  if(grams%5!==0){
+    return {ok:false,reason:"Only 0.005 kg increments are valid in this barcode catalog. Use the scanned barcode's catalog weight, not an OCR weight."};
+  }
+  if(grams!==catalog.grams){
+    return {ok:false,reason:"Weight differs from the stored barcode catalog: "+fmtKg(catalog.grams)+" kg. Recheck the label."};
+  }
   const unit=fixed3(entry.unit);
-  if(unit===null||unit<=0)return {ok:false,reason:"Read or enter the unit price printed on the label."};
+  if(unit===null||unit<=0)return {ok:false,reason:"Unit price missing."};
+  if(unit!==catalog.unit)return {ok:false,reason:"Unit price differs from the saved catalog rate ("+fmtMoney(catalog.unit)+" BD/kg)."};
   const printed=fixed3(entry.printed);
-  if(printed===null||printed<0)return {ok:false,reason:"Read or enter the total price printed on the label."};
+  if(printed===null||printed<0)return {ok:false,reason:"Total price missing."};
   if(printed!==info.price)return {ok:false,reason:"Printed total "+fmtMoney(printed)+" BD does not match this barcode\u0027s "+fmtMoney(info.price)+" BD. This number may belong to another sticker. Recheck the total printed on THIS label."};
   const expected=roundedPrice(grams,unit);
   if(expected!==info.price)return {ok:false,reason:"Weight "+fmtKg(grams)+" kg × "+fmtMoney(unit)+" BD/kg rounds to "+fmtMoney(expected)+" BD, but the barcode encodes "+fmtMoney(info.price)+" BD. Check that the weight is from the SAME label."};
@@ -156,7 +162,7 @@ function verify(entry){
   return {ok:true,info,grams,unit,printed};
 }
 function persist(){
-  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source})=>({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
+  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source})=>({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
 }
 function restore(){
   try{
@@ -165,8 +171,8 @@ function restore(){
     entries=saved.slice(0,250).filter(x=>x&&typeof x.barcode==="string").map(x=>{
       const old={...x,id:makeId(),barcode:String(x.barcode||""),weight:String(x.weight||""),
         unit:String(x.unit||""),printed:String(x.printed||""),photoName:String(x.photoName||"")};
-      if(x.confirmed&&!x.autoConfirmed&&verify(old).ok)return old;
-      // Older OCR values were sometimes borrowed from an adjacent sticker.
+      // Older OCR and manual values may be wrong or off the 5 g grid.
+      // Always restore the scanned barcode's catalog weight and price.
       // Reconstruct their 5 g catalog figures instead.
       return fromBarcode(old.barcode,old);
     });
@@ -188,9 +194,9 @@ function buildRow(entry,i){
   const fields=document.createElement("div");fields.className="label-fields";
   for(const [name,key,placeholder,cls] of [
     ["13-digit barcode","barcode","Enter the actual 13 digits","wide"],
-    ["Printed weight (kg) *","weight","Enter weight, e.g. 1.000",""],
-    ["Unit price (BD/kg) *","unit","Enter price per kg",""],
-    ["Printed total price (BD) *","printed","Enter total price",""]
+    ["Catalog weight (kg) *","weight","From barcode, e.g. 1.000",""],
+    ["Catalog unit price (BD/kg) *","unit","From saved product rate",""],
+    ["Barcode total price (BD) *","printed","From barcode",""]
   ]){
     fields.append(field(name,entry[key],placeholder,v=>{
       entry[key]=v;entry.confirmed=false;entry.autoConfirmed=false;entry.ocrConflict="";entry.ocrWarning="";
@@ -317,7 +323,7 @@ function refreshSummary(){
 }
 function addLabel(entry={}){
   const barcode=String(entry.barcode||"").replace(/\s/g,"");
-  const derived=barcode&&!entry.weight?fromBarcode(barcode,entry):{...entry,barcode};
+  const derived=barcode?fromBarcode(barcode,entry):{...entry,barcode};
   entries.push({id:makeId(),barcode,weight:derived.weight||"",weightSource:derived.weightSource||"manual",
     unit:derived.unit||"",unitSource:derived.unitSource||"manual",
     printed:derived.printed||"",printedSource:derived.printedSource||"manual",
