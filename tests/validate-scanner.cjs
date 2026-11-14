@@ -15,7 +15,7 @@ const elements = new Map();
 const getId=id=>{if(!elements.has(id))elements.set(id,new FakeElement());return elements.get(id)};
 const doc = {
   getElementById:getId,
-  createElement:()=>new FakeElement(),
+  createElement:(tag)=>{const e=new FakeElement();e.tagName=String(tag).toUpperCase();return e},
   querySelector:(q)=>q.includes("materialMode")?{value:"no-bones",checked:true}:new FakeElement(),
   querySelectorAll:()=>[]
 };
@@ -266,6 +266,24 @@ const beforeImageTotal=totals().m;
   assert.equal(persisted[persisted.length-2].cropKey,stickerA.cropKey);
   assert.equal(persisted[persisted.length-1].cropKey,stickerB.cropKey);
   assert.equal(JSON.stringify(persisted).includes("blob:label-"),false);
+  const readOnlyCard=buildRow(fromBarcode("9667800031057"),1);
+  const elements=(node)=>[node,...(node.children||[]).flatMap(elements)];
+  const readOnlyNodes=elements(readOnlyCard);
+  assert.ok(readOnlyNodes.some(node=>node.className==="label-barcode"&&node.textContent==="9667800031057"));
+  assert.ok(readOnlyNodes.some(node=>node.className==="label-value-number"),"Card must display values as text");
+  assert.ok(readOnlyNodes.some(node=>node.tagName==="STRONG"&&node.textContent==="0.690"));
+  assert.ok(readOnlyNodes.some(node=>node.tagName==="STRONG"&&node.textContent==="3.105"));
+  assert.ok(readOnlyNodes.some(node=>node.tagName==="STRONG"&&node.textContent==="4.500"));
+  assert.equal(readOnlyNodes.filter(node=>node.tagName==="INPUT"&&node.type==="text").length,0,
+    "There must be no editable text boxes in any label card");
+  assert.equal(readOnlyNodes.filter(node=>node.tagName==="INPUT"&&node.type==="number").length,0,
+    "There must be no editable number boxes in any label card");
+  assert.ok(readOnlyNodes.some(node=>node.className==="mini label-preview-button"),
+    "Preview remains available on the read-only card");
+  const website=fs.readFileSync("index.html","utf8");
+  assert.ok(website.includes('id="manualBarcodeForm"'),"Manual barcode-only form should remain available");
+  assert.ok(website.includes('id="manualBarcode"'));
+  console.log("Read-only card tests passed: barcode and numeric results shown without editable input fields.");
   const previewCard=buildRow(stickerA,0);
   const previewButton=previewCard.children.find(el=>el.className==="mini label-preview-button");
   assert.ok(previewButton,"Each label should have exactly one preview button");
