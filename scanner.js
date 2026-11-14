@@ -537,6 +537,7 @@ function render(){
     }
   }
   refreshSummary();
+  updateManualSheetOptions();
 }
 function refreshSummary(){
   $("labelCount").textContent=entries.length+" label"+(entries.length===1?"":"s");
@@ -578,6 +579,74 @@ function addLabel(entry={}){
     confirmed:!!derived.confirmed,autoConfirmed:!!derived.autoConfirmed,source:derived.source||"manual"});
   persist();render();
   return entries[entries.length-1];
+}
+function updateManualSheetOptions(){
+  const select=$("manualSource");
+  const old=String(select.value||"normal");
+  select.replaceChildren();
+  const options=[["normal","Normal production (6780 / 6781)"],["bone-new","New bone-in sheet (start with 6777)"]];
+  const ids=new Set();
+  for(const e of entries)if(sourceKind(e)==="bone"&&e.sheetId)ids.add(e.sheetId);
+  for(const id of ids)options.push(["bone:"+id,"Bone-in: "+id]);
+  for(const [value,name] of options){
+    const option=document.createElement("option");
+    option.value=value;option.textContent=name;select.append(option);
+  }
+  select.value=options.some(([id])=>id===old)?old:"normal";
+  updateManualInsertionOptions();
+}
+function updateManualInsertionOptions(){
+  const kind=String($("manualSource").value||"normal");
+  const block=$("manualInsertBlock"),list=$("manualInsert");
+  const current=list.value||"end";
+  block.hidden=!kind.startsWith("bone:");
+  list.replaceChildren();
+  const items=[["end","After last label"]];
+  if(kind.startsWith("bone:")){
+    const sheetId=kind.slice(5);
+    items.push(["start","Before first label"]);
+    for(const e of entries.filter(x=>sourceKind(x)==="bone"&&x.sheetId===sheetId)){
+      items.push(["after:"+e.id,"After "+decode(e.barcode).code+" · "+e.weight+" kg"]);
+    }
+  }
+  for(const [value,name] of items){
+    const option=document.createElement("option");option.value=value;option.textContent=name;list.append(option);
+  }
+  list.value=items.some(([v])=>v===current)?current:"end";
+}
+function insertManualEntry(barcode){
+  const decoded=decode(barcode);
+  if(decoded.error)return {error:decoded.error};
+  const selected=String($("manualSource").value||"normal");
+  const kind=selected==="normal"?"normal":"bone";
+  if(kind==="normal"&&decoded.code==="6777")
+    return {error:"6777 original stickers belong to a separate bone-in sheet. Select a bone-in source."};
+  if(selected==="bone-new"&&decoded.code!=="6777")
+    return {error:"A new bone-in sheet must begin with the original 6777 label."};
+  const sheetId=kind==="normal"?"":selected==="bone-new"?
+    "Bone-in manual #"+createCropKey().slice(-6):selected.slice(5);
+  const entry=addLabel({barcode,kind,sheetId,source:"Manual barcode entry"});
+  if(kind==="bone"&&selected.startsWith("bone:")){
+    const position=$("manualInsert").value;
+    if(position==="start"||position.startsWith("after:")){
+      entries=entries.filter(x=>x!==entry);
+      let index=0;
+      if(position==="start"){
+        index=entries.findIndex(x=>sourceKind(x)==="bone"&&x.sheetId===sheetId);
+        if(index<0)index=entries.length;
+      }else{
+        const id=Number(position.slice(6));index=entries.findIndex(x=>x.id===id);
+        index=index<0?entries.length:index+1;
+      }
+      entries.splice(index,0,entry);
+    }
+  }
+  persist();render();
+  if(kind==="bone"){
+    $("manualSource").value="bone:"+sheetId;
+    updateManualInsertionOptions();
+  }
+  return {entry};
 }
 function imgPreview(job){
   const file=job.file;
@@ -801,6 +870,17 @@ async function scanPhotos(){
         bitmap=await createImageBitmap(file);
         const canvas=createScaledCanvas(bitmap);bitmap.close();bitmap=null;
         const regions=await detectAll(canvas);
+        const containsOriginal=regions.some(r=>decode(r.barcode).code==="6777");
+        const effectiveKind=containsOriginal?"bone":kind;
+        if(containsOriginal&&kind==="normal"){
+          show("scanMsg","Detected a 6777 original label. Automatically treating this photo as a bone-in sheet.");
+        }
+        if(!regions.length&&kind==="bone"){
+          errors++;
+          show("scanMsg","Could not read barcode positions on bone-in sheet "+file.name+
+            ". Please take a closer photo: the 6777-to-6780 order must be confirmed.","warn");
+          continue;
+        }
         if(!regions.length){
           // OCR fallback is not the primary scanning path. A correctly read 13
           // digit number still uses the barcode catalog to resolve its weight.
@@ -808,7 +888,7 @@ async function scanPhotos(){
             if(!worker)worker=await(await loadOCR()).createWorker("eng");
             const text=(await worker.recognize(canvas)).data.text||"";
             for(const code of fallbackBarcodesFromText(text)){
-              const entry=addLabel({barcode:code,kind,sheetId,photoName:file.name,source:"OCR barcode fallback"});
+              const entry=addLabel({barcode:code,kind:effectiveKind,sheetId,photoName:file.name,source:"OCR barcode fallback"});
               added++;if(entry.confirmed)ready++;else review++;
             }
           }catch(err){errors++}
@@ -817,7 +897,7 @@ async function scanPhotos(){
             const region=regions[j],decoded=decode(region.barcode);
             if(decoded.error)continue;
             // PRIMARY: Add barcode and catalog-derived weight before OCR starts.
-            const entry=addLabel({barcode:region.barcode,kind,sheetId,photoName:file.name,source:"Barcode + 5 g catalog"});
+            const entry=addLabel({barcode:region.barcode,kind:effectiveKind,sheetId,photoName:file.name,source:"Barcode + 5 g catalog"});
             // Crop directly from the detected BARCODE position. Never use the
             // barcode digits as an image key because different stickers repeat.
             try{
@@ -892,8 +972,10 @@ function exportCsv(){
 }
 $("cropClose").addEventListener("click",closeEntryPreview);
 $("cropDialog").addEventListener("click",e=>{if(e.target===$("cropDialog"))closeEntryPreview()});
-$("sheetPhotos").addEventListener("change",e=>{addPhotos(e.target.files);e.target.value=""});
-$("cameraPhoto").addEventListener("change",e=>{addPhotos(e.target.files);e.target.value=""});
+$("sheetPhotos").addEventListener("change",e=>{addPhotos(e.target.files,"normal");e.target.value=""});
+$("cameraPhoto").addEventListener("change",e=>{addPhotos(e.target.files,"normal");e.target.value=""});
+$("bonePhotos").addEventListener("change",e=>{addPhotos(e.target.files,"bone");e.target.value=""});
+$("boneCamera").addEventListener("change",e=>{addPhotos(e.target.files,"bone");e.target.value=""});
 $("scanBtn").addEventListener("click",scanPhotos);
 $("clearPhotos").addEventListener("click",()=>{photos.splice(0);updatePhotoQueue();show("scanMsg","Photos removed from the queue. Previously scanned label values are unchanged.")});
 $("addLabel").addEventListener("click",()=>{
@@ -902,12 +984,14 @@ $("addLabel").addEventListener("click",()=>{
   $("manualBarcodeError").textContent="";
   if(!form.hidden)$("manualBarcode").focus();
 });
+$("manualSource").addEventListener("change",updateManualInsertionOptions);
 $("manualBarcodeForm").addEventListener("submit",event=>{
   event.preventDefault();
   const raw=$("manualBarcode").value.replace(/\s/g,"");
-  const result=catalogFromBarcode(raw);
-  if(!result.ok){$("manualBarcodeError").textContent=result.reason;return}
-  addLabel({barcode:raw,source:"Manual barcode entry"});
+  const lookup=catalogFromBarcode(raw);
+  if(!lookup.ok){$("manualBarcodeError").textContent=lookup.reason;return}
+  const result=insertManualEntry(raw);
+  if(result.error){$("manualBarcodeError").textContent=result.error;return}
   $("manualBarcode").value="";
   $("manualBarcodeError").textContent="";
   $("manualBarcodeForm").hidden=true;
@@ -937,16 +1021,23 @@ $("exportBtn").addEventListener("click",exportCsv);
 document.querySelectorAll('input[name="materialMode"]').forEach(el=>el.addEventListener("change",render));
 $("originalWeight").addEventListener("input",render);
 $("sampleBtn").addEventListener("click",()=>{
-  if(entries.length&&!confirm("Replace all current labels with demonstration values?"))return;
-  clearAllCrops(entries);entries=[];document.querySelector('input[name="materialMode"][value="no-bones"]').checked=true;
+  if(entries.length&&!confirm("Replace your current production with example data?"))return;
+  clearAllCrops(entries);entries=[];
   const sample=[
-    {barcode:"9667806157508",weight:"3.500",unit:"4.500",printed:"15.750"},
-    {barcode:"9667818292501",weight:"6.500",unit:"4.500",printed:"29.250"}
+    {item:"6780",grams:2000,kind:"normal",sheetId:"Normal example"},
+    {item:"6781",grams:6000,kind:"normal",sheetId:"Normal example"},
+    {item:"6777",grams:5000,kind:"bone",sheetId:"Bone-in example"},
+    {item:"6780",grams:3000,kind:"bone",sheetId:"Bone-in example"}
   ];
-  // These examples are only demonstrations; verify the barcodes before use.
-  for(const s of sample)addLabel({...s,source:"demo"});render();show("scanMsg","Demonstration rows loaded. They are not confirmed real labels. Review and confirm each barcode and printed price before producing a paper.","warn");
+  for(const row of sample){
+    addLabel({barcode:encodeFromPrinted(row.item,row.grams,RATE[row.item]),
+      kind:row.kind,sheetId:row.sheetId,source:"Demonstration only"});
+  }
+  render();
+  show("scanMsg","Combined example loaded: 6777 issue 13.000 kg, minced 5.000 kg, boneless 6.000 kg, wastage 2.000 kg. These are demonstration numbers, not actual stock records.","warn");
 });
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop};
+
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 restore();render();void recoverLabelCrops();
 })();
