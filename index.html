@@ -6,34 +6,34 @@
 <meta name="theme-color" content="#183c32">
 <meta name="description" content="Scan printed minced and boneless beef labels, double-check price and weight, and prepare Recipe Issue and GRN production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=label-review-2">
+<link rel="stylesheet" href="scanner.css?v=auto-batch-1">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong><small>Label-based production paper</small></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
 <main class="container noprint">
-  <div class="intro"><span class="kicker">Recipe Issue + Recipe GRN</span><h1>Turn your printed labels into a production paper</h1><p>Photograph all the minced (6780) and boneless (6781) labels attached to your plastic sheet. The tool reads each barcode, tries to read its printed weight and prices, and highlights anything that needs checking.</p></div>
+  <div class="intro"><span class="kicker">Recipe Issue + Recipe GRN</span><h1>Scan labels. Get your production paper.</h1><p>Take a photo of your sticker sheet. The scanner automatically identifies minced (6780) and boneless (6781) labels, checks their written weights and prices against the barcodes, and totals the production paper. Only unclear labels need attention.</p></div>
 
   <div class="workgrid">
     <div class="maincol">
       <section class="panel">
-        <div class="section-top"><div><span class="kicker">Step 1</span><h2>Scan the label sheet</h2></div><span class="tag">Multiple labels</span></div>
+        <div class="section-top"><div><span class="kicker">Step 1</span><h2>Upload and scan automatically</h2></div><span class="tag">Multiple labels</span></div>
         <div class="upload-area">
           <div class="upload-symbol">▣</div>
           <p class="upload-title">Add clear photos of the sticker sheet</p>
-          <p class="muted">Include every printed weight, unit price, total price and barcode. The scanner starts a fresh batch when you scan new photos.</p>
-          <div class="buttons"><label class="btn" for="sheetPhotos">Choose photos<input id="sheetPhotos" type="file" accept="image/*" multiple hidden></label><label class="btn btn-light" for="cameraPhoto">Take photo<input id="cameraPhoto" type="file" accept="image/*" capture="environment" hidden></label></div>
+          <p class="muted">Include every printed weight, unit price, total price and barcode. You can scan multiple photos of the same production batch.</p>
+          <div class="buttons"><label class="btn" for="sheetPhotos">Scan photos<input id="sheetPhotos" type="file" accept="image/*" multiple hidden></label><label class="btn btn-light" for="cameraPhoto">Use camera<input id="cameraPhoto" type="file" accept="image/*" capture="environment" hidden></label></div>
         </div>
         <div id="photoQueue" class="photo-queue"></div>
-        <div class="buttons"><button id="scanBtn" class="btn" type="button" disabled>Scan all photos</button><button id="clearPhotos" class="btn btn-light" type="button" disabled>Remove photos</button></div>
-        <div id="scanMsg" class="message" role="status" aria-live="polite">No photos selected yet. Barcode/photo recognition runs on your device. Photos are not uploaded.</div>
+        <div class="buttons"><button id="quickPrintBtn" class="btn" type="button" disabled>Print production paper</button><button id="scanBtn" class="btn btn-light" type="button" disabled>Retry queued photos</button><button id="clearPhotos" class="btn btn-outline" type="button" disabled>Remove queued photos</button></div>
+        <div id="scanMsg" class="message" role="status" aria-live="polite">Choose a photo or open the camera. Scanning starts automatically on your device. Photos are not uploaded.</div>
         <p class="fineprint">For best results, keep labels straight, well lit and fully readable. Missed or unclear labels can be added manually below. Never rely on a barcode alone for the exact weight.</p>
       </section>
 
       <section class="panel">
-        <div class="section-top"><div><span class="kicker">Step 2</span><h2>Review every detected label</h2></div><span id="labelCount" class="tag">0 labels</span></div>
-        <p class="muted">For every label, confirm that the 13-digit barcode, printed weight, printed unit price and printed total price agree. You can correct OCR mistakes here.</p>
+        <div class="section-top"><div><span class="kicker">Step 2</span><h2>Automatic label checks</h2></div><span id="labelCount" class="tag">0 labels</span></div>
+        <p class="muted">Labels whose barcode and all three written numbers agree are accepted automatically. Only unclear or mismatched labels appear for review. Check the number of detected stickers before printing.</p>
         <div id="labels" class="labels"><p class="empty">No labels yet. Scan your photos or add a missing label manually.</p></div>
-        <div class="buttons"><button id="addLabel" type="button" class="btn btn-light">+ Add missing label manually</button><button id="clearLabels" type="button" class="btn btn-outline">Clear all labels</button></div>
+        <div class="buttons"><button id="addLabel" type="button" class="btn btn-light">+ Add unreadable label</button><button id="clearLabels" type="button" class="btn btn-outline">New production paper</button></div>
       </section>
 
       <section class="panel">
@@ -84,5 +84,5 @@
   <p class="paper-footnote">Weights and prices checked against printed scale labels and 13-digit barcodes. Barcode price is rounded; written weight controls the total. Attach original printed labels to the paper if required by store procedure.</p>
   <div class="signature"><span>Prepared by: __________________________</span><span>Supervisor: __________________________</span></div>
 </section>
-<script src="scanner.js?v=label-review-2"></script>
+<script src="scanner.js?v=auto-batch-1"></script>
 </body></html>
