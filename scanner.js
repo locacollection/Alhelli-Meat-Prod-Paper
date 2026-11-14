@@ -9,6 +9,7 @@ const photos=[];
 const scannedPhotoKeys=new Set();
 const CROPS_DB="meat-production-label-crops-v1";
 let cropDbPromise=null;
+let initialCropCleanup=null;
 let cropNumber=0;
 function createCropKey(){
   return "label-"+Date.now().toString(36)+"-"+(++cropNumber).toString(36)+"-"+Math.random().toString(36).slice(2,9);
@@ -194,7 +195,7 @@ function cropStoreAction(operation,key,blob){
       const tx=db.transaction("labels",operation==="get"?"readonly":"readwrite");
       const store=tx.objectStore("labels");
       const req=operation==="put"?store.put(blob,key):
-        operation==="delete"?store.delete(key):store.get(key);
+        operation==="delete"?store.delete(key):operation==="clear"?store.clear():store.get(key);
       let result=null;
       req.onsuccess=()=>{result=req.result||null};
       req.onerror=()=>resolve(null);
@@ -223,20 +224,10 @@ async function keepLabelCrop(entry,blob,kind="auto"){
   persist();render();
   // Persistence may be blocked by browser storage settings. The session
   // image still works, and the UI never falsely claims cloud backup.
+  // Wait for previous-page crop cleanup so a fast new scan is never erased.
+  if(initialCropCleanup)await initialCropCleanup;
   const saved=await cropStoreAction("put",entry.cropKey,blob);
   if(!saved)entry.cropTemporary=true;
-}
-async function recoverLabelCrops(){
-  const records=entries.filter(e=>e.cropKey);
-  if(!records.length)return;
-  await Promise.all(records.map(async entry=>{
-    const blob=await cropStoreAction("get",entry.cropKey);
-    if(blob&&entries.includes(entry)){
-      if(entry.cropUrl)URL.revokeObjectURL(entry.cropUrl);
-      entry.cropUrl=URL.createObjectURL(blob);
-    }
-  }));
-  render();
 }
 function labelCropBounds(canvas,region,regions=[]){
   const w=Math.max(85,Number(region.w)||85),h=Math.max(12,Number(region.h)||12);
@@ -321,20 +312,18 @@ function closeEntryPreview(){
 function persist(){
   try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source,cropKey,cropKind,kind,sheetId})=>({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source,cropKey,cropKind,kind,sheetId}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
 }
-function restore(){
-  try{
-    const saved=JSON.parse(localStorage.getItem(STORAGE)||"[]");
-    if(!Array.isArray(saved))return;
-    entries=saved.slice(0,250).filter(x=>x&&typeof x.barcode==="string").map(x=>{
-      const old={...x,id:makeId(),kind:x.kind==="bone"?"bone":"normal",sheetId:String(x.sheetId||""),barcode:String(x.barcode||""),weight:String(x.weight||""),
-        unit:String(x.unit||""),printed:String(x.printed||""),photoName:String(x.photoName||"")};
-      // Older OCR and manual values may be wrong or off the 5 g grid.
-      // Always restore the scanned barcode's catalog weight and price.
-      // Reconstruct their 5 g catalog figures instead.
-      return fromBarcode(old.barcode,old);
-    });
-  }catch(_){}
+function startBlankSheet(){
+  // Refresh always begins a new production paper. Never restore labels
+  // from an earlier page load, even when a previous scan was incomplete.
+  entries=[];
+  photos.splice(0);
+  scannedPhotoKeys.clear();
+  try{localStorage.removeItem(STORAGE)}catch(_){}
+  // Cropped sticker images were formerly saved in IndexedDB. Delete them
+  // too so old sheets are not left in device storage or brought back later.
+  initialCropCleanup=cropStoreAction("clear");
 }
+
 function createLabelValue(title,value,unit,className){
   const item=document.createElement("div");item.className="label-value "+className;
   const name=document.createElement("span");name.className="label-value-title";name.textContent=title;
@@ -1049,5 +1038,5 @@ $("exportBtn").addEventListener("click",exportCsv);
 
 window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,addPhotos};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
-restore();render();void recoverLabelCrops();
+startBlankSheet();render();updatePhotoQueue();
 })();
