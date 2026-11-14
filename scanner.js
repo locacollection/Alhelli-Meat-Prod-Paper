@@ -105,7 +105,7 @@ function fromBarcode(barcode,original={}){
 function matchPrintedOCR(entry,ocr={}){
   const reference=catalogFromBarcode(entry.barcode);
   if(!reference.ok)return {...entry,confirmed:false,ocrConflict:reference.reason};
-  const base=fromBarcode(entry.barcode,{photoName:entry.photoName,source:entry.source});
+  const base=fromBarcode(entry.barcode,entry);
   const differences=[],reads=[];
   for(const [field,expected] of [["weight",reference.grams],["unit",reference.unit],["printed",reference.price]]){
     const raw=String(ocr[field]??"").trim();
@@ -348,6 +348,12 @@ function buildRow(entry,i){
   const head=document.createElement("div");head.className="label-card-head";
   const title=document.createElement("h3");title.textContent="Label "+(i+1)+" · "+(decode(entry.barcode).code?PRODUCT[decode(entry.barcode).code]:"Check barcode");
   head.append(title,chip(status.ok?(entry.confirmed?"Confirmed":"Ready to confirm"):"Needs review","status"));box.append(head);
+  if(entry.cropUrl){
+    const picture=document.createElement("button");picture.type="button";picture.className="label-crop-inline";
+    picture.setAttribute("aria-label","Enlarge cropped sticker for barcode "+entry.barcode);
+    const img=document.createElement("img");img.src=entry.cropUrl;img.alt="Original label crop for "+entry.barcode;img.loading="lazy";
+    picture.append(img);picture.addEventListener("click",()=>previewEntryCrop(entry));box.append(picture);
+  }
   const fields=document.createElement("div");fields.className="label-fields";
   for(const [name,key,placeholder,cls] of [
     ["13-digit barcode","barcode","Enter the actual 13 digits","wide"],
@@ -391,17 +397,22 @@ function buildRow(entry,i){
   if(entry.ocrConflict&&catalogFromBarcode(entry.barcode).ok){
     const keep=document.createElement("button");keep.type="button";keep.className="mini";
     keep.textContent="Keep barcode values";keep.onclick=()=>{
-      Object.assign(entry,fromBarcode(entry.barcode,{photoName:entry.photoName,source:"Barcode value accepted after OCR mismatch"}));
+      Object.assign(entry,fromBarcode(entry.barcode,{...entry,source:"Barcode value accepted after OCR mismatch"}));
       persist();render();
     };
     wrap.append(keep);
   }
   const confirm=document.createElement("button");confirm.type="button";confirm.className="mini";confirm.dataset.confirm="1";confirm.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";confirm.disabled=!status.ok||entry.confirmed;confirm.addEventListener("click",()=>{entry.confirmed=true;entry.autoConfirmed=false;persist();render()});
-  const remove=document.createElement("button");remove.type="button";remove.className="mini";remove.textContent="Remove";remove.addEventListener("click",()=>{entries=entries.filter(x=>x.id!==entry.id);persist();render()});
+  const remove=document.createElement("button");remove.type="button";remove.className="mini";remove.textContent="Remove";remove.addEventListener("click",()=>{clearEntryCrop(entry);entries=entries.filter(x=>x.id!==entry.id);persist();render()});
   const closeup=document.createElement("label");closeup.className="mini closeup-upload";closeup.textContent="Re-read close-up";
   const choose=document.createElement("input");choose.type="file";choose.accept="image/*";choose.hidden=true;
   choose.addEventListener("change",()=>{const file=choose.files?.[0];if(file)readLabelCloseup(file,entry);choose.value=""});
-  closeup.append(choose);wrap.append(confirm,closeup,remove);actions.append(source,wrap);box.append(actions);return box;
+  closeup.append(choose);
+  const attach=document.createElement("label");attach.className="mini closeup-upload";attach.textContent=entry.cropUrl?"Replace photo":"Attach label photo";
+  const attachInput=document.createElement("input");attachInput.type="file";attachInput.accept="image/*";attachInput.hidden=true;
+  attachInput.addEventListener("change",()=>{const f=attachInput.files?.[0];if(f)void attachLabelFromFile(f,entry);attachInput.value=""});
+  attach.append(attachInput);
+  wrap.append(confirm,closeup,attach,remove);actions.append(source,wrap);box.append(actions);return box;
 }
 function mode(){return document.querySelector('input[name="materialMode"]:checked')?.value||"no-bones"}
 function totals(){
@@ -440,6 +451,40 @@ function refreshRow(box,entry){
   button.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";
   button.disabled=!v.ok||entry.confirmed;
 }
+function createReviewTile(entry,index){
+  const item=document.createElement("div");item.className="scan-tile";
+  const visual=document.createElement("div");visual.className="scan-tile-visual";
+  if(entry.cropUrl){
+    const zoom=document.createElement("button");zoom.type="button";
+    zoom.className="scan-thumbnail";zoom.setAttribute("aria-label","View scanned label "+(index+1));
+    const img=document.createElement("img");img.src=entry.cropUrl;img.alt="Cropped printed label for "+entry.barcode;
+    img.loading="lazy";zoom.append(img);
+    zoom.addEventListener("click",()=>previewEntryCrop(entry));visual.append(zoom);
+  }else{
+    const missing=document.createElement("div");missing.className="scan-no-photo";
+    missing.textContent=entry.photoName?"Crop unavailable":"No label photo";visual.append(missing);
+  }
+  item.append(visual);
+  const info=document.createElement("div");info.className="scan-tile-info";
+  const code=decode(entry.barcode).code;
+  const heading=document.createElement("strong");heading.textContent="Label "+(index+1)+" · "+(code||"Unknown");
+  const barcode=document.createElement("code");barcode.textContent=entry.barcode||"No barcode";
+  const number=document.createElement("span");number.className="scan-tile-weight";
+  number.textContent=(entry.weight||"—")+" kg · "+(entry.printed||"—")+" BD";
+  const status=document.createElement("small");status.className=entry.confirmed&&verify(entry).ok?"scan-ok":"scan-review";
+  status.textContent=entry.confirmed&&verify(entry).ok?"Barcode checked":"Needs review";
+  info.append(heading,barcode,number,status);
+  if(!entry.cropUrl){
+    const label=document.createElement("label");label.className="scan-attach-mini";
+    label.textContent="Attach cropped photo";
+    const input=document.createElement("input");input.type="file";input.accept="image/*";input.hidden=true;
+    input.addEventListener("change",()=>{const f=input.files?.[0];if(f)void attachLabelFromFile(f,entry);input.value=""});
+    label.append(input);info.append(label);
+  }
+  item.append(info);
+  return item;
+}
+
 function render(){
   const container=$("labels");container.replaceChildren();
   if(!entries.length){
@@ -447,6 +492,9 @@ function render(){
     p.textContent="No labels yet. Choose a label-sheet photo to scan automatically.";
     container.append(p);
   }else{
+    const gallery=document.createElement("div");gallery.className="scan-gallery";
+    entries.forEach((entry,index)=>gallery.append(createReviewTile(entry,index)));
+    container.append(gallery);
     const ready=[],needsReview=[];
     entries.forEach((entry,index)=>((entry.confirmed&&verify(entry).ok)?ready:needsReview).push({entry,index}));
     if(ready.length){
@@ -664,6 +712,7 @@ async function readLabelCloseup(file,entry){
         }
       }catch(_){}
     }
+    await attachLabelFromFile(file,entry);
     worker=await(await loadOCR()).createWorker("eng");
     const result=await worker.recognize(file);
     const textFields=ocrFields(result.data.text||"",known);
@@ -714,6 +763,12 @@ async function scanPhotos(){
             if(decoded.error)continue;
             // PRIMARY: Add barcode and catalog-derived weight before OCR starts.
             const entry=addLabel({barcode:region.barcode,photoName:file.name,source:"Barcode + 5 g catalog"});
+            // Crop directly from the detected BARCODE position. Never use the
+            // barcode digits as an image key because different stickers repeat.
+            try{
+              const cropped=await croppedLabelBlob(canvas,region,regions);
+              if(cropped)await keepLabelCrop(entry,cropped);
+            }catch(err){errors++}
             added++;
             if(entry.confirmed)ready++;else review++;
             show("scanMsg","Read barcode "+(j+1)+"/"+regions.length+" in photo "+(i+1)+". Checking visible text only as a backup…");
@@ -779,6 +834,8 @@ function exportCsv(){
   const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
   const a=document.createElement("a");a.href=url;a.download="meat-production-verified-"+($("date").value||"paper")+".csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+$("cropClose").addEventListener("click",closeEntryPreview);
+$("cropDialog").addEventListener("click",e=>{if(e.target===$("cropDialog"))closeEntryPreview()});
 $("sheetPhotos").addEventListener("change",e=>{addPhotos(e.target.files);e.target.value=""});
 $("cameraPhoto").addEventListener("change",e=>{addPhotos(e.target.files);e.target.value=""});
 $("scanBtn").addEventListener("click",scanPhotos);
@@ -786,7 +843,7 @@ $("clearPhotos").addEventListener("click",()=>{photos.splice(0);updatePhotoQueue
 $("addLabel").addEventListener("click",()=>addLabel());
 $("clearLabels").addEventListener("click",()=>{
   if(entries.length&&!confirm("Start a new production paper and clear all labels?"))return;
-  entries=[];photos.splice(0);scannedPhotoKeys.clear();persist();render();updatePhotoQueue();
+  clearAllCrops(entries);entries=[];photos.splice(0);scannedPhotoKeys.clear();persist();render();updatePhotoQueue();
   show("scanMsg","New production paper ready. Choose photos to scan automatically.");
 });
 function printWithBarcodeNotice(){
@@ -805,7 +862,7 @@ document.querySelectorAll('input[name="materialMode"]').forEach(el=>el.addEventL
 $("originalWeight").addEventListener("input",render);
 $("sampleBtn").addEventListener("click",()=>{
   if(entries.length&&!confirm("Replace all current labels with demonstration values?"))return;
-  entries=[];document.querySelector('input[name="materialMode"][value="no-bones"]').checked=true;
+  clearAllCrops(entries);entries=[];document.querySelector('input[name="materialMode"][value="no-bones"]').checked=true;
   const sample=[
     {barcode:"9667806157508",weight:"3.500",unit:"4.500",printed:"15.750"},
     {barcode:"9667818292501",weight:"6.500",unit:"4.500",printed:"29.250"}
@@ -813,7 +870,7 @@ $("sampleBtn").addEventListener("click",()=>{
   // These examples are only demonstrations; verify the barcodes before use.
   for(const s of sample)addLabel({...s,source:"demo"});render();show("scanMsg","Demonstration rows loaded. They are not confirmed real labels. Review and confirm each barcode and printed price before producing a paper.","warn");
 });
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows};
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,createReviewTile};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
-restore();render();
+restore();render();void recoverLabelCrops();
 })();
