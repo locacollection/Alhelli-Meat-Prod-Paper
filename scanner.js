@@ -348,12 +348,14 @@ function buildRow(entry,i){
   const head=document.createElement("div");head.className="label-card-head";
   const title=document.createElement("h3");title.textContent="Label "+(i+1)+" · "+(decode(entry.barcode).code?PRODUCT[decode(entry.barcode).code]:"Check barcode");
   head.append(title,chip(status.ok?(entry.confirmed?"Confirmed":"Ready to confirm"):"Needs review","status"));box.append(head);
-  if(entry.cropUrl){
-    const picture=document.createElement("button");picture.type="button";picture.className="label-crop-inline";
-    picture.setAttribute("aria-label","Enlarge cropped sticker for barcode "+entry.barcode);
-    const img=document.createElement("img");img.src=entry.cropUrl;img.alt="Original label crop for "+entry.barcode;img.loading="lazy";
-    picture.append(img);picture.addEventListener("click",()=>previewEntryCrop(entry));box.append(picture);
-  }
+  const preview=document.createElement("button");
+  preview.type="button";preview.className="mini label-preview-button";
+  preview.textContent="Preview label";
+  preview.disabled=!entry.cropUrl;
+  preview.title=entry.cropUrl?"Open cropped label image":"No saved label photo. Use Attach label photo below.";
+  preview.setAttribute("aria-label","Preview cropped sticker for barcode "+(entry.barcode||"not entered"));
+  preview.addEventListener("click",()=>previewEntryCrop(entry));
+  box.append(preview);
   const fields=document.createElement("div");fields.className="label-fields";
   for(const [name,key,placeholder,cls] of [
     ["13-digit barcode","barcode","Enter the actual 13 digits","wide"],
@@ -451,40 +453,6 @@ function refreshRow(box,entry){
   button.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";
   button.disabled=!v.ok||entry.confirmed;
 }
-function createReviewTile(entry,index){
-  const item=document.createElement("div");item.className="scan-tile";
-  const visual=document.createElement("div");visual.className="scan-tile-visual";
-  if(entry.cropUrl){
-    const zoom=document.createElement("button");zoom.type="button";
-    zoom.className="scan-thumbnail";zoom.setAttribute("aria-label","View scanned label "+(index+1));
-    const img=document.createElement("img");img.src=entry.cropUrl;img.alt="Cropped printed label for "+entry.barcode;
-    img.loading="lazy";zoom.append(img);
-    zoom.addEventListener("click",()=>previewEntryCrop(entry));visual.append(zoom);
-  }else{
-    const missing=document.createElement("div");missing.className="scan-no-photo";
-    missing.textContent=entry.photoName?"Crop unavailable":"No label photo";visual.append(missing);
-  }
-  item.append(visual);
-  const info=document.createElement("div");info.className="scan-tile-info";
-  const code=decode(entry.barcode).code;
-  const heading=document.createElement("strong");heading.textContent="Label "+(index+1)+" · "+(code||"Unknown");
-  const barcode=document.createElement("code");barcode.textContent=entry.barcode||"No barcode";
-  const number=document.createElement("span");number.className="scan-tile-weight";
-  number.textContent=(entry.weight||"—")+" kg · "+(entry.printed||"—")+" BD";
-  const status=document.createElement("small");status.className=entry.confirmed&&verify(entry).ok?"scan-ok":"scan-review";
-  status.textContent=entry.confirmed&&verify(entry).ok?"Barcode checked":"Needs review";
-  info.append(heading,barcode,number,status);
-  if(!entry.cropUrl){
-    const label=document.createElement("label");label.className="scan-attach-mini";
-    label.textContent="Attach cropped photo";
-    const input=document.createElement("input");input.type="file";input.accept="image/*";input.hidden=true;
-    input.addEventListener("change",()=>{const f=input.files?.[0];if(f)void attachLabelFromFile(f,entry);input.value=""});
-    label.append(input);info.append(label);
-  }
-  item.append(info);
-  return item;
-}
-
 function render(){
   const container=$("labels");container.replaceChildren();
   if(!entries.length){
@@ -492,9 +460,6 @@ function render(){
     p.textContent="No labels yet. Choose a label-sheet photo to scan automatically.";
     container.append(p);
   }else{
-    const gallery=document.createElement("div");gallery.className="scan-gallery";
-    entries.forEach((entry,index)=>gallery.append(createReviewTile(entry,index)));
-    container.append(gallery);
     const ready=[],needsReview=[];
     entries.forEach((entry,index)=>((entry.confirmed&&verify(entry).ok)?ready:needsReview).push({entry,index}));
     if(ready.length){
@@ -870,7 +835,7 @@ $("sampleBtn").addEventListener("click",()=>{
   // These examples are only demonstrations; verify the barcodes before use.
   for(const s of sample)addLabel({...s,source:"demo"});render();show("scanMsg","Demonstration rows loaded. They are not confirmed real labels. Review and confirm each barcode and printed price before producing a paper.","warn");
 });
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,createReviewTile,keepLabelCrop};
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 restore();render();void recoverLabelCrops();
 })();
