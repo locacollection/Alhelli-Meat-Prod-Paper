@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#183c32">
 <meta name="description" content="Scan printed minced and boneless beef labels, double-check price and weight, and prepare Recipe Issue and GRN production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=label-crops-8">
+<link rel="stylesheet" href="scanner.css?v=preview-on-demand-9">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong><small>Label-based production paper</small></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
@@ -31,7 +31,7 @@
 
       <section class="panel">
         <div class="section-top"><div><span class="kicker">Step 2</span><h2>Automatic label checks</h2></div><span id="labelCount" class="tag">0 labels</span></div>
-        <p class="muted">Each detected barcode has its own cropped label photo below. Tap the thumbnail to enlarge the sticker and compare the printed weight and price with the catalog values. OCR is a secondary check.</p>
+        <p class="muted">Labels are listed once below. Open the confirmed-label section, then tap Preview label beside any barcode to see its cropped sticker. Photos stay hidden until you open a preview. OCR remains a secondary check.</p>
         <div id="labels" class="labels"><p class="empty">No labels yet. Scan your photos or add a missing label manually.</p></div>
         <div class="buttons"><button id="addLabel" type="button" class="btn btn-light">+ Add unreadable label</button><button id="clearLabels" type="button" class="btn btn-outline">New production paper</button></div>
       </section>
@@ -111,5 +111,5 @@
   </table>
   <p class="paper-auditnote">Calculated from price-encoded barcodes. Check exact weights against original scale labels before signing.</p>
 </section>
-<script src="scanner.js?v=label-crops-8"></script>
+<script src="scanner.js?v=preview-on-demand-9"></script>
 </body></html>
