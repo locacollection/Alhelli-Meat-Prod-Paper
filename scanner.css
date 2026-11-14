@@ -31,3 +31,47 @@ input:focus,select:focus{outline:2px solid #8eb49c;border-color:#448967}.mode-se
 .auto-verified .label-card{margin:10px 0;background:#fff}
 .review-heading{font-size:14px;font-weight:800;color:#826121;padding:11px;border-radius:10px;background:#fff7e8}
 #quickPrintBtn:not(:disabled){background:#167045;border-color:#167045}
+
+/* A4 production in-store form, matching the store's two-summary-table sheet. */
+@media print {
+  @page { size: A4 portrait; margin: 11mm 12mm; }
+  html,body { margin:0!important; padding:0!important; background:#fff!important; color:#111!important; }
+  .noprint { display:none!important; }
+  #printPaper { display:block!important; width:100%; padding:0!important; margin:0!important;
+    font-family:Arial,Helvetica,sans-serif; font-size:11px; color:#171717; }
+  .paper-letterhead { display:flex; align-items:flex-start; justify-content:space-between; gap:15px;
+    min-height:19mm; border-bottom:0; margin-bottom:1mm; }
+  .paper-brand { display:flex; flex-direction:column; gap:1mm; }
+  .paper-brand-name { font-size:29px; font-weight:700; letter-spacing:-1px; line-height:1; color:#854e54; }
+  .paper-symbol { font-weight:900; color:#854e54; margin-left:3mm; font-size:29px; }
+  .paper-brand small { font-size:9px; color:#555; }
+  .paper-brand-ar { display:flex; flex-direction:column; align-items:flex-end; line-height:1.2; }
+  .paper-brand-ar strong { font-family:Tahoma,Arial,sans-serif; font-size:28px; color:#854e54; }
+  .paper-brand-ar small { font-size:9px; letter-spacing:.1em; color:#555; }
+  #printPaper h1.paper-title { text-align:center; font-size:16px; font-weight:700; text-decoration:underline;
+    margin:0 0 2mm 0; line-height:1.2; }
+  #printPaper h2.paper-subheading { text-align:center; font-size:14px; text-decoration:underline;
+    font-weight:700; margin:3mm 0 2mm; line-height:1.2; }
+  #printPaper table { border-collapse:collapse!important; width:100%; table-layout:fixed; font-size:11px; margin:0; }
+  #printPaper th,#printPaper td { border:1px solid #555!important; padding:1.4mm 2mm!important; 
+    line-height:1.12; vertical-align:middle; background:white!important; color:#111!important; }
+  #printPaper .paper-meta col.meta-key { width:9%; }
+  #printPaper .paper-meta col.meta-value { width:20%; }
+  #printPaper .paper-meta col.meta-wide { width:33%; }
+  #printPaper .paper-meta th { font-weight:600; text-align:left; }
+  #printPaper .paper-meta tr { height:9mm; }
+  #printPaper .paper-table col.item-code { width:22%; }
+  #printPaper .paper-table col.item-name { width:53%; }
+  #printPaper .paper-table col.item-uom { width:8%; }
+  #printPaper .paper-table col.item-qty { width:17%; }
+  #printPaper .paper-table thead th { text-align:center; font-size:12px; font-weight:700; }
+  #printPaper .paper-table tbody tr { height:7.8mm; break-inside:avoid; page-break-inside:avoid; }
+  #printPaper .paper-table td:nth-child(3),#printPaper .paper-table td:nth-child(4) { text-align:center; }
+  #printPaper .paper-approvals { margin-top:6mm; }
+  #printPaper .paper-approvals col.approval-label { width:13%; }
+  #printPaper .paper-approvals col.approval-value { width:24%; }
+  #printPaper .paper-approvals col.approval-ref { width:26%; }
+  #printPaper .paper-approvals th { font-size:10px; font-weight:500; text-align:left; }
+  #printPaper .paper-approvals tr { height:9mm; }
+  #printPaper .paper-auditnote { font-size:9px; text-align:center; color:#555; margin-top:3mm; }
+}
