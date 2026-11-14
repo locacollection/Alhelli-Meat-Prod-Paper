@@ -20,13 +20,15 @@ const doc = {
   querySelectorAll:()=>[]
 };
 const store = new Map();
+let urlCount=0;
 const sandbox = {
   document:doc,window:{},
+  URL:{createObjectURL:()=>("blob:label-"+(++urlCount)),revokeObjectURL:()=>{}},
   localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)},
   console,Date,confirm:()=>true
 };
 vm.runInNewContext(source,sandbox,{filename:"scanner.js",timeout:2000});
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,keepLabelCrop}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
 assert.equal(readUniqueDecimal("1.000 4.500"),"");
@@ -234,4 +236,36 @@ assert.equal(explicitWrongWeight.printed,"3.105");
 assert.equal(verify(explicitWrongWeight).ok,true);
 
 console.log("Barcode-first scanner checks passed: catalog 0.400 + 0.810 kg, OCR optional, GRN/issue 1.210 kg.");
+
+// Crop geometry keeps each label separate when barcode positions are stacked.
+const imgSize={width:1000,height:1600};
+const topRegion={barcode:"9667807018006",x:235,y:355,w:190,h:42};
+const lowerRegion={barcode:"9667800031057",x:250,y:650,w:192,h:42};
+const bottomRegion={barcode:"9667808036450",x:250,y:1080,w:190,h:42};
+const firstRect=labelCropBounds(imgSize,topRegion,[topRegion,lowerRegion,bottomRegion]);
+const secondRect=labelCropBounds(imgSize,lowerRegion,[topRegion,lowerRegion,bottomRegion]);
+assert.ok(firstRect.w>190 && firstRect.h>42);
+assert.ok(firstRect.y+firstRect.h<=topRegion.y+topRegion.h+30);
+assert.ok(secondRect.y>=topRegion.y+topRegion.h);
+assert.ok(secondRect.y<lowerRegion.y);
+assert.ok(secondRect.y+secondRect.h<=lowerRegion.y+lowerRegion.h+30);
+// Repeated barcode labels must never share the same thumbnail key.
+const stickerA=addLabel({barcode:"9667807018006",photoName:"sheet1.jpg"});
+const stickerB=addLabel({barcode:"9667807018006",photoName:"sheet1.jpg"});
+assert.notEqual(stickerA.id,stickerB.id);
+const beforeImageTotal=totals().m;
+(async()=>{
+  await keepLabelCrop(stickerA,{size:22000},"auto");
+  await keepLabelCrop(stickerB,{size:18000},"auto");
+  assert.ok(stickerA.cropUrl.startsWith("blob:label-"));
+  assert.ok(stickerB.cropUrl.startsWith("blob:label-"));
+  assert.notEqual(stickerA.cropKey,stickerB.cropKey);
+  assert.notEqual(stickerA.cropUrl,stickerB.cropUrl);
+  assert.equal(totals().m,beforeImageTotal);
+  const persisted=JSON.parse(store.get("alhelli-label-scanner-v2"));
+  assert.equal(persisted[persisted.length-2].cropKey,stickerA.cropKey);
+  assert.equal(persisted[persisted.length-1].cropKey,stickerB.cropKey);
+  assert.equal(JSON.stringify(persisted).includes("blob:label-"),false);
+  console.log("Cropped-label tests passed: unique per-sticker images, correct position, no changes to totals.");
+})().catch(err=>{console.error(err);process.exitCode=1});
 console.log("Scanner validation tests passed: verified EAN, internal price digit, rounding, label consistency, and product constraints.");
