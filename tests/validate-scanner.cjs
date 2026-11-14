@@ -26,7 +26,7 @@ const sandbox = {
   console,Date,confirm:()=>true
 };
 vm.runInNewContext(source,sandbox,{filename:"scanner.js",timeout:2000});
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
 assert.equal(readUniqueDecimal("1.000 4.500"),"");
@@ -69,6 +69,16 @@ assert.equal(missingWeight.ok,false);
 assert.match(missingWeight.reason,/Printed weight missing/);
 assert.match(missingWeight.reason,/approximately 1.000 kg/);
 assert.equal(verify({barcode:"9667812045004",weight:"1.000",unit:"4.500",printed:"4.500"}).ok,true);
+const automaticMinced={barcode:"9667802045007",weight:"1.000",unit:"4.500",printed:"4.500"};
+const automaticBoneless={barcode:"9667812045004",weight:"1.000",unit:"4.500",printed:"4.500"};
+assert.equal(shouldAutoConfirm(automaticMinced,true,3),true);
+assert.equal(shouldAutoConfirm(automaticBoneless,true,3),true);
+assert.equal(shouldAutoConfirm(automaticMinced,false,3),false);
+assert.equal(shouldAutoConfirm(automaticMinced,true,2),false);
+assert.equal(shouldAutoConfirm({...automaticMinced,weight:"3.500"},true,3),false);
+assert.equal(shouldAutoConfirm({...automaticBoneless,printed:"15.750"},true,3),false);
+assert.equal(fixed3(automaticMinced.weight)+fixed3(automaticBoneless.weight),2000);
+
 assert.equal(verify({barcode:"9667806157508",weight:"3.400",unit:"4.500",printed:"15.750"}).ok,false);
 assert.equal(verify({barcode:"9667806157500",weight:"3.500",unit:"4.500",printed:"15.750"}).ok,false);
 assert.equal(verify({barcode:"9667770031903",weight:"1.000",unit:"3.190",printed:"3.190"}).ok,false);
