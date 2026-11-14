@@ -20,14 +20,36 @@ const doc = {
   querySelectorAll:()=>[]
 };
 const store = new Map();
+const STORED_KEY="alhelli-label-scanner-v2";
+// Simulate a real phone refreshing a page with labels from yesterday.
+store.set(STORED_KEY,JSON.stringify([
+  {barcode:"9667800031057",weight:"0.690",photoName:"old-sheet.jpg",cropKey:"old-crop"},
+  {barcode:"9667770031903",weight:"1.000",kind:"bone",sheetId:"old-bone-sheet"}
+]));
 let urlCount=0;
 const sandbox = {
   document:doc,window:{},
   URL:{createObjectURL:()=>("blob:label-"+(++urlCount)),revokeObjectURL:()=>{}},
-  localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)},
+  localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)},
   console,Date,confirm:()=>true
 };
 vm.runInNewContext(source,sandbox,{filename:"scanner.js",timeout:2000});
+assert.equal(store.has(STORED_KEY),false,"Every reload must erase saved labels");
+assert.equal(getId("labelCount").textContent,"0 labels","Page starts with an empty sheet");
+assert.equal(getId("issueTotal").textContent,"0.000 kg");
+assert.equal(getId("mincedTotal").textContent,"0.000 kg");
+assert.equal(getId("bonelessTotal").textContent,"0.000 kg");
+assert.equal(getId("wasteTotal").textContent,"0.000 kg");
+assert.equal(getId("printBtn").disabled,true);
+assert.equal(getId("exportBtn").disabled,true);
+assert.ok(source.includes('initialCropCleanup=cropStoreAction("clear")'),
+  "Old IndexedDB sticker photos must be cleared on page initialization");
+assert.ok(source.includes('operation==="clear"?store.clear()'),
+  "The IndexedDB clear operation must delete existing crops");
+assert.ok(!source.includes('restore();render();'),
+  "Previous saved sheets must never be restored");
+console.log("Refresh reset passed: old saved sheets removed and all current totals reset.");
+
 const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,addPhotos}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
