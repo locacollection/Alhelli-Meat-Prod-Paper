@@ -26,7 +26,7 @@ const sandbox = {
   console,Date,confirm:()=>true
 };
 vm.runInNewContext(source,sandbox,{filename:"scanner.js",timeout:2000});
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
 assert.equal(readUniqueDecimal("1.000 4.500"),"");
@@ -128,4 +128,41 @@ assert.equal(encodeFromPrinted("6780",3500,4500),"9667806157508");
 assert.equal(encodeFromPrinted("6781",6500,4500),"9667818292501");
 console.log("Exhaustive EAN barcode audit passed: 6000 unique codes, 15 real printed-label matches.");
 
+
+assert.equal(catalogFromBarcode("9667807018006").grams,400);
+assert.equal(catalogFromBarcode("9667818036457").grams,810);
+assert.equal(catalogFromBarcode("9667807018006").price,1800);
+assert.equal(catalogFromBarcode("9667818036457").price,3645);
+assert.equal(catalogFromBarcode("9667807018000").ok,false);
+const firstBarcodeOnly=fromBarcode("9667807018006",{source:"barcode scan"});
+const secondBarcodeOnly=fromBarcode("9667818036457",{source:"barcode scan"});
+assert.equal(firstBarcodeOnly.weight,"0.400");
+assert.equal(firstBarcodeOnly.unit,"4.500");
+assert.equal(firstBarcodeOnly.printed,"1.800");
+assert.equal(secondBarcodeOnly.weight,"0.810");
+assert.equal(secondBarcodeOnly.printed,"3.645");
+assert.equal(firstBarcodeOnly.confirmed,true);
+assert.equal(secondBarcodeOnly.confirmed,true);
+assert.equal(firstBarcodeOnly.weightSource,"catalog");
+assert.equal(verify(firstBarcodeOnly).ok,true);
+assert.equal(matchPrintedOCR(firstBarcodeOnly,{}).confirmed,true);
+assert.equal(matchPrintedOCR(firstBarcodeOnly,{weight:"0.400",unit:"4.500",printed:"1.800"}).confirmed,true);
+const ocrConflict=matchPrintedOCR(firstBarcodeOnly,{weight:"0.400",unit:"4.500",printed:"3.645"});
+assert.equal(ocrConflict.confirmed,false);
+assert.match(ocrConflict.ocrConflict,/printed/);
+const noOCRNeeded=matchPrintedOCR(secondBarcodeOnly,{});
+assert.equal(noOCRNeeded.confirmed,true);
+assert.equal(noOCRNeeded.weight,"0.810");
+// Check that the production paper aggregates barcode-derived labels without OCR.
+// Reset previous demo entries left in the mock UI.
+addLabel({barcode:"9667807018006",source:"barcode scan"});
+addLabel({barcode:"9667818036457",source:"barcode scan"});
+const productionTotals=totals();
+assert.equal(productionTotals.m,400);
+assert.equal(productionTotals.b,810);
+const productionPaper=paperState();
+assert.equal(productionPaper.original,1210);
+assert.equal(productionPaper.waste,0);
+assert.equal(productionPaper.error,"");
+console.log("Barcode-first scanner checks passed: catalog 0.400 + 0.810 kg, OCR optional, GRN/issue 1.210 kg.");
 console.log("Scanner validation tests passed: verified EAN, internal price digit, rounding, label consistency, and product constraints.");
