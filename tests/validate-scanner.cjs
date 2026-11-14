@@ -28,7 +28,7 @@ const sandbox = {
   console,Date,confirm:()=>true
 };
 vm.runInNewContext(source,sandbox,{filename:"scanner.js",timeout:2000});
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
 assert.equal(readUniqueDecimal("1.000 4.500"),"");
@@ -246,6 +246,28 @@ const mixedEntries=[
   scanEntry("6777",5000,"bone","bone-1"),
   scanEntry("6780",3000,"bone","bone-1")
 ];
+const separated=groupBoneSheetRows(mixedEntries.filter(e=>e.kind==="bone").map((entry,index)=>({entry,index})));
+assert.equal(separated.length,1);
+assert.equal(separated[0].number,1);
+assert.equal(separated[0].rows.length,2);
+const separateCards=[buildRow(mixedEntries[2],2),buildRow(mixedEntries[3],3)];
+const flattened=(node)=>[node,...(node.children||[]).flatMap(flattened)];
+const origID=flattened(separateCards[0]).find(node=>node.className==="label-item-code");
+const outID=flattened(separateCards[1]).find(node=>node.className==="label-item-code");
+assert.equal(origID.textContent,"6777");
+assert.equal(outID.textContent,"6780");
+assert.ok(separateCards[0].className.includes("product-6777"));
+assert.ok(separateCards[1].className.includes("product-6780"));
+assert.ok(flattened(separateCards[0]).some(node=>node.className==="label-item-role"&&node.textContent.includes("ORIGINAL")));
+assert.ok(flattened(separateCards[1]).some(node=>node.className==="label-item-role"&&node.textContent.includes("MINCED")));
+assert.ok(!flattened(separateCards[0]).some(node=>node.className==="label-evidence"||node.className==="label-source-photo"));
+assert.ok(!flattened(separateCards[1]).some(node=>node.className==="label-evidence"||node.className==="label-source-photo"));
+const bonelessCard=buildRow(scanEntry("6781",6000,"normal","normal-1"),4);
+assert.equal(flattened(bonelessCard).find(node=>node.className==="label-item-code").textContent,"6781");
+const boneSheetWrapper=new FakeElement();
+appendBoneReviewGroup(boneSheetWrapper,"sheet-A",mixedEntries.slice(2).map((entry,index)=>({entry,index})));
+assert.equal(boneSheetWrapper.children.length,1);
+assert.ok(flattened(boneSheetWrapper.children[0]).some(node=>node.className==="processing-portion"));
 const mixed=productionCalculation(mixedEntries);
 assert.equal(mixed.error,"");
 assert.equal(mixed.normalOriginal,8000);
@@ -265,6 +287,18 @@ const photoPairs=[
   scanEntry("6777",4400,"bone","photo-A"),
   scanEntry("6780",3085,"bone","photo-A")
 ];
+const portions=groupBoneSheetRows(photoPairs.map((entry,index)=>({entry,index})));
+assert.equal(portions.length,2);
+assert.deepEqual(Array.from(portions,x=>x.number),[1,2]);
+assert.deepEqual(Array.from(portions,x=>x.rows.length),[2,2]);
+assert.equal(portions[1].rows[0].entry.weight,"4.400");
+const samePortion=groupBoneSheetRows([
+  scanEntry("6777",4000,"bone","one"),
+  scanEntry("6780",2500,"bone","one"),
+  scanEntry("6781",1000,"bone","one")
+].map((entry,index)=>({entry,index})));
+assert.equal(samePortion.length,1);
+assert.equal(samePortion[0].rows.length,3);
 const fromPhoto=productionCalculation(photoPairs);
 assert.equal(fromPhoto.error,"");
 assert.equal(fromPhoto.original,8145);
