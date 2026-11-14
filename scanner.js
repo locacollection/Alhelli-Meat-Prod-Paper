@@ -367,17 +367,28 @@ function buildRow(entry,i){
   preview.setAttribute("aria-label","Preview cropped sticker for barcode "+(entry.barcode||"not entered"));
   preview.addEventListener("click",()=>previewEntryCrop(entry));
 
+  // Weight is the main purpose of this page. Keep every product's prices
+  // available for auditing, but collapsed by default.
+  const primary=document.createElement("div");primary.className="label-primary";
+  const weight=createLabelValue("Weight",entry.weight,"kg","weight");
   const barcodeBlock=document.createElement("div");barcodeBlock.className="label-barcode-block";
-  const barcodeHeading=document.createElement("span");barcodeHeading.textContent="13-digit barcode";barcodeHeading.className="label-value-title";
-  const barcode=document.createElement("code");barcode.className="label-barcode";barcode.textContent=entry.barcode||"—";
+  const barcodeHeading=document.createElement("span");barcodeHeading.textContent="Barcode";
+  barcodeHeading.className="label-value-title";
+  const barcode=document.createElement("code");barcode.className="label-barcode";
+  barcode.textContent=entry.barcode||"—";
   barcodeBlock.append(barcodeHeading,barcode);
-  const overview=document.createElement("div");overview.className="label-overview";
-  overview.append(
-    createLabelValue("Weight",entry.weight,"kg","weight"),
+  primary.append(weight,barcodeBlock);
+  box.append(primary);
+
+  const priceDetails=document.createElement("details");priceDetails.className="label-price-details";
+  const priceSummary=document.createElement("summary");priceSummary.textContent="Price details";
+  const priceValues=document.createElement("div");priceValues.className="label-price-grid";
+  priceValues.append(
     createLabelValue("Total price",entry.printed,"BD","price"),
     createLabelValue("Unit price",entry.unit,"BD/kg","rate")
   );
-  box.append(barcodeBlock,overview);
+  priceDetails.append(priceSummary,priceValues);
+  box.append(priceDetails);
 
   const evidence=document.createElement("div");evidence.className="label-evidence";
   const source=document.createElement("small");
