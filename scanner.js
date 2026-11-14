@@ -51,6 +51,16 @@ function roundedPrice(grams,unitFils){
   if(!Number.isSafeInteger(grams)||!Number.isSafeInteger(unitFils))return null;
   return Math.floor((grams*unitFils+2500)/5000)*5;
 }
+// Rebuild the FULL 13 digits independently using the printed weight and unit price.
+// This catches a valid-looking barcode whose encoded price is for another label.
+function encodeFromPrinted(item,grams,unitFils){
+  const prefix=({"6777":"966777","6780":"966780","6781":"966781"})[item];
+  if(!prefix||!Number.isSafeInteger(grams)||grams<1||grams>10000||!Number.isSafeInteger(unitFils)||unitFils<=0)return null;
+  const price=roundedPrice(grams,unitFils);
+  if(price===null||price<0||price>99999)return null;
+  const first12=prefix+String(priceVerifier(price))+String(price).padStart(5,"0");
+  return first12+String(checkDigit(first12));
+}
 function verify(entry){
   const info=decode(entry.barcode);
   if(info.error)return {ok:false,reason:info.error};
@@ -71,6 +81,10 @@ function verify(entry){
   if(printed!==info.price)return {ok:false,reason:"Printed total "+fmtMoney(printed)+" BD does not match this barcode\u0027s "+fmtMoney(info.price)+" BD. This number may belong to another sticker. Recheck the total printed on THIS label."};
   const expected=roundedPrice(grams,unit);
   if(expected!==info.price)return {ok:false,reason:"Weight "+fmtKg(grams)+" kg × "+fmtMoney(unit)+" BD/kg rounds to "+fmtMoney(expected)+" BD, but the barcode encodes "+fmtMoney(info.price)+" BD. Check that the weight is from the SAME label."};
+  const reconstructed=encodeFromPrinted(info.code,grams,unit);
+  if(reconstructed!==info.barcode){
+    return {ok:false,reason:"13-digit barcode sequence mismatch: the printed weight and unit price generate "+(reconstructed||"no valid barcode")+", not "+info.barcode+". Recheck this sticker."};
+  }
   if(entry.ocrProduct&&entry.ocrProduct!==info.code)return {ok:false,reason:"Printed product name seems to disagree with the barcode. Review the label."};
   return {ok:true,info,grams,unit,printed};
 }
@@ -480,7 +494,7 @@ $("sampleBtn").addEventListener("click",()=>{
   // These examples are only demonstrations; verify the barcodes before use.
   for(const s of sample)addLabel({...s,source:"demo"});render();show("scanMsg","Demonstration rows loaded. They are not confirmed real labels. Review and confirm each barcode and printed price before producing a paper.","warn");
 });
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm};
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 restore();render();
 })();
