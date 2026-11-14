@@ -28,7 +28,7 @@ const sandbox = {
   console,Date,confirm:()=>true
 };
 vm.runInNewContext(source,sandbox,{filename:"scanner.js",timeout:2000});
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
 assert.equal(readUniqueDecimal("1.000 4.500"),"");
@@ -92,7 +92,7 @@ assert.equal(fixed3(automaticMinced.weight)+fixed3(automaticBoneless.weight),200
 
 assert.equal(verify({barcode:"9667806157508",weight:"3.400",unit:"4.500",printed:"15.750"}).ok,false);
 assert.equal(verify({barcode:"9667806157500",weight:"3.500",unit:"4.500",printed:"15.750"}).ok,false);
-assert.equal(verify({barcode:"9667770031903",weight:"1.000",unit:"3.190",printed:"3.190"}).ok,false);
+assert.equal(verify({barcode:"9667770031903",weight:"1.000",unit:"3.190",printed:"3.190"}).ok,true);
 
 const printedLabelExamples=[
   ["6777",5,3190,"9667778000154"],
@@ -236,6 +236,100 @@ assert.equal(explicitWrongWeight.printed,"3.105");
 assert.equal(verify(explicitWrongWeight).ok,true);
 
 console.log("Barcode-first scanner checks passed: catalog 0.400 + 0.810 kg, OCR optional, GRN/issue 1.210 kg.");
+
+// Combined paper: normal 8 kg output plus separately labelled bone-in 5 -> 3 kg.
+const scanEntry=(item,grams,kind,sheetId)=>fromBarcode(encodeFromPrinted(item,grams,item==="6777"?3190:4500),
+  {kind,sheetId,source:"test"});
+const mixedEntries=[
+  scanEntry("6780",2000,"normal","normal-1"),
+  scanEntry("6781",6000,"normal","normal-1"),
+  scanEntry("6777",5000,"bone","bone-1"),
+  scanEntry("6780",3000,"bone","bone-1")
+];
+const mixed=productionCalculation(mixedEntries);
+assert.equal(mixed.error,"");
+assert.equal(mixed.normalOriginal,8000);
+assert.equal(mixed.boneOriginal,5000);
+assert.equal(mixed.original,13000);
+assert.equal(mixed.m,5000);
+assert.equal(mixed.b,6000);
+assert.equal(mixed.waste,2000);
+assert.equal(mixed.batches.length,1);
+assert.equal(mixed.batches[0].waste,2000);
+assert.equal(mixed.original,mixed.m+mixed.b+mixed.waste);
+assert.equal(mixed.boneSheets,1);
+// The photograph has TWO ordered 6777 -> 6780 pairs on ONE physical sheet.
+const photoPairs=[
+  scanEntry("6777",3745,"bone","photo-A"),
+  scanEntry("6780",2800,"bone","photo-A"),
+  scanEntry("6777",4400,"bone","photo-A"),
+  scanEntry("6780",3085,"bone","photo-A")
+];
+const fromPhoto=productionCalculation(photoPairs);
+assert.equal(fromPhoto.error,"");
+assert.equal(fromPhoto.original,8145);
+assert.equal(fromPhoto.m,5885);
+assert.equal(fromPhoto.b,0);
+assert.equal(fromPhoto.waste,2260);
+assert.deepEqual([...fromPhoto.batches.map(x=>x.waste)],[945,1315]);
+assert.equal(fromPhoto.batches.length,2);
+// A rare boneless output from an originally bone-in piece is included too.
+const boneWithBoneless=productionCalculation([
+  scanEntry("6777",4000,"bone","B"),
+  scanEntry("6780",2500,"bone","B"),
+  scanEntry("6781",1000,"bone","B")
+]);
+assert.equal(boneWithBoneless.waste,500);
+assert.equal(boneWithBoneless.b,1000);
+assert.equal(boneWithBoneless.error,"");
+// Do not silently infer output or ignore unpaired/negative bone-in batches.
+assert.match(productionCalculation([scanEntry("6780",3000,"bone","B")]).error,/before its 6777/);
+assert.match(productionCalculation([scanEntry("6777",5000,"bone","B")]).error,/no finished/);
+assert.match(productionCalculation([
+  scanEntry("6777",3000,"bone","B"),scanEntry("6780",3500,"bone","B")
+]).error,/more finished/);
+assert.match(productionCalculation([scanEntry("6777",5000,"normal","N")]).error,/normal-production/);
+assert.match(productionCalculation([
+  scanEntry("6777",5000,"bone","B1"),scanEntry("6780",3000,"bone","B1"),
+  scanEntry("6780",2000,"bone","B2")
+]).error,/before its 6777/);
+assert.equal(productionCalculation([
+  scanEntry("6780",2000,"normal","normal-1"),scanEntry("6781",6000,"normal","normal-1")
+]).waste,0);
+assert.equal(decode(encodeFromPrinted("6777",3745,3190)).code,"6777");
+console.log("Combined production checks passed: normal 8 + bone-in 5 -> issue 13, GRN 5/6, wastage 2; 2 original pairs verified.");
+
+// Print one summary paper for the mixed source case.
+getId("clearLabels").listeners.click();
+for(const e of mixedEntries)addLabel(e);
+assert.equal(paperState().error,"");
+assert.equal(paperState().original,13000);
+assert.equal(paperState().waste,2000);
+preparePaper();
+assert.equal(getId("ppIssueRows").children[0].children[3].textContent,"13.000");
+assert.equal(getId("ppGrn").children[0].children[0].textContent,"6780");
+assert.equal(getId("ppGrn").children[0].children[3].textContent,"5.000");
+assert.equal(getId("ppGrn").children[1].children[0].textContent,"6781");
+assert.equal(getId("ppGrn").children[1].children[3].textContent,"6.000");
+assert.equal(getId("ppGrn").children[2].children[1].textContent,"Wastage for Meat");
+assert.equal(getId("ppGrn").children[2].children[3].textContent,"2.000");
+console.log("Single A4 issue/GRN print passed for combined normal and bone-in sheets.");
+
+// Manual recovery: choosing bone-in starts with 6777 and inserts before
+// a previously scanned finished label if the original sticker was missed.
+getId("clearLabels").listeners.click();
+getId("manualSource").value="bone-new";
+assert.match(insertManualEntry(encodeFromPrinted("6780",3000,4500)).error,/must begin/);
+const addedOriginal=insertManualEntry(encodeFromPrinted("6777",5000,3190));
+assert.ok(addedOriginal.entry);
+const sid=addedOriginal.entry.sheetId;
+assert.ok(sid);
+getId("manualSource").value="bone:"+sid;
+const addedOutput=insertManualEntry(encodeFromPrinted("6780",3000,4500));
+assert.ok(addedOutput.entry);
+assert.equal(productionCalculation([addedOriginal.entry,addedOutput.entry]).waste,2000);
+console.log("Manual source/pair sequence tests passed.");
+getId("clearLabels").listeners.click();
 
 // Crop geometry keeps each label separate when barcode positions are stacked.
 const imgSize={width:1000,height:1600};
