@@ -94,34 +94,35 @@ function fromBarcode(barcode,original={}){
   if(keepManual)return {...original,barcode};
   return {...original,barcode,weight:fmtKg(result.grams),unit:fmtMoney(result.unit),
     printed:fmtMoney(result.price),weightSource:"catalog",unitSource:"catalog",
-    printedSource:"barcode",ocrProduct:null,ocrChecked:false,ocrConflict:"",confirmed:true,autoConfirmed:true};
+    printedSource:"barcode",ocrProduct:null,ocrChecked:false,ocrConflict:"",ocrWarning:"",confirmed:true,autoConfirmed:true};
 }
 function matchPrintedOCR(entry,ocr={}){
   const reference=catalogFromBarcode(entry.barcode);
-  if(!reference.ok)return {...entry,ocrConflict:reference.reason,confirmed:false};
+  if(!reference.ok)return {...entry,confirmed:false,ocrConflict:reference.reason};
   const differences=[],reads=[];
-  for(const [field,expected] of [
-    ["weight",reference.grams],["unit",reference.unit],["printed",reference.price]
-  ]){
-    const value=String(ocr[field]??"").trim();
-    if(!value)continue;
-    const num=fixed3(value);
-    if(num===null)continue;
+  for(const [field,expected] of [["weight",reference.grams],["unit",reference.unit],["printed",reference.price]]){
+    const raw=String(ocr[field]??"").trim();
+    if(!raw)continue;
+    const num=fixed3(raw);if(num===null)continue;
     reads.push(field);
-    // Printed 1 g weights may differ from a 5 g catalog candidate but
-    // legitimately round to the same encoded price.
     if(field==="weight"&&num!==expected&&roundedPrice(num,reference.unit)===reference.price)continue;
-    if(num!==expected)differences.push(field+" (OCR "+value+", catalog "+fmtMoney(expected)+")");
+    if(num!==expected)differences.push(field+" "+raw+" instead of "+fmtMoney(expected));
   }
-  if(ocr.ocrProduct&&ocr.ocrProduct!==reference.info.code)differences.push("product name");
-  if(differences.length)return {...entry,confirmed:false,autoConfirmed:false,
-    ocrChecked:reads.length>0,ocrConflict:"OCR differs from barcode: "+differences.join("; ")+". Recheck the photo or keep the barcode value."};
-  const result={...entry,ocrConflict:"",confirmed:true,autoConfirmed:true,
-    ocrChecked:reads.length>0,source:reads.length?"Barcode with OCR cross-check":"Barcode-derived"};
-  if(reads.includes("weight")){
-    const w=fixed3(ocr.weight);
-    if(w!==null&&w!==reference.grams&&roundedPrice(w,reference.unit)===reference.price){
-      result.weight=fmtKg(w);result.weightSource="ocr";
+  // A possible mismatch in the product category needs review because it can
+  // change the Recipe GRN code (6780 vs 6781).
+  if(ocr.ocrProduct && ocr.ocrProduct!==reference.info.code)
+    return {...entry,confirmed:false,autoConfirmed:false,ocrChecked:false,ocrWarning:"",
+      ocrConflict:"Product category differs: barcode identifies "+PRODUCT[reference.info.code]+
+      ", but photo text looks like "+PRODUCT[ocr.ocrProduct]+". Check the barcode."};
+  // The barcode is authoritative for price. OCR may read 3.105 as 3.108.
+  const result={...entry,confirmed:true,autoConfirmed:true,ocrConflict:"",
+    ocrChecked:reads.length>0&&differences.length===0,
+    ocrWarning:differences.length?"Possible photo-reading mistake: "+differences.join("; ")+". Barcode values kept.":"",
+    source:differences.length?"Barcode used; OCR warning":"Barcode-derived"};
+  if(reads.includes("weight")&&!differences.length){
+    const grams=fixed3(ocr.weight);
+    if(grams!==null&&grams!==reference.grams&&roundedPrice(grams,reference.unit)===reference.price){
+      result.weight=fmtKg(grams);result.weightSource="ocr";
     }else result.weightSource="catalog";
   }
   return result;
@@ -192,7 +193,7 @@ function buildRow(entry,i){
     ["Printed total price (BD) *","printed","Enter total price",""]
   ]){
     fields.append(field(name,entry[key],placeholder,v=>{
-      entry[key]=v;entry.confirmed=false;entry.autoConfirmed=false;entry.ocrConflict="";
+      entry[key]=v;entry.confirmed=false;entry.autoConfirmed=false;entry.ocrConflict="";entry.ocrWarning="";
       if(key==="barcode"){
         const updated=fromBarcode(v,entry);
         Object.assign(entry,updated);
@@ -215,8 +216,12 @@ function buildRow(entry,i){
     box.append(inferred);
   }
   const msg=document.createElement("div");msg.className="message"+(status.ok?"":" warn");
-  msg.textContent=status.ok?(entry.confirmed?(entry.ocrChecked?"Barcode matched the recognized printed values.":"Barcode valid. Catalog weight used; printed values not fully recognized."):"Check the printed label if this weight differs from the catalog value."):status.reason;
+  msg.textContent=status.ok?(entry.confirmed?(entry.ocrWarning?"Barcode valid. OCR had a suspected number-reading error.":entry.ocrChecked?"Barcode matched the recognized printed values.":"Barcode valid. Catalog weight used; printed values not fully recognized."):"Check the printed label if this weight differs from the catalog value."):status.reason;
   box.append(msg);
+  if(entry.ocrWarning){
+    const warning=document.createElement("p");warning.className="message warn";
+    warning.textContent=entry.ocrWarning;box.append(warning);
+  }
   const actions=document.createElement("div");actions.className="label-extra";
   const source=document.createElement("small");source.textContent=entry.photoName?"From photo: "+entry.photoName:"Manual / sample label";
   const wrap=document.createElement("div");wrap.className="label-actions";
@@ -267,7 +272,7 @@ function refreshRow(box,entry){
     :"";
   const msg=box.querySelector(".message");
   msg.className="message"+(v.ok?"":" warn");
-  msg.textContent=v.ok?(entry.confirmed?(entry.ocrChecked?"Barcode and recognized printed values agree.":"Barcode valid; catalog weight used, printed values not fully recognized."):"Check the printed label if this weight differs from the catalog value."):v.reason;
+  msg.textContent=v.ok?(entry.confirmed?(entry.ocrWarning?"Barcode valid. OCR warning is informational only.":entry.ocrChecked?"Barcode and recognized printed values agree.":"Barcode valid; catalog weight used, printed values not fully recognized."):"Check the printed label if this weight differs from the catalog value."):v.reason;
   const button=box.querySelector('[data-confirm="1"]');
   button.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";
   button.disabled=!v.ok||entry.confirmed;
@@ -284,7 +289,7 @@ function render(){
     if(ready.length){
       const details=document.createElement("details");details.className="auto-verified";
       const summary=document.createElement("summary");
-      summary.textContent="✓ "+ready.length+" barcode-derived label"+(ready.length===1?"":"s")+" included · Tap to inspect";
+      const warns=ready.filter(x=>x.entry.ocrWarning).length;summary.textContent="✓ "+ready.length+" barcode-derived label"+(ready.length===1?"":"s")+" included"+(warns?" · "+warns+" nonblocking OCR warning"+(warns===1?"":"s"):"")+" · Tap to inspect";
       details.append(summary);
       for(const row of ready)details.append(buildRow(row.entry,row.index));
       container.append(details);
@@ -316,7 +321,7 @@ function addLabel(entry={}){
   entries.push({id:makeId(),barcode,weight:derived.weight||"",weightSource:derived.weightSource||"manual",
     unit:derived.unit||"",unitSource:derived.unitSource||"manual",
     printed:derived.printed||"",printedSource:derived.printedSource||"manual",
-    ocrConflict:derived.ocrConflict||"",ocrChecked:!!derived.ocrChecked,
+    ocrConflict:derived.ocrConflict||"",ocrWarning:derived.ocrWarning||"",ocrChecked:!!derived.ocrChecked,
     photoName:derived.photoName||"",ocrProduct:derived.ocrProduct||null,
     confirmed:!!derived.confirmed,autoConfirmed:!!derived.autoConfirmed,source:derived.source||"manual"});
   persist();render();
