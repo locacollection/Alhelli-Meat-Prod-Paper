@@ -697,7 +697,7 @@ function imgPreview(job){
   const item=document.createElement("div");item.className="photo-item";
   const pic=document.createElement("img");pic.alt="Selected photo preview";
   pic.src=URL.createObjectURL(file);pic.onload=()=>URL.revokeObjectURL(pic.src);
-  const span=document.createElement("span");span.textContent=(job.kind==="bone"?"Bone-in: ":"Normal: ")+file.name;
+  const span=document.createElement("span");span.textContent=file.name;
   item.append(pic,span);return item;
 }
 function updatePhotoQueue(){
@@ -706,15 +706,18 @@ function updatePhotoQueue(){
   $("scanBtn").disabled=!photos.length||scanning;
   $("clearPhotos").disabled=!photos.length||scanning;
 }
-function newSheetId(kind,file){
+function newSheetId(file){
   const stem=String(file.name||"photo").slice(0,40);
-  return (kind==="bone"?"Bone-in ":"Normal ")+stem+" #"+createCropKey().slice(-6);
+  return "Sheet "+stem+" #"+createCropKey().slice(-6);
 }
-function addPhotos(files,kind="normal"){
+function classifyPhotoBarcodes(barcodes){
+  return barcodes.some(barcode=>decode(barcode).code==="6777")?"bone":"normal";
+}
+function addPhotos(files){
   let count=0;
   for(const file of files){
     if(file.type.startsWith("image/")&&photos.length<30&&!scannedPhotoKeys.has(photoKey(file))){
-      photos.push({file,kind:kind==="bone"?"bone":"normal",sheetId:newSheetId(kind,file)});
+      photos.push({file,sheetId:newSheetId(file)});
       count++;
     }
   }
@@ -905,32 +908,31 @@ async function scanPhotos(){
   let added=0,ready=0,review=0,ocrChecks=0,worker=null,errors=0;
   try{
     for(let i=0;i<batch.length;i++){
-      const {file,kind,sheetId}=batch[i];
+      const {file,sheetId}=batch[i];
       show("scanMsg","Scanning "+(i+1)+"/"+batch.length+"…");
       let bitmap=null;
       try{
         bitmap=await createImageBitmap(file);
         const canvas=createScaledCanvas(bitmap);bitmap.close();bitmap=null;
         const regions=await detectAll(canvas);
-        const containsOriginal=regions.some(r=>decode(r.barcode).code==="6777");
-        const effectiveKind=containsOriginal?"bone":kind;
-        if(containsOriginal&&kind==="normal"){
-          show("scanMsg","6777 detected · Bone-in");
-        }
-        if(!regions.length&&kind==="bone"){
-          errors++;
-          show("scanMsg","No barcodes found on bone-in sheet: "+file.name,"warn");
-          continue;
-        }
+        const effectiveKind=classifyPhotoBarcodes(regions.map(r=>r.barcode));
         if(!regions.length){
           // OCR fallback is not the primary scanning path. A correctly read 13
           // digit number still uses the barcode catalog to resolve its weight.
           try{
             if(!worker)worker=await(await loadOCR()).createWorker("eng");
             const text=(await worker.recognize(canvas)).data.text||"";
-            for(const code of fallbackBarcodesFromText(text)){
-              const entry=addLabel({barcode:code,kind:effectiveKind,sheetId,photoName:file.name,source:"OCR barcode fallback"});
-              added++;if(entry.confirmed)ready++;else review++;
+            const codes=fallbackBarcodesFromText(text);
+            // Without detected positions, OCR alone cannot reliably pair
+            // originals and finished labels on a bone-in sticker sheet.
+            if(classifyPhotoBarcodes(codes)==="bone"){
+              errors++;
+              show("scanMsg","6777 found, but label order is unclear. Rescan the sheet.","warn");
+            }else{
+              for(const code of codes){
+                const entry=addLabel({barcode:code,kind:"normal",sheetId,photoName:file.name,source:"OCR barcode fallback"});
+                added++;if(entry.confirmed)ready++;else review++;
+              }
             }
           }catch(err){errors++}
         }else{
@@ -1013,10 +1015,8 @@ function exportCsv(){
 }
 $("cropClose").addEventListener("click",closeEntryPreview);
 $("cropDialog").addEventListener("click",e=>{if(e.target===$("cropDialog"))closeEntryPreview()});
-$("sheetPhotos").addEventListener("change",e=>{addPhotos(e.target.files,"normal");e.target.value=""});
-$("cameraPhoto").addEventListener("change",e=>{addPhotos(e.target.files,"normal");e.target.value=""});
-$("bonePhotos").addEventListener("change",e=>{addPhotos(e.target.files,"bone");e.target.value=""});
-$("boneCamera").addEventListener("change",e=>{addPhotos(e.target.files,"bone");e.target.value=""});
+$("sheetPhotos").addEventListener("change",e=>{addPhotos(e.target.files);e.target.value=""});
+$("cameraPhoto").addEventListener("change",e=>{addPhotos(e.target.files);e.target.value=""});
 $("scanBtn").addEventListener("click",scanPhotos);
 $("clearPhotos").addEventListener("click",()=>{photos.splice(0);updatePhotoQueue();show("scanMsg","")});
 $("addLabel").addEventListener("click",()=>{
@@ -1058,7 +1058,7 @@ $("printBtn").addEventListener("click",printWithBarcodeNotice);
 $("quickPrintBtn")?.addEventListener("click",printWithBarcodeNotice);
 $("exportBtn").addEventListener("click",exportCsv);
 
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup};
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,addPhotos};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 restore();render();void recoverLabelCrops();
 })();
