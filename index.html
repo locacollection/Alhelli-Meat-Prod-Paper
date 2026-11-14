@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#183c32">
 <meta name="description" content="Scan normal and bone-in beef production sheets, pair 6777 original meat with finished 6780 and 6781 labels, and print one combined Recipe Issue and GRN production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=combined-sheets-11">
+<link rel="stylesheet" href="scanner.css?v=weight-first-12">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong><small>Label-based production paper</small></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
@@ -37,7 +37,7 @@
 
       <section class="panel">
         <div class="section-top"><div><span class="kicker">Step 2</span><h2>Automatic label checks</h2></div><span id="labelCount" class="tag">0 labels</span></div>
-        <p class="muted">Labels remain read-only and grouped by source sheet. Bone-in pairs must follow the sequence 6777 then 6780/6781. Tap Preview label for a cropped sticker; enter a barcode manually only if scanning misses it.</p>
+        <p class="muted">Each label shows its weight prominently, with a compact barcode for identification. Tap Price details only when you need the rate or total price. Scan results remain read-only, grouped by source sheet, with Preview label for sticker images.</p>
         <div id="labels" class="labels"><p class="empty">No labels yet. Scan your photos or add a missing label manually.</p></div>
         <div class="buttons"><button id="addLabel" type="button" class="btn btn-light">+ Enter barcode manually</button><button id="clearLabels" type="button" class="btn btn-outline">New production paper</button></div>
         <form id="manualBarcodeForm" class="manual-barcode-form" hidden>
@@ -144,5 +144,5 @@
   </table>
   <p class="paper-auditnote">Calculated from price-encoded barcodes. Check exact weights against original scale labels before signing.</p>
 </section>
-<script src="scanner.js?v=combined-sheets-11"></script>
+<script src="scanner.js?v=weight-first-12"></script>
 </body></html>
