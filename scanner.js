@@ -591,26 +591,11 @@ function refreshSummary(){
   $("mincedTotal").textContent=fmtKg(t.m)+" kg";
   $("bonelessTotal").textContent=fmtKg(t.b)+" kg";
   $("wasteTotal").textContent=fmtKg(t.waste)+" kg";
-  $("verifiedTotal").textContent=t.c+" / "+entries.length;
-  $("normalIssueTotal").textContent=fmtKg(t.normalOriginal)+" kg";
-  $("boneIssueTotal").textContent=fmtKg(t.boneOriginal)+" kg";
   const blocked=Boolean(t.error)||scanning;
   $("printBtn").disabled=blocked;
   if($("quickPrintBtn"))$("quickPrintBtn").disabled=blocked;
   $("exportBtn").disabled=blocked;
-  const balance="Recipe Issue "+fmtKg(t.original)+" kg = minced "+fmtKg(t.m)+
-    " kg + boneless "+fmtKg(t.b)+" kg + bones/wastage "+fmtKg(t.waste)+" kg.";
   show("paperWarning",t.error||"",t.error?"warn":"");
-  const section=$("boneBatchSummary");section.replaceChildren();
-  for(const batch of t.batches){
-    const row=document.createElement("div");row.className="batch-balance-row";
-    const name=document.createElement("strong");name.textContent="6777 "+fmtKg(batch.original)+" kg";
-    const desc=document.createElement("span");
-    desc.textContent=" → 6780 "+fmtKg(batch.minced)+" kg"+(batch.boneless?" + 6781 "+fmtKg(batch.boneless)+" kg":"")+
-      " · Wastage "+fmtKg(batch.waste)+" kg";
-    row.append(name,desc);section.append(row);
-  }
-  $("boneBatchContainer").hidden=!t.batches.length;
 }
 function addLabel(entry={}){
   const barcode=String(entry.barcode||"").replace(/\s/g,"");
