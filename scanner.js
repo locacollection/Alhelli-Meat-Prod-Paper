@@ -427,6 +427,24 @@ function buildRow(entry,i){
   actions.append(closeup,attach,remove);box.append(actions);
   return box;
 }
+function mode(){return document.querySelector('input[name="materialMode"]:checked')?.value||"no-bones"}
+function totals(){
+  let m=0,b=0,c=0;
+  for(const e of entries){const v=verify(e);if(e.confirmed&&v.ok){if(v.info.code==="6780")m+=v.grams;else b+=v.grams;c++}}
+  return {m,b,c,pending:entries.length-c};
+}
+function paperState(){
+  const t=totals(),out=t.m+t.b;let original=out,waste=0,error="";
+  if(!entries.length)error="Add at least one minced or boneless label. No production means no Recipe GRN.";
+  else if(t.pending>0)error=t.pending+" label(s) need to be checked and confirmed before printing.";
+  else if(out<=0)error="No finished meat weight was recorded.";
+  if(mode()==="with-bones"){
+    original=fixed3($("originalWeight").value);
+    if(original===null||original<=0)error="Enter the actual weighed 6777 amount before generating a with-bones production paper.";
+    else {waste=original-out;if(waste<0)error="Original 6777 weight is less than finished output. Recheck the printed labels."}
+  }
+  return {...t,original,waste,error};
+}
 function render(){
   const container=$("labels");container.replaceChildren();
   if(!entries.length){
