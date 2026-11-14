@@ -73,10 +73,10 @@ function verify(entry){
   return {ok:true,info,grams,unit,printed};
 }
 function persist(){
-  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,unit,printed,photoName,ocrProduct,confirmed,source})=>({id,barcode,weight,unit,printed,photoName,ocrProduct,confirmed,source}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
+  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,unit,printed,photoName,ocrProduct,confirmed,autoConfirmed,source})=>({id,barcode,weight,unit,printed,photoName,ocrProduct,confirmed,autoConfirmed,source}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
 }
 function restore(){
-  try{const v=JSON.parse(localStorage.getItem(STORAGE)||"[]");if(Array.isArray(v))entries=v.slice(0,250).filter(x=>x&&typeof x.barcode==="string").map(x=>({id:makeId(),barcode:x.barcode,weight:String(x.weight||""),unit:String(x.unit||""),printed:String(x.printed||""),photoName:String(x.photoName||""),ocrProduct:x.ocrProduct||null,confirmed:Boolean(x.confirmed),source:x.source||"saved"}));}catch(_){}
+  try{const v=JSON.parse(localStorage.getItem(STORAGE)||"[]");if(Array.isArray(v))entries=v.slice(0,250).filter(x=>x&&typeof x.barcode==="string").map(x=>({id:makeId(),barcode:x.barcode,weight:String(x.weight||""),unit:String(x.unit||""),printed:String(x.printed||""),photoName:String(x.photoName||""),ocrProduct:x.ocrProduct||null,confirmed:Boolean(x.confirmed),autoConfirmed:Boolean(x.autoConfirmed),source:x.source||"saved"}));}catch(_){}
 }
 function field(name,val,placeholder,onChange,extra){
   const lbl=document.createElement("label");if(extra)lbl.className=extra;
@@ -98,7 +98,7 @@ function buildRow(entry,i){
     ["Unit price (BD/kg) *","unit","Enter price per kg",""],
     ["Printed total price (BD) *","printed","Enter total price",""]
   ]){
-    fields.append(field(name,entry[key],placeholder,v=>{entry[key]=v;entry.confirmed=false;persist();refreshRow(box,entry);refreshSummary()},cls));
+    fields.append(field(name,entry[key],placeholder,v=>{entry[key]=v;entry.confirmed=false;entry.autoConfirmed=false;persist();refreshRow(box,entry);refreshSummary()},cls));
   }
   box.append(fields);
   const msg=document.createElement("div");msg.className="message"+(status.ok?"":" warn");
@@ -107,7 +107,7 @@ function buildRow(entry,i){
   const actions=document.createElement("div");actions.className="label-extra";
   const source=document.createElement("small");source.textContent=entry.photoName?"From photo: "+entry.photoName:"Manual / sample label";
   const wrap=document.createElement("div");wrap.className="label-actions";
-  const confirm=document.createElement("button");confirm.type="button";confirm.className="mini";confirm.dataset.confirm="1";confirm.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";confirm.disabled=!status.ok||entry.confirmed;confirm.addEventListener("click",()=>{entry.confirmed=true;persist();render()});
+  const confirm=document.createElement("button");confirm.type="button";confirm.className="mini";confirm.dataset.confirm="1";confirm.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";confirm.disabled=!status.ok||entry.confirmed;confirm.addEventListener("click",()=>{entry.confirmed=true;entry.autoConfirmed=false;persist();render()});
   const remove=document.createElement("button");remove.type="button";remove.className="mini";remove.textContent="Remove";remove.addEventListener("click",()=>{entries=entries.filter(x=>x.id!==entry.id);persist();render()});
   const closeup=document.createElement("label");closeup.className="mini closeup-upload";closeup.textContent="Re-read close-up";
   const choose=document.createElement("input");choose.type="file";choose.accept="image/*";choose.hidden=true;
@@ -145,8 +145,29 @@ function refreshRow(box,entry){
   button.disabled=!v.ok||entry.confirmed;
 }
 function render(){
-  $("labels").replaceChildren();if(!entries.length){const p=document.createElement("p");p.className="empty";p.textContent="No labels yet. Scan your photos or add a missing label manually."; $("labels").append(p);}
-  entries.forEach((e,i)=>$("labels").append(buildRow(e,i)));
+  const container=$("labels");container.replaceChildren();
+  if(!entries.length){
+    const p=document.createElement("p");p.className="empty";
+    p.textContent="No labels yet. Choose a label-sheet photo to scan automatically.";
+    container.append(p);
+  }else{
+    const ready=[],needsReview=[];
+    entries.forEach((entry,index)=>((entry.confirmed&&verify(entry).ok)?ready:needsReview).push({entry,index}));
+    if(ready.length){
+      const details=document.createElement("details");details.className="auto-verified";
+      const summary=document.createElement("summary");
+      summary.textContent="✓ "+ready.length+" barcode-checked label"+(ready.length===1?"":"s")+" ready · Tap to inspect";
+      details.append(summary);
+      for(const row of ready)details.append(buildRow(row.entry,row.index));
+      container.append(details);
+    }
+    if(needsReview.length){
+      const tip=document.createElement("p");tip.className="review-heading";
+      tip.textContent=needsReview.length+" label"+(needsReview.length===1?" needs":"s need")+" attention";
+      container.append(tip);
+      for(const row of needsReview)container.append(buildRow(row.entry,row.index));
+    }
+  }
   refreshSummary();
 }
 function refreshSummary(){
@@ -156,12 +177,12 @@ function refreshSummary(){
   $("issueTotal").textContent=t.original===null?"—":fmtKg(t.original)+" kg";
   $("mincedTotal").textContent=fmtKg(t.m)+" kg";$("bonelessTotal").textContent=fmtKg(t.b)+" kg";
   $("wasteTotal").textContent=fmtKg(t.waste)+" kg";$("verifiedTotal").textContent=t.c+" / "+entries.length;
-  $("printBtn").disabled=Boolean(t.error);$("exportBtn").disabled=Boolean(t.error);
+  $("printBtn").disabled=Boolean(t.error);if($("quickPrintBtn"))$("quickPrintBtn").disabled=Boolean(t.error);$("exportBtn").disabled=Boolean(t.error);
   show("paperWarning",t.error||"Paper ready: Recipe Issue "+fmtKg(t.original)+" kg = finished products "+fmtKg(t.m+t.b)+" kg"+(mode()==="with-bones"?" + bones/trimming "+fmtKg(t.waste)+" kg.":"; zero wastage."),t.error?"warn":"");
   show("balanceText",t.error||"All labels confirmed. Recipe Issue and GRN match.",t.error?"warn":"");
 }
 function addLabel(entry={}){
-  entries.push({id:makeId(),barcode:entry.barcode||"",weight:entry.weight||"",unit:entry.unit||"",printed:entry.printed||"",photoName:entry.photoName||"",ocrProduct:entry.ocrProduct||null,confirmed:false,source:entry.source||"manual"});
+  entries.push({id:makeId(),barcode:entry.barcode||"",weight:entry.weight||"",unit:entry.unit||"",printed:entry.printed||"",photoName:entry.photoName||"",ocrProduct:entry.ocrProduct||null,confirmed:!!entry.confirmed,autoConfirmed:!!entry.autoConfirmed,source:entry.source||"manual"});
   persist();render();
 }
 function imgPreview(file){
@@ -240,30 +261,36 @@ function readUniqueDecimal(text){
   const unique=[...new Set(found)];
   return unique.length===1?unique[0]:"";
 }
+function shouldAutoConfirm(entry,cropped,confidenceCount){
+  return Boolean(cropped&&confidenceCount===3&&verify(entry).ok);
+}
 async function readFieldsForBarcode(worker,canvas,region,decoded){
-  // Whole-label OCR is used for product-name context only. Actual numeric fields
-  // are read separately from the visual positions for THIS barcode.
-  let context="";
-  try{
-    const labelImage=photoRegion(canvas,region);
-    context=(await worker.recognize(labelImage)).data.text||"";
-  }catch(_){}
-  const hint=ocrFields(context,decoded);
-  const fields={weight:"",unit:"",printed:"",ocrProduct:hint.ocrProduct};
+  const fields={weight:"",unit:"",printed:"",ocrProduct:null,autoReady:false};
+  let good=0;
   for(const kind of ["weight","unit","printed"]){
     try{
-      const image=fieldRegion(canvas,region,kind);
-      fields[kind]=readUniqueDecimal((await worker.recognize(image)).data.text||"");
+      const result=await worker.recognize(fieldRegion(canvas,region,kind));
+      const value=readUniqueDecimal(result.data.text||"");
+      const confidence=Number(result.data.confidence);
+      if(value){
+        fields[kind]=value;
+        if(!Number.isFinite(confidence)||confidence>=60)good++;
+      }
     }catch(_){}
   }
-  // If a field-specific crop is unreadable, only use a number from the
-  // isolated whole-label crop when the values are mutually consistent.
-  const fallback=verify({barcode:region.barcode,...hint});
-  if(fallback.ok){
-    for(const kind of ["weight","unit","printed"])
-      if(!fields[kind])fields[kind]=hint[kind];
+  if(shouldAutoConfirm({barcode:region.barcode,...fields},true,good)){
+    fields.autoReady=true;return fields;
   }
-  // Do not turn a price-derived weight into a confirmed printed weight.
+  // Unclear text is a review exception. Never auto-approve from an estimate.
+  try{
+    const result=await worker.recognize(photoRegion(canvas,region));
+    const hint=ocrFields(result.data.text||"",decoded);
+    fields.ocrProduct=hint.ocrProduct;
+    if(verify({barcode:region.barcode,...hint}).ok){
+      for(const kind of ["weight","unit","printed"])
+        if(!fields[kind])fields[kind]=hint[kind];
+    }
+  }catch(_){}
   return fields;
 }
 
@@ -429,7 +456,7 @@ $("sampleBtn").addEventListener("click",()=>{
   // These examples are only demonstrations; verify the barcodes before use.
   for(const s of sample)addLabel({...s,source:"demo"});render();show("scanMsg","Demonstration rows loaded. They are not confirmed real labels. Review and confirm each barcode and printed price before producing a paper.","warn");
 });
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion};
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 restore();render();
 })();
