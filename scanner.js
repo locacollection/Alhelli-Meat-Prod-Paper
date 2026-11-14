@@ -53,7 +53,15 @@ function verify(entry){
   const info=decode(entry.barcode);
   if(info.error)return {ok:false,reason:info.error};
   const grams=fixed3(entry.weight);
-  if(grams===null||grams<1||grams>10000)return {ok:false,reason:"Read or enter the exact printed weight between 0.001 and 10.000 kg."};
+  if(grams===null||grams<1||grams>10000){
+    const missing=!String(entry.weight??"").trim();
+    if(missing){
+      const pricePerKg=fixed3(entry.unit);
+      const estimate=pricePerKg!==null&&pricePerKg>0?(info.price/pricePerKg).toFixed(3):null;
+      return {ok:false,reason:"Printed weight missing. "+(estimate?"Barcode price suggests approximately "+estimate+" kg, but rounding means it cannot confirm exact weight. ":"")+"Type the exact weight written on this label. Gray example text is not entered data."};
+    }
+    return {ok:false,reason:"The printed weight is invalid. Enter the exact number from the label, between 0.001 and 10.000 kg."};
+  }
   const unit=fixed3(entry.unit);
   if(unit===null||unit<=0)return {ok:false,reason:"Read or enter the unit price printed on the label."};
   const printed=fixed3(entry.printed);
@@ -85,10 +93,10 @@ function buildRow(entry,i){
   head.append(title,chip(status.ok?(entry.confirmed?"Confirmed":"Ready to confirm"):"Needs review","status"));box.append(head);
   const fields=document.createElement("div");fields.className="label-fields";
   for(const [name,key,placeholder,cls] of [
-    ["13-digit barcode","barcode","9667802045007","wide"],
-    ["Printed weight (kg)","weight","3.500",""],
-    ["Unit price (BD/kg)","unit","4.500",""],
-    ["Printed total price (BD)","printed","15.750",""]
+    ["13-digit barcode","barcode","Enter the actual 13 digits","wide"],
+    ["Printed weight (kg) *","weight","Enter weight, e.g. 1.000",""],
+    ["Unit price (BD/kg) *","unit","Enter price per kg",""],
+    ["Printed total price (BD) *","printed","Enter total price",""]
   ]){
     fields.append(field(name,entry[key],placeholder,v=>{entry[key]=v;entry.confirmed=false;persist();refreshRow(box,entry);refreshSummary()},cls));
   }
@@ -101,7 +109,10 @@ function buildRow(entry,i){
   const wrap=document.createElement("div");wrap.className="label-actions";
   const confirm=document.createElement("button");confirm.type="button";confirm.className="mini";confirm.dataset.confirm="1";confirm.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";confirm.disabled=!status.ok||entry.confirmed;confirm.addEventListener("click",()=>{entry.confirmed=true;persist();render()});
   const remove=document.createElement("button");remove.type="button";remove.className="mini";remove.textContent="Remove";remove.addEventListener("click",()=>{entries=entries.filter(x=>x.id!==entry.id);persist();render()});
-  wrap.append(confirm,remove);actions.append(source,wrap);box.append(actions);return box;
+  const closeup=document.createElement("label");closeup.className="mini closeup-upload";closeup.textContent="Re-read close-up";
+  const choose=document.createElement("input");choose.type="file";choose.accept="image/*";choose.hidden=true;
+  choose.addEventListener("change",()=>{const file=choose.files?.[0];if(file)readLabelCloseup(file,entry);choose.value=""});
+  closeup.append(choose);wrap.append(confirm,closeup,remove);actions.append(source,wrap);box.append(actions);return box;
 }
 function mode(){return document.querySelector('input[name="materialMode"]:checked')?.value||"no-bones"}
 function totals(){
@@ -229,6 +240,37 @@ async function loadOCR(){
     document.head.append(script);
   });
   return loadOCRPromise;
+}
+async function readLabelCloseup(file,entry){
+  const known=decode(entry.barcode);
+  if(known.error){show("scanMsg","Enter or correct the 13-digit barcode first, then re-read a close-up label image.","warn");return}
+  show("scanMsg","Reading close-up photo for "+PRODUCT[known.code]+"…");
+  let worker=null;
+  try{
+    if("BarcodeDetector" in window){
+      try{
+        const bitmap=await createImageBitmap(file);const detector=new BarcodeDetector({formats:["ean_13"]});
+        const found=await detector.detect(bitmap);bitmap.close();
+        const valid=found.map(x=>String(x.rawValue).replace(/\s/g,"")).filter(x=>!decode(x).error);
+        if(valid.length>0 && !valid.includes(entry.barcode)){
+          show("scanMsg","Close-up shows a different product/price barcode. No values were changed. Check that you selected the correct label.","warn");return;
+        }
+      }catch(_){}
+    }
+    worker=await(await loadOCR()).createWorker("eng");
+    const result=await worker.recognize(file);
+    const fields=ocrFields(result.data.text||"",known);
+    if(!fields.weight&&!fields.unit&&!fields.printed){
+      show("scanMsg","The close-up was not clear enough to extract printed values. Enter the exact weight and prices manually.","warn");return;
+    }
+    if(fields.weight)entry.weight=fields.weight;
+    if(fields.unit)entry.unit=fields.unit;
+    if(fields.printed)entry.printed=fields.printed;
+    if(fields.ocrProduct)entry.ocrProduct=fields.ocrProduct;
+    entry.photoName=file.name;entry.confirmed=false;persist();render();
+    show("scanMsg","Close-up processed. Recheck every extracted number against the actual printed label, then confirm it.");
+  }catch(e){show("scanMsg","Could not read close-up: "+e.message+". You can enter the label values manually.","warn")}
+  finally{if(worker)try{await worker.terminate()}catch(_){}}
 }
 function fallbackBarcodesFromText(text){
   const out=[];const regexp=/9[\s:|]*6678([01])(\d)[\s:|]*(\d{6})/g;let m;
