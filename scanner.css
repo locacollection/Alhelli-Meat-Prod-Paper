@@ -272,3 +272,61 @@ main.container{padding-top:16px}
 .recipe-primary .recipe-qty{font-size:22px}
 @media(max-width:430px){.summary-panel{padding:16px}.recipe-qty{font-size:17px}.recipe-primary .recipe-qty{font-size:19px}.recipe-summary-line{gap:8px}.recipe-summary-item{font-size:12px}}
 @media print{.summary-panel{display:none!important}}
+
+/* Production paper preview, private save dialog, and dated history. */
+.extra-info h2,.saved-papers h2{font-size:18px;margin:0 0 14px}
+.extra-stat{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:10px 0;border-bottom:1px solid #e7eee8;font-size:13px;line-height:1.4}
+.extra-stat strong{white-space:nowrap;color:#195138;font-size:19px;font-variant-numeric:tabular-nums}
+.saved-date-filter{display:flex;flex-direction:column;gap:5px;margin:15px 0 10px}
+.saved-date-filter input{max-width:100%}
+.saved-paper-list{display:flex;flex-direction:column;gap:9px;margin-bottom:13px}
+.saved-date-heading{font-size:13px;font-weight:850;color:#3f7053;margin:14px 0 0}
+.saved-paper-item{border:1px solid #dbe7df;background:#f9fbf9;border-radius:11px;padding:12px;display:flex;flex-direction:column;gap:5px}
+.saved-paper-item strong{font-size:14px}
+.saved-paper-item small{font-size:12px;color:#658174;line-height:1.5}
+.saved-paper-buttons{display:flex;gap:9px;margin-top:5px}
+.btn-small{font-size:12px;padding:8px 12px}
+.paper-dialog{width:min(780px,calc(100vw - 20px));max-height:94dvh;border:1px solid #dce6dd;border-radius:17px;background:#fff;color:#213b2d;padding:18px;overflow:auto;box-shadow:0 16px 64px #0624174a}
+.paper-dialog::backdrop{background:#102519b8}
+.paper-dialog .dialog-head{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:14px}
+.paper-dialog .dialog-head h2{font-size:19px;margin:0}
+.paper-dialog .dialog-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:15px;padding-top:13px;border-top:1px solid #e7ede9}
+.paper-dialog .save-summary{font-size:14px;line-height:1.7;color:#466853;background:#eef8ef;border-radius:10px;padding:12px}
+.paper-auth-form{display:grid;gap:10px;padding:14px;border:1px solid #d6e5d8;border-radius:11px;margin:13px 0}
+.paper-auth-form[hidden],#paperLoggedIn[hidden],.paper-dialog button[hidden]{display:none!important}
+.paper-auth-form h3{font-size:16px;margin:0}
+.paper-auth-form input{margin-top:5px}
+.paper-auth-form .btn{justify-self:start}
+#paperLoggedIn{font-size:13px;background:#f2f7f4;padding:12px;border-radius:11px}
+#paperLoggedIn strong{overflow-wrap:anywhere}
+.save-pdf-choice{margin:16px 0;font-size:13px;color:#315d43}
+.save-pdf-choice label{display:flex;align-items:flex-start;gap:8px}
+.save-pdf-choice input{flex:none;width:18px;height:18px;margin:0}
+.paper-preview-content{background:#e9ece8;border:1px solid #d2d8d1;border-radius:11px;padding:12px;overflow-x:auto}
+.paper-preview-sheet{background:#fff;border:1px solid #ced3ce;margin:0 auto;width:min(100%,640px);min-width:450px;box-shadow:0 6px 20px #12261914;padding:16px 20px;color:#202020;font-family:Arial,Helvetica,sans-serif}
+.preview-letterhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:13px;gap:15px}
+.preview-letterhead>div{display:flex;flex-direction:column;gap:3px}
+.preview-brand{font-size:30px;color:#935b60;font-weight:850}
+.preview-letterhead small{font-size:10px;color:#666}
+.preview-arabic{font-size:28px;color:#935b60}
+.preview-main-title{text-align:center;text-decoration:underline;font-weight:800;font-size:17px;margin:9px 0 13px}
+.preview-paper-section h3{text-align:center;text-decoration:underline;font-size:14px;margin:14px 0 8px}
+.preview-table,.preview-meta{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px}
+.preview-table th,.preview-table td,.preview-meta th,.preview-meta td{border:1px solid #666;padding:6px 5px;word-wrap:break-word}
+.preview-table th{text-align:center;font-weight:800}
+.preview-table th:nth-child(1){width:22%}
+.preview-table th:nth-child(2){width:51%}
+.preview-table th:nth-child(3){width:10%}
+.preview-table th:nth-child(4){width:17%}
+.preview-table tbody tr{height:27px}
+.preview-table tbody td:nth-child(n+3){text-align:center}
+.preview-meta th{text-align:left;font-weight:650}
+.preview-meta th:nth-child(odd){width:12%}
+.preview-signatures{margin-top:17px}
+@media(max-width:540px){
+.paper-dialog{padding:12px}
+.paper-preview-content{padding:7px}
+.paper-preview-sheet{padding:13px 12px;min-width:435px}
+.extra-stat strong{font-size:17px}
+}
+@media print{.paper-dialog,.saved-papers,.extra-info{display:none!important}}
