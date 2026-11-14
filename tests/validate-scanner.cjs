@@ -504,7 +504,7 @@ const beforeImageTotal=totals().m;
 
 const summaryHtml=fs.readFileSync("index.html","utf8");
 const summaryStart=summaryHtml.indexOf('<section class="panel summary-panel"');
-const summaryEnd=summaryHtml.indexOf('</section>',summaryStart);
+const summaryEnd=summaryHtml.indexOf('</aside>',summaryStart);
 assert.ok(summaryStart>=0 && summaryEnd>summaryStart,"Recipe summary panel must exist");
 const summaryMarkup=summaryHtml.slice(summaryStart,summaryEnd);
 assert.match(summaryMarkup,/Recipe Issue \(Subcontract PO\)/);
