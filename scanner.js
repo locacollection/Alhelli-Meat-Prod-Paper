@@ -94,7 +94,7 @@ function fromBarcode(barcode,original={}){
   if(keepManual)return {...original,barcode};
   return {...original,barcode,weight:fmtKg(result.grams),unit:fmtMoney(result.unit),
     printed:fmtMoney(result.price),weightSource:"catalog",unitSource:"catalog",
-    printedSource:"barcode",ocrChecked:false,ocrConflict:"",confirmed:true,autoConfirmed:true};
+    printedSource:"barcode",ocrProduct:null,ocrChecked:false,ocrConflict:"",confirmed:true,autoConfirmed:true};
 }
 function matchPrintedOCR(entry,ocr={}){
   const reference=catalogFromBarcode(entry.barcode);
@@ -308,7 +308,7 @@ function refreshSummary(){
   const blocked=Boolean(t.error)||scanning;
   $("printBtn").disabled=blocked;if($("quickPrintBtn"))$("quickPrintBtn").disabled=blocked;$("exportBtn").disabled=blocked;
   show("paperWarning",t.error||"Paper ready: Recipe Issue "+fmtKg(t.original)+" kg = finished products "+fmtKg(t.m+t.b)+" kg"+(mode()==="with-bones"?" + bones/trimming "+fmtKg(t.waste)+" kg.":"; zero wastage."),t.error?"warn":"");
-  show("balanceText",t.error||"All labels confirmed. Recipe Issue and GRN match.",t.error?"warn":"");
+  show("balanceText",t.error||"Barcode-derived weights totalled. Check the label count and current product prices.",t.error?"warn":"");
 }
 function addLabel(entry={}){
   const barcode=String(entry.barcode||"").replace(/\s/g,"");
@@ -621,9 +621,9 @@ $("clearLabels").addEventListener("click",()=>{
 function printWithBarcodeNotice(){
   const state=paperState();if(state.error)return;
   const estimated=entries.filter(e=>e.confirmed&&e.weightSource==="catalog").length;
-  const warning="Detected "+entries.length+" labels. Please check this matches the labels on your plastic sheet."+
-    (estimated?"\\n"+estimated+" weight(s) come from the 5 g barcode catalog, not verified exact printed weights.":"")+
-    "\\nPrepare the production paper?";
+  const warning="Detected "+entries.length+" labels. Check this matches the stickers on the plastic sheet."+
+    (estimated?String.fromCharCode(10)+estimated+" weight(s) inferred from the 5 g barcode catalog, not verified exact printed weights.":"")+
+    String.fromCharCode(10)+"Prepare the production paper?";
   if(!confirm(warning))return;
   preparePaper();window.print();
 }
