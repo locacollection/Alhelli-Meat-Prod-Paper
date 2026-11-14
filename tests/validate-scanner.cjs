@@ -7,7 +7,7 @@ class FakeElement {
   constructor(){this.value="";this.className="";this.textContent="";this.disabled=false;this.children=[];this.dataset={};this.classList={toggle(){},add(){},remove(){}}}
   replaceChildren(...v){this.children=v}
   append(...v){this.children.push(...v)}
-  addEventListener(){}
+  addEventListener(name,callback){this.listeners=this.listeners||{};this.listeners[name]=callback}
   querySelector(){return new FakeElement()}
   setAttribute(){}
 }
@@ -28,7 +28,7 @@ const sandbox = {
   console,Date,confirm:()=>true
 };
 vm.runInNewContext(source,sandbox,{filename:"scanner.js",timeout:2000});
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,keepLabelCrop}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
 assert.equal(readUniqueDecimal("1.000 4.500"),"");
@@ -266,6 +266,24 @@ const beforeImageTotal=totals().m;
   assert.equal(persisted[persisted.length-2].cropKey,stickerA.cropKey);
   assert.equal(persisted[persisted.length-1].cropKey,stickerB.cropKey);
   assert.equal(JSON.stringify(persisted).includes("blob:label-"),false);
+  const previewCard=buildRow(stickerA,0);
+  const previewButton=previewCard.children.find(el=>el.className==="mini label-preview-button");
+  assert.ok(previewButton,"Each label should have exactly one preview button");
+  assert.equal(previewButton.textContent,"Preview label");
+  assert.equal(previewButton.disabled,false);
+  assert.equal(typeof previewButton.listeners.click,"function");
+  assert.equal(previewCard.children.some(el=>el.className==="label-crop-inline"),false);
+  const noPhotoRecord=addLabel({barcode:"9667802045007"});
+  const noPhotoCard=buildRow(noPhotoRecord,0);
+  const disabledPreview=noPhotoCard.children.find(el=>el.className==="mini label-preview-button");
+  assert.ok(disabledPreview);
+  assert.equal(disabledPreview.disabled,true);
+  const siteJs=fs.readFileSync("scanner.js","utf8");
+  assert.ok(!siteJs.includes("scan-gallery"));
+  assert.ok(!siteJs.includes("createReviewTile("));
+  assert.ok(!siteJs.includes('className="label-crop-inline"'));
+  const html=fs.readFileSync("index.html","utf8");
+  assert.ok(html.includes('id="cropDialog"'),"Preview opens the existing dialog");
   console.log("Cropped-label tests passed: unique per-sticker images, correct position, no changes to totals.");
 })().catch(err=>{console.error(err);process.exitCode=1});
 console.log("Scanner validation tests passed: verified EAN, internal price digit, rounding, label consistency, and product constraints.");
