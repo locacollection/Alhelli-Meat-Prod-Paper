@@ -70,7 +70,64 @@ function fillCatalogUnit(decoded,fields){
      encodeFromPrinted(decoded.code,grams,unit)!==decoded.barcode)return {...fields};
   return {...fields,unit:fmtMoney(unit),unitSource:"catalog"};
 }
+// Barcodes encode price. The following resolves the unique 5 g catalog
+// weight at the configured rate; it is not an exact measured weight.
+function catalogFromBarcode(barcode){
+  const info=decode(barcode);
+  if(info.error)return {ok:false,reason:info.error};
+  const unit=RATE[info.code];
+  if(!unit)return {ok:false,reason:"The saved price for this product is not configured."};
+  let match=null;
+  for(let grams=5;grams<=10000;grams+=5){
+    if(roundedPrice(grams,unit)!==info.price)continue;
+    if(encodeFromPrinted(info.code,grams,unit)!==info.barcode)continue;
+    if(match!==null)return {ok:false,reason:"Multiple catalog weights share this barcode; check the printed weight."};
+    match=grams;
+  }
+  if(match===null)return {ok:false,reason:"This valid barcode has no match in the 5 g catalog. The store price may have changed."};
+  return {ok:true,info,grams:match,unit,price:info.price};
+}
+function fromBarcode(barcode,original={}){
+  const result=catalogFromBarcode(barcode);
+  if(!result.ok)return {...original,barcode,confirmed:false,ocrConflict:result.reason};
+  const keepManual=Boolean(original.confirmed&&!original.autoConfirmed&&verify(original).ok);
+  if(keepManual)return {...original,barcode};
+  return {...original,barcode,weight:fmtKg(result.grams),unit:fmtMoney(result.unit),
+    printed:fmtMoney(result.price),weightSource:"catalog",unitSource:"catalog",
+    printedSource:"barcode",ocrChecked:false,ocrConflict:"",confirmed:true,autoConfirmed:true};
+}
+function matchPrintedOCR(entry,ocr={}){
+  const reference=catalogFromBarcode(entry.barcode);
+  if(!reference.ok)return {...entry,ocrConflict:reference.reason,confirmed:false};
+  const differences=[],reads=[];
+  for(const [field,expected] of [
+    ["weight",reference.grams],["unit",reference.unit],["printed",reference.price]
+  ]){
+    const value=String(ocr[field]??"").trim();
+    if(!value)continue;
+    const num=fixed3(value);
+    if(num===null)continue;
+    reads.push(field);
+    // Printed 1 g weights may differ from a 5 g catalog candidate but
+    // legitimately round to the same encoded price.
+    if(field==="weight"&&num!==expected&&roundedPrice(num,reference.unit)===reference.price)continue;
+    if(num!==expected)differences.push(field+" (OCR "+value+", catalog "+fmtMoney(expected)+")");
+  }
+  if(ocr.ocrProduct&&ocr.ocrProduct!==reference.info.code)differences.push("product name");
+  if(differences.length)return {...entry,confirmed:false,autoConfirmed:false,
+    ocrChecked:reads.length>0,ocrConflict:"OCR differs from barcode: "+differences.join("; ")+". Recheck the photo or keep the barcode value."};
+  const result={...entry,ocrConflict:"",confirmed:true,autoConfirmed:true,
+    ocrChecked:reads.length>0,source:reads.length?"Barcode with OCR cross-check":"Barcode-derived"};
+  if(reads.includes("weight")){
+    const w=fixed3(ocr.weight);
+    if(w!==null&&w!==reference.grams&&roundedPrice(w,reference.unit)===reference.price){
+      result.weight=fmtKg(w);result.weightSource="ocr";
+    }else result.weightSource="catalog";
+  }
+  return result;
+}
 function verify(entry){
+  if(entry.ocrConflict)return {ok:false,reason:entry.ocrConflict};
   const info=decode(entry.barcode);
   if(info.error)return {ok:false,reason:info.error};
   const grams=fixed3(entry.weight);
@@ -534,7 +591,7 @@ $("sampleBtn").addEventListener("click",()=>{
   // These examples are only demonstrations; verify the barcodes before use.
   for(const s of sample)addLabel({...s,source:"demo"});render();show("scanMsg","Demonstration rows loaded. They are not confirmed real labels. Review and confirm each barcode and printed price before producing a paper.","warn");
 });
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit};
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 restore();render();
 })();
