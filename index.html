@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#183c32">
 <meta name="description" content="Scan printed minced and boneless beef labels, double-check price and weight, and prepare Recipe Issue and GRN production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=barcode-first-4">
+<link rel="stylesheet" href="scanner.css?v=paper-form-5">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong><small>Label-based production paper</small></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
@@ -71,18 +71,39 @@
     </aside>
   </div>
 </main>
-<section id="printPaper" class="paper printonly" aria-label="Production in store paper">
-  <header class="paper-head"><h1>Production in store form</h1><h2>MEAT PRODUCTION</h2></header>
-  <table class="paper-meta"><tr><th>Plant</th><td id="ppPlant"></td><th>Date</th><td id="ppDate"></td></tr><tr><th>Section</th><td>Meat</td><th>Staff</th><td id="ppStaff"></td></tr><tr><th>Reference</th><td id="ppReference"></td><th>Process</th><td>6777 → 6780 / 6781</td></tr></table>
-  <h3>Recipe Issue (Sub Contract PO)</h3>
-  <table class="paper-table"><thead><tr><th>Barcode</th><th>Item Name</th><th>UOM</th><th>QTY</th></tr></thead><tbody><tr><td>6777</td><td>Pakistani Beef With Bone</td><td>kg</td><td id="ppIssue"></td></tr></tbody></table>
-  <h3>Recipe GRN (Bundling)</h3>
-  <table class="paper-table"><thead><tr><th>Barcode</th><th>Item Name</th><th>UOM</th><th>QTY</th></tr></thead><tbody id="ppGrn"></tbody></table>
-  <div class="paper-method" id="ppMode"></div>
-  <h3>Barcode weight details</h3>
-  <table class="paper-table"><thead><tr><th>#</th><th>Item</th><th>Weight (kg)</th><th>Unit Price (BD/kg)</th><th>Price (BD)</th><th>EAN-13</th></tr></thead><tbody id="ppLabels"></tbody></table>
-  <p class="paper-footnote">Barcodes determine weights from the saved 5 g price catalog. † indicates barcode-derived weight (not confirmed exact scale weight). * indicates unit price from the saved product rate. Printed text is a secondary check. Verify label count and current prices; attach original stickers if required.</p>
-  <div class="signature"><span>Prepared by: __________________________</span><span>Supervisor: __________________________</span></div>
+<section id="printPaper" class="paper printonly" aria-label="Production in store form">
+  <header class="paper-letterhead">
+    <div class="paper-brand"><div class="paper-brand-name">AlHelli <span class="paper-symbol">A</span></div><small>Mirza AlHelli and Sons B.S.C. (C)</small></div>
+    <div class="paper-brand-ar"><strong lang="ar" dir="rtl">الحلي</strong><small>SUPERMARKET</small></div>
+  </header>
+  <h1 class="paper-title">Production in store form</h1>
+  <table class="paper-meta">
+    <colgroup><col class="meta-key"><col class="meta-value"><col class="meta-key"><col class="meta-wide"><col class="meta-key"><col class="meta-value"></colgroup>
+    <tbody>
+      <tr><th>Plant</th><td id="ppPlant"></td><th>Staff Name</th><td id="ppStaff"></td><th>Date</th><td id="ppDate"></td></tr>
+      <tr><th>Section</th><td>MEAT</td><th>Sig</th><td></td><th></th><td></td></tr>
+    </tbody>
+  </table>
+  <h2 class="paper-subheading">Recipe Issue (Sub Contract PO)</h2>
+  <table class="paper-table" id="paperIssueTable">
+    <colgroup><col class="item-code"><col class="item-name"><col class="item-uom"><col class="item-qty"></colgroup>
+    <thead><tr><th>Barcode</th><th>Item Name</th><th>UOM</th><th>QTY</th></tr></thead>
+    <tbody id="ppIssueRows"></tbody>
+  </table>
+  <h2 class="paper-subheading">Recipe GRN (Bundling)</h2>
+  <table class="paper-table" id="paperGrnTable">
+    <colgroup><col class="item-code"><col class="item-name"><col class="item-uom"><col class="item-qty"></colgroup>
+    <thead><tr><th>Barcode</th><th>Item Name</th><th>UOM</th><th>QTY</th></tr></thead>
+    <tbody id="ppGrn"></tbody>
+  </table>
+  <table class="paper-approvals">
+    <colgroup><col class="approval-label"><col class="approval-value"><col class="approval-label"><col class="approval-value"><col class="approval-ref"></colgroup>
+    <tbody>
+      <tr><th>Sup. Name</th><td></td><th>Sig</th><td></td><th>Doc Reference</th></tr>
+      <tr><th>Pur. Employee</th><td></td><th>Sig</th><td></td><td id="ppReference"></td></tr>
+    </tbody>
+  </table>
+  <p class="paper-auditnote">Calculated from price-encoded barcodes. Check exact weights against original scale labels before signing.</p>
 </section>
-<script src="scanner.js?v=barcode-first-4"></script>
+<script src="scanner.js?v=paper-form-5"></script>
 </body></html>
