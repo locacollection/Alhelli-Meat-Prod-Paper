@@ -298,7 +298,7 @@ async function attachLabelFromFile(file,entry){
     }
     const blob=await canvasBlob(c);
     await keepLabelCrop(entry,blob,"attached");
-    show("scanMsg","Label photo attached to this barcode. Tap the thumbnail to review it.");
+    show("scanMsg","");
   }catch(err){show("scanMsg","Could not attach label photo: "+err.message,"warn")}
   finally{bitmap?.close?.()}
 }
@@ -308,7 +308,7 @@ function previewEntryCrop(entry){
   $("cropHeading").textContent=PRODUCT[decode(entry.barcode).code]||"Scanned label";
   $("cropImage").src=entry.cropUrl;
   $("cropImage").alt="Cropped sticker associated with barcode "+entry.barcode;
-  $("cropDetails").textContent="Barcode "+entry.barcode+" · "+(entry.weight||"—")+" kg · "+(entry.printed||"—")+" BD";
+  $("cropDetails").textContent=entry.barcode+" · "+(entry.weight||"—")+" kg";
   if(dialog.showModal)dialog.showModal();
   else dialog.setAttribute("open","");
 }
@@ -370,7 +370,7 @@ function buildRow(entry,i){
   const preview=document.createElement("button");
   preview.type="button";preview.className="mini label-preview-button";
   preview.textContent="Preview label";preview.disabled=!entry.cropUrl;
-  preview.title=entry.cropUrl?"Open cropped label image":"No saved label photo. Use Attach label photo below.";
+  preview.title=entry.cropUrl?"Open label photo":"Photo unavailable";
   preview.setAttribute("aria-label","Preview cropped sticker for barcode "+(entry.barcode||"not entered"));
   preview.addEventListener("click",()=>previewEntryCrop(entry));
 
@@ -397,10 +397,14 @@ function buildRow(entry,i){
   priceDetails.append(priceSummary,priceValues);
   box.append(priceDetails);
 
-  if(!status.ok||entry.ocrWarning){
+  if(!status.ok){
     const warning=document.createElement("div");warning.className="message warn label-validation-warning";
-    warning.textContent=!status.ok?status.reason:entry.ocrWarning;
+    warning.textContent=status.reason;
     box.append(warning);
+  }
+  if(entry.ocrWarning){
+    const ocrNote=document.createElement("small");ocrNote.className="fineprint";
+    ocrNote.textContent=entry.ocrWarning;priceDetails.append(ocrNote);
   }
 
   const actions=document.createElement("div");actions.className="label-actions read-only-actions";
@@ -526,7 +530,7 @@ function appendReviewGroup(container,title,rows,open=false,description=""){
   section.open=open;
   const summary=document.createElement("summary");summary.textContent=title+" · "+rows.length+" label"+(rows.length===1?"":"s");
   section.append(summary);
-  if(description){const p=document.createElement("p");p.className="fineprint";p.textContent=description;section.append(p)}
+
   for(const row of rows)section.append(buildRow(row.entry,row.index));
   container.append(section);
 }
@@ -554,7 +558,7 @@ function render(){
   const container=$("labels");container.replaceChildren();
   if(!entries.length){
     const p=document.createElement("p");p.className="empty";
-    p.textContent="No labels yet. Scan normal and/or bone-in label sheets for this production paper.";
+    p.textContent="No labels";
     container.append(p);
   }else{
     const normal=[],boneSheets=new Map(),needsReview=[];
@@ -596,8 +600,7 @@ function refreshSummary(){
   $("exportBtn").disabled=blocked;
   const balance="Recipe Issue "+fmtKg(t.original)+" kg = minced "+fmtKg(t.m)+
     " kg + boneless "+fmtKg(t.b)+" kg + bones/wastage "+fmtKg(t.waste)+" kg.";
-  show("paperWarning",t.error||"Paper ready. "+balance,t.error?"warn":"");
-  show("balanceText",t.error||balance,t.error?"warn":"");
+  show("paperWarning",t.error||"",t.error?"warn":"");
   const section=$("boneBatchSummary");section.replaceChildren();
   for(const batch of t.batches){
     const row=document.createElement("div");row.className="batch-balance-row";
@@ -717,9 +720,9 @@ function addPhotos(files,kind="normal"){
   }
   updatePhotoQueue();
   if(count){
-    show("scanMsg",count+" "+(kind==="bone"?"bone-in":"normal")+" photo(s) selected. Scanning now...");
+    show("scanMsg","Scanning "+count+" photo"+(count===1?"":"s")+"…");
     void scanPhotos();
-  }else show("scanMsg","This photo was already scanned. Use New production paper to start again, or add another distinct sheet.","warn");
+  }else show("scanMsg","Photo already scanned.","warn");
 }
 function createScaledCanvas(bitmap,maxDimension=2600){
   const scale=Math.min(1,maxDimension/Math.max(bitmap.width,bitmap.height));
@@ -863,8 +866,8 @@ async function loadOCR(){
 }
 async function readLabelCloseup(file,entry){
   const known=decode(entry.barcode);
-  if(known.error){show("scanMsg","A valid 6780/6781 barcode is required first.","warn");return}
-  show("scanMsg","Checking printed text from a close-up photo...");
+  if(known.error){show("scanMsg","Invalid barcode.","warn");return}
+  show("scanMsg","Checking photo…");
   let worker=null;
   try{
     if("BarcodeDetector" in window){
@@ -873,7 +876,7 @@ async function readLabelCloseup(file,entry){
         const found=await(new BarcodeDetector({formats:["ean_13"]})).detect(bitmap);bitmap.close();
         const visible=found.map(x=>String(x.rawValue).replace(/\s/g,"")).filter(x=>!decode(x).error);
         if(visible.length>1||visible.length===1&&visible[0]!==entry.barcode){
-          show("scanMsg","Crop the close-up to exactly this label. The picture contains another barcode.","warn");return;
+          show("scanMsg","Photo contains a different barcode or multiple stickers.","warn");return;
         }
       }catch(_){}
     }
@@ -884,10 +887,8 @@ async function readLabelCloseup(file,entry){
     Object.assign(entry,matchPrintedOCR(entry,textFields));
     entry.photoName=file.name;
     persist();render();
-    show("scanMsg",entry.ocrConflict
-      ?"The close-up conflicts with the barcode. Review this one label, or choose Keep barcode values."
-      :"Barcode figures are ready. Recognized printed values are only used for checking.",entry.ocrConflict?"warn":"");
-  }catch(err){show("scanMsg","Close-up reading failed, but the barcode-derived values remain: "+err.message,"warn")}
+    show("scanMsg",entry.ocrConflict?"Photo/barcode mismatch.":"",entry.ocrConflict?"warn":"");
+  }catch(err){show("scanMsg","Photo reading failed: "+err.message,"warn")}
   finally{if(worker)try{await worker.terminate()}catch(_){}}
 }
 
@@ -905,7 +906,7 @@ async function scanPhotos(){
   try{
     for(let i=0;i<batch.length;i++){
       const {file,kind,sheetId}=batch[i];
-      show("scanMsg","Scanning "+(kind==="bone"?"bone-in":"normal")+" sheet "+(i+1)+" of "+batch.length+"…");
+      show("scanMsg","Scanning "+(i+1)+"/"+batch.length+"…");
       let bitmap=null;
       try{
         bitmap=await createImageBitmap(file);
@@ -914,12 +915,11 @@ async function scanPhotos(){
         const containsOriginal=regions.some(r=>decode(r.barcode).code==="6777");
         const effectiveKind=containsOriginal?"bone":kind;
         if(containsOriginal&&kind==="normal"){
-          show("scanMsg","Detected a 6777 original label. Automatically treating this photo as a bone-in sheet.");
+          show("scanMsg","6777 detected · Bone-in");
         }
         if(!regions.length&&kind==="bone"){
           errors++;
-          show("scanMsg","Could not read barcode positions on bone-in sheet "+file.name+
-            ". Please take a closer photo: the 6777-to-6780 order must be confirmed.","warn");
+          show("scanMsg","No barcodes found on bone-in sheet: "+file.name,"warn");
           continue;
         }
         if(!regions.length){
@@ -947,7 +947,7 @@ async function scanPhotos(){
             }catch(err){errors++}
             added++;
             if(entry.confirmed)ready++;else review++;
-            show("scanMsg","Read barcode "+(j+1)+"/"+regions.length+" in photo "+(i+1)+". Checking visible text only as a backup…");
+            show("scanMsg","Scanning "+(i+1)+"/"+batch.length+" · "+(j+1)+"/"+regions.length+" labels…");
             if(!entry.confirmed)continue;
             try{
               if(!worker)worker=await(await loadOCR()).createWorker("eng");
@@ -970,10 +970,10 @@ async function scanPhotos(){
   }finally{
     if(worker)try{await worker.terminate()}catch(_){}
     scanning=false;$("scanBtn").textContent="Retry queued photos";updatePhotoQueue();render();
-    show("scanMsg",added
-      ?"Detected "+added+" label(s). "+ready+" barcode-derived weight(s) ready; "+review+" need review. Printed-text cross-checks: "+ocrChecks+
-       ". Check the count against your sticker sheet before printing."+(errors?" Some labels' text could not be read.":"")
-      :"No valid 6777/6780/6781 barcodes found. Try a clearer image, or photograph smaller groups.",added?"":"warn");
+    show("scanMsg",added?
+      added+" scanned · "+ready+" verified"+(review?" · "+review+" review":"")+(errors?" · "+errors+" reading warnings":""):
+      "No valid barcodes found.",!added||errors||review?"warn":"");
+
     if(photos.length)void scanPhotos();
   }
 }
@@ -1018,7 +1018,7 @@ $("cameraPhoto").addEventListener("change",e=>{addPhotos(e.target.files,"normal"
 $("bonePhotos").addEventListener("change",e=>{addPhotos(e.target.files,"bone");e.target.value=""});
 $("boneCamera").addEventListener("change",e=>{addPhotos(e.target.files,"bone");e.target.value=""});
 $("scanBtn").addEventListener("click",scanPhotos);
-$("clearPhotos").addEventListener("click",()=>{photos.splice(0);updatePhotoQueue();show("scanMsg","Photos removed from the queue. Previously scanned label values are unchanged.")});
+$("clearPhotos").addEventListener("click",()=>{photos.splice(0);updatePhotoQueue();show("scanMsg","")});
 $("addLabel").addEventListener("click",()=>{
   const form=$("manualBarcodeForm");
   form.hidden=!form.hidden;
@@ -1044,39 +1044,19 @@ $("cancelManualBarcode").addEventListener("click",()=>{
 $("clearLabels").addEventListener("click",()=>{
   if(entries.length&&!confirm("Start a new production paper and clear all labels?"))return;
   clearAllCrops(entries);entries=[];photos.splice(0);scannedPhotoKeys.clear();persist();render();updatePhotoQueue();
-  show("scanMsg","New production paper ready. Choose photos to scan automatically.");
+  show("scanMsg","");
 });
 function printWithBarcodeNotice(){
   const state=paperState();if(state.error)return;
-  const estimated=entries.filter(e=>e.confirmed&&e.weightSource==="catalog").length;
-  const warning="Detected "+entries.length+" labels across normal and bone-in sheets. Check every sticker and the 6777-to-6780 sequence."+
-    String.fromCharCode(10)+"Recipe Issue "+fmtKg(state.original)+" kg; minced "+fmtKg(state.m)+" kg; boneless "+fmtKg(state.b)+" kg; wastage "+fmtKg(state.waste)+" kg."+
-    (estimated?String.fromCharCode(10)+estimated+" weight(s) inferred from the 5 g barcode catalog, not verified exact printed weights.":"")+
-    String.fromCharCode(10)+"Prepare ONE combined production paper?";
+  const warning="Print paper? "+entries.length+" labels"+
+    String.fromCharCode(10)+"6777 "+fmtKg(state.original)+" kg · 6780 "+fmtKg(state.m)+
+    " kg · 6781 "+fmtKg(state.b)+" kg · Wastage "+fmtKg(state.waste)+" kg";
   if(!confirm(warning))return;
   preparePaper();window.print();
 }
 $("printBtn").addEventListener("click",printWithBarcodeNotice);
 $("quickPrintBtn")?.addEventListener("click",printWithBarcodeNotice);
 $("exportBtn").addEventListener("click",exportCsv);
-document.querySelectorAll('input[name="materialMode"]').forEach(el=>el.addEventListener("change",render));
-$("originalWeight").addEventListener("input",render);
-$("sampleBtn").addEventListener("click",()=>{
-  if(entries.length&&!confirm("Replace your current production with example data?"))return;
-  clearAllCrops(entries);entries=[];
-  const sample=[
-    {item:"6780",grams:2000,kind:"normal",sheetId:"Normal example"},
-    {item:"6781",grams:6000,kind:"normal",sheetId:"Normal example"},
-    {item:"6777",grams:5000,kind:"bone",sheetId:"Bone-in example"},
-    {item:"6780",grams:3000,kind:"bone",sheetId:"Bone-in example"}
-  ];
-  for(const row of sample){
-    addLabel({barcode:encodeFromPrinted(row.item,row.grams,RATE[row.item]),
-      kind:row.kind,sheetId:row.sheetId,source:"Demonstration only"});
-  }
-  render();
-  show("scanMsg","Combined example loaded: 6777 issue 13.000 kg, minced 5.000 kg, boneless 6.000 kg, wastage 2.000 kg. These are demonstration numbers, not actual stock records.","warn");
-});
 
 window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
