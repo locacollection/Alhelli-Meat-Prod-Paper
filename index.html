@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#183c32">
 <meta name="description" content="Meat production barcode scanner and production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=auto-sheet-15">
+<link rel="stylesheet" href="scanner.css?v=recipe-summary-16">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
@@ -61,19 +61,29 @@
     </div>
 
     <aside>
-      <section class="panel summary-panel"><h2>Totals</h2>
-        <div class="total highlight"><span>Recipe Issue · 6777</span><strong id="issueTotal">0.000 kg</strong></div>
-        <div class="total"><span>GRN · 6780 Minced</span><strong id="mincedTotal">0.000 kg</strong></div>
-        <div class="total"><span>GRN · 6781 Without Bone</span><strong id="bonelessTotal">0.000 kg</strong></div>
-        <div class="total"><span>Normal 6777 issue (inferred)</span><strong id="normalIssueTotal">0.000 kg</strong></div>
-        <div class="total"><span>Bone-in 6777 issue (scanned)</span><strong id="boneIssueTotal">0.000 kg</strong></div>
-        <div class="total"><span>Bones / trimming</span><strong id="wasteTotal">0.000 kg</strong></div>
-        <div id="boneBatchContainer" class="bone-batches" hidden>
-          <h3>Bone-in portions</h3>
-          <div id="boneBatchSummary"></div>
+      <section class="panel summary-panel" aria-label="Production paper totals">
+        <div class="recipe-summary-section">
+          <h2>Recipe Issue (Subcontract PO)</h2>
+          <div class="recipe-summary-line recipe-primary">
+            <div class="recipe-summary-item"><strong class="recipe-code">6777</strong><span>Pakistani Beef With Bone</span></div>
+            <strong class="recipe-qty" id="issueTotal">0.000 kg</strong>
+          </div>
         </div>
-        <div class="total"><span>Barcodes ready</span><strong id="verifiedTotal">0 / 0</strong></div>
-        
+        <div class="recipe-summary-section">
+          <h2>Recipe GRN (Bundling)</h2>
+          <div class="recipe-summary-line">
+            <div class="recipe-summary-item"><strong class="recipe-code">6780</strong><span>Pakistani Beef Minced</span></div>
+            <strong class="recipe-qty" id="mincedTotal">0.000 kg</strong>
+          </div>
+          <div class="recipe-summary-line">
+            <div class="recipe-summary-item"><strong class="recipe-code">6781</strong><span>Pakistani Beef Without Bone</span></div>
+            <strong class="recipe-qty" id="bonelessTotal">0.000 kg</strong>
+          </div>
+          <div class="recipe-summary-line">
+            <div class="recipe-summary-item"><span>Wastage For Meat</span></div>
+            <strong class="recipe-qty" id="wasteTotal">0.000 kg</strong>
+          </div>
+        </div>
       </section>
     </aside>
   </div>
@@ -116,5 +126,5 @@
     </tbody>
   </table>
 </section>
-<script src="scanner.js?v=auto-sheet-15"></script>
+<script src="scanner.js?v=recipe-summary-16"></script>
 </body></html>
