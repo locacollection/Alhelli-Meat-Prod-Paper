@@ -107,7 +107,7 @@ const exhaustive=new Set();
 for(const [item,unit] of [["6777",3190],["6780",4500],["6781",4500]]){
   for(let grams=5;grams<=10000;grams+=5){
     const code=encodeFromPrinted(item,grams,unit);
-    assert.match(code,/^\\d{13}$/);
+    assert.match(code,/^\d{13}$/);
     assert.equal(checkDigit(code.slice(0,12)),Number(code[12]));
     assert.equal(priceVerifier(Number(code.slice(7,12))),Number(code[6]));
     assert.equal(exhaustive.has(code),false,"Unexpected duplicate "+code);
