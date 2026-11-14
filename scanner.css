@@ -75,3 +75,31 @@ input:focus,select:focus{outline:2px solid #8eb49c;border-color:#448967}.mode-se
   #printPaper .paper-approvals tr { height:9mm; }
   #printPaper .paper-auditnote { font-size:9px; text-align:center; color:#555; margin-top:3mm; }
 }
+
+/* One photo crop per sticker record. Keep scanned labels visible for quick review. */
+.scan-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:11px;margin:12px 0 18px}
+.scan-tile{display:flex;align-items:center;gap:12px;padding:10px;background:#fff;border:1px solid #cbdccf;border-radius:13px;min-width:0}
+.scan-tile-visual{flex:none;width:100px;height:102px}
+.scan-thumbnail{display:block;width:100%;height:100%;padding:0;border:1px solid #bfcebf;border-radius:9px;overflow:hidden;background:#f2f6f3;cursor:zoom-in}
+.scan-thumbnail img{display:block;width:100%;height:100%;object-fit:contain}
+.scan-thumbnail:focus-visible,.label-crop-inline:focus-visible{outline:3px solid #528a6e;outline-offset:3px}
+.scan-no-photo{height:100%;display:grid;place-items:center;text-align:center;padding:6px;background:#edf3ee;border:1px dashed #b8ccb9;border-radius:9px;font-size:12px;color:#7f9183}
+.scan-tile-info{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:12px}
+.scan-tile-info strong{font-size:13px}
+.scan-tile-info code{font-size:12px;white-space:normal;overflow-wrap:anywhere;font-weight:750;color:#22503c}
+.scan-tile-weight{font-weight:800;font-size:14px;color:#193b2b}
+.scan-ok{color:#278158;font-weight:750}
+.scan-review{color:#a65b30;font-weight:750}
+.scan-attach-mini{font-size:12px;font-weight:750;color:#1b6441;cursor:pointer;text-decoration:underline;margin-top:4px}
+.label-crop-inline{display:block;max-width:350px;width:100%;height:130px;padding:3px;border:1px solid #d1dfd4;border-radius:10px;background:#fafcfb;cursor:zoom-in;margin:8px 0 14px}
+.label-crop-inline img{max-width:100%;height:100%;width:100%;object-fit:contain;border-radius:7px}
+.crop-dialog{border:0;border-radius:16px;padding:16px;width:min(700px,calc(100vw - 22px));max-height:calc(100dvh - 28px);background:#fff;color:#18352d;box-shadow:0 18px 65px #0c241855}
+.crop-dialog::backdrop{background:rgba(9,26,20,.78)}
+.crop-dialog-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px}
+.crop-dialog-top h2{font-size:17px;margin:0}
+.crop-dialog-top button{border:1px solid #ccdcd0;background:white;border-radius:9px;padding:9px 13px;font-size:17px}
+.crop-dialog img{max-width:100%;width:100%;max-height:calc(100dvh - 215px);object-fit:contain;border-radius:7px;background:#f6f7f5}
+.crop-details{font-size:13px;font-weight:800;margin:9px 0 4px;overflow-wrap:anywhere}
+.crop-caption{font-size:12px;color:#698072;line-height:1.5;margin:0}
+@media(max-width:520px){.scan-gallery{grid-template-columns:1fr}.scan-tile-visual{width:104px;height:110px}.label-crop-inline{height:110px}}
+@media print{.scan-gallery,.crop-dialog,.label-crop-inline{display:none!important}}
