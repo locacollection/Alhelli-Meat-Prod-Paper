@@ -155,18 +155,19 @@ function verify(entry){
   return {ok:true,info,grams,unit,printed};
 }
 function persist(){
-  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,unit,unitSource,printed,photoName,ocrProduct,confirmed,autoConfirmed,source})=>({id,barcode,weight,unit,unitSource,printed,photoName,ocrProduct,confirmed,autoConfirmed,source}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
+  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source})=>({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
 }
 function restore(){
   try{
-    const v=JSON.parse(localStorage.getItem(STORAGE)||"[]");
-    if(!Array.isArray(v))return;
-    entries=v.slice(0,250).filter(x=>x&&typeof x.barcode==="string").map(x=>{
-      const row={id:makeId(),barcode:x.barcode,weight:String(x.weight||""),unit:String(x.unit||""),
-        unitSource:x.unitSource||"label",printed:String(x.printed||""),photoName:String(x.photoName||""),
-        ocrProduct:x.ocrProduct||null,confirmed:Boolean(x.confirmed),autoConfirmed:Boolean(x.autoConfirmed),
-        source:x.source||"saved"};
-      return fillCatalogUnit(decode(row.barcode),row);
+    const saved=JSON.parse(localStorage.getItem(STORAGE)||"[]");
+    if(!Array.isArray(saved))return;
+    entries=saved.slice(0,250).filter(x=>x&&typeof x.barcode==="string").map(x=>{
+      const old={...x,id:makeId(),barcode:String(x.barcode||""),weight:String(x.weight||""),
+        unit:String(x.unit||""),printed:String(x.printed||""),photoName:String(x.photoName||"")};
+      if(x.confirmed&&!x.autoConfirmed&&verify(old).ok)return old;
+      // Older OCR values were sometimes borrowed from an adjacent sticker.
+      // Reconstruct their 5 g catalog figures instead.
+      return fromBarcode(old.barcode,old);
     });
   }catch(_){}
 }
@@ -190,20 +191,43 @@ function buildRow(entry,i){
     ["Unit price (BD/kg) *","unit","Enter price per kg",""],
     ["Printed total price (BD) *","printed","Enter total price",""]
   ]){
-    fields.append(field(name,entry[key],placeholder,v=>{entry[key]=v;entry.confirmed=false;entry.autoConfirmed=false;if(key==="unit")entry.unitSource="manual";persist();refreshRow(box,entry);refreshSummary()},cls));
+    fields.append(field(name,entry[key],placeholder,v=>{
+      entry[key]=v;entry.confirmed=false;entry.autoConfirmed=false;entry.ocrConflict="";
+      if(key==="barcode"){
+        const updated=fromBarcode(v,entry);
+        Object.assign(entry,updated);
+        if(updated.confirmed){persist();render();return}
+      }else if(key==="weight")entry.weightSource="manual";
+      else if(key==="unit")entry.unitSource="manual";
+      else if(key==="printed")entry.printedSource="manual";
+      persist();refreshRow(box,entry);refreshSummary();
+    },cls));
   }
   box.append(fields);
+  if(entry.weightSource==="catalog"){
+    const note=document.createElement("p");note.className="fineprint catalog-weight";
+    note.textContent="Weight "+entry.weight+" kg inferred from the 5 g barcode catalog. Printed weight may differ by a few grams.";
+    box.append(note);
+  }
   if(entry.unitSource==="catalog"){
     const inferred=document.createElement("p");inferred.className="fineprint catalog-rate";
     inferred.textContent="Unit price filled from saved product rate ("+entry.unit+" BD/kg), not read from the photo. Check if the store price has changed.";
     box.append(inferred);
   }
   const msg=document.createElement("div");msg.className="message"+(status.ok?"":" warn");
-  msg.textContent=status.ok?(entry.confirmed?"Printed values and EAN-13 barcode agree. Label confirmed.":"All values agree. Compare them with the actual printed label, then tap Confirm printed values."):status.reason;
+  msg.textContent=status.ok?(entry.confirmed?(entry.ocrChecked?"Barcode matched the recognized printed values.":"Barcode valid. Catalog weight used; printed values not fully recognized."):"Check the printed label if this weight differs from the catalog value."):status.reason;
   box.append(msg);
   const actions=document.createElement("div");actions.className="label-extra";
   const source=document.createElement("small");source.textContent=entry.photoName?"From photo: "+entry.photoName:"Manual / sample label";
   const wrap=document.createElement("div");wrap.className="label-actions";
+  if(entry.ocrConflict&&catalogFromBarcode(entry.barcode).ok){
+    const keep=document.createElement("button");keep.type="button";keep.className="mini";
+    keep.textContent="Keep barcode values";keep.onclick=()=>{
+      Object.assign(entry,fromBarcode(entry.barcode,{photoName:entry.photoName,source:"Barcode value accepted after OCR mismatch"}));
+      persist();render();
+    };
+    wrap.append(keep);
+  }
   const confirm=document.createElement("button");confirm.type="button";confirm.className="mini";confirm.dataset.confirm="1";confirm.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";confirm.disabled=!status.ok||entry.confirmed;confirm.addEventListener("click",()=>{entry.confirmed=true;entry.autoConfirmed=false;persist();render()});
   const remove=document.createElement("button");remove.type="button";remove.className="mini";remove.textContent="Remove";remove.addEventListener("click",()=>{entries=entries.filter(x=>x.id!==entry.id);persist();render()});
   const closeup=document.createElement("label");closeup.className="mini closeup-upload";closeup.textContent="Re-read close-up";
@@ -234,13 +258,16 @@ function refreshRow(box,entry){
   box.className="label-card "+(v.ok?(entry.confirmed?"good":""):"bad");
   box.querySelector(".label-card-head h3").textContent="Label "+(entries.indexOf(entry)+1)+" · "+(decode(entry.barcode).code?PRODUCT[decode(entry.barcode).code]:"Check barcode");
   box.querySelector(".status").textContent=v.ok?(entry.confirmed?"Confirmed":"Ready to confirm"):"Needs review";
+  const weightNote=box.querySelector(".catalog-weight");
+  if(weightNote)weightNote.textContent=entry.weightSource==="catalog"
+    ?"Weight "+entry.weight+" kg inferred from 5 g barcode catalog; printed weight may differ by a few grams.":"";
   const priorNote=box.querySelector(".catalog-rate");
   if(priorNote)priorNote.textContent=entry.unitSource==="catalog"
     ?"Unit price filled from saved product rate ("+entry.unit+" BD/kg), not read from the photo. Check if the store price has changed."
     :"";
   const msg=box.querySelector(".message");
   msg.className="message"+(v.ok?"":" warn");
-  msg.textContent=v.ok?(entry.confirmed?"Printed values and EAN-13 barcode agree. Label confirmed.":"All values agree. Compare them with the actual printed label, then tap Confirm printed values."):v.reason;
+  msg.textContent=v.ok?(entry.confirmed?(entry.ocrChecked?"Barcode and recognized printed values agree.":"Barcode valid; catalog weight used, printed values not fully recognized."):"Check the printed label if this weight differs from the catalog value."):v.reason;
   const button=box.querySelector('[data-confirm="1"]');
   button.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";
   button.disabled=!v.ok||entry.confirmed;
@@ -257,7 +284,7 @@ function render(){
     if(ready.length){
       const details=document.createElement("details");details.className="auto-verified";
       const summary=document.createElement("summary");
-      summary.textContent="✓ "+ready.length+" barcode-checked label"+(ready.length===1?"":"s")+" ready · Tap to inspect";
+      summary.textContent="✓ "+ready.length+" barcode-derived label"+(ready.length===1?"":"s")+" included · Tap to inspect";
       details.append(summary);
       for(const row of ready)details.append(buildRow(row.entry,row.index));
       container.append(details);
@@ -283,8 +310,16 @@ function refreshSummary(){
   show("balanceText",t.error||"All labels confirmed. Recipe Issue and GRN match.",t.error?"warn":"");
 }
 function addLabel(entry={}){
-  entries.push({id:makeId(),barcode:entry.barcode||"",weight:entry.weight||"",unit:entry.unit||"",unitSource:entry.unitSource||"label",printed:entry.printed||"",photoName:entry.photoName||"",ocrProduct:entry.ocrProduct||null,confirmed:!!entry.confirmed,autoConfirmed:!!entry.autoConfirmed,source:entry.source||"manual"});
+  const barcode=String(entry.barcode||"").replace(/\s/g,"");
+  const derived=barcode&&!entry.weight?fromBarcode(barcode,entry):{...entry,barcode};
+  entries.push({id:makeId(),barcode,weight:derived.weight||"",weightSource:derived.weightSource||"manual",
+    unit:derived.unit||"",unitSource:derived.unitSource||"manual",
+    printed:derived.printed||"",printedSource:derived.printedSource||"manual",
+    ocrConflict:derived.ocrConflict||"",ocrChecked:!!derived.ocrChecked,
+    photoName:derived.photoName||"",ocrProduct:derived.ocrProduct||null,
+    confirmed:!!derived.confirmed,autoConfirmed:!!derived.autoConfirmed,source:derived.source||"manual"});
   persist();render();
+  return entries[entries.length-1];
 }
 function imgPreview(file){
   const item=document.createElement("div");item.className="photo-item";const pic=document.createElement("img");pic.alt="Selected photo preview";pic.src=URL.createObjectURL(file);pic.onload=()=>URL.revokeObjectURL(pic.src);const span=document.createElement("span");span.textContent=file.name;item.append(pic,span);return item;
