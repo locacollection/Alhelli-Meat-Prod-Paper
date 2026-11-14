@@ -161,6 +161,27 @@ assert.equal(realSecond.weight,"0.690");
 assert.equal(realSecond.printed,"3.105");
 assert.match(realSecond.ocrWarning,/3.108/);
 assert.equal(realSecond.ocrConflict,"");
+assert.equal(realSecond.weightSource,"catalog"); // OCR cannot overwrite catalog weight
+assert.equal(verify({barcode:"9667800031057",weight:"0.691",unit:"4.500",printed:"3.105"}).ok,false);
+assert.match(verify({barcode:"9667800031057",weight:"0.691",unit:"4.500",printed:"3.105"}).reason,/0.005 kg increments/);
+assert.equal(verify({barcode:"9667800031057",weight:"0.685",unit:"4.500",printed:"3.105"}).ok,false);
+assert.equal(fromBarcode("9667800031057",{
+  barcode:"9667800031057",weight:"0.691",unit:"4.500",printed:"3.108",
+  confirmed:true,autoConfirmed:false
+}).weight,"0.690");
+const ocrWeightIncorrect=matchPrintedOCR(fromBarcode("9667800031057"),{
+  weight:"0.691",unit:"4.500",printed:"3.105"
+});
+assert.equal(ocrWeightIncorrect.confirmed,true);
+assert.equal(ocrWeightIncorrect.weight,"0.690");
+assert.equal(ocrWeightIncorrect.weightSource,"catalog");
+assert.match(ocrWeightIncorrect.ocrWarning,/0.691/);
+const explicitWrongWeight=addLabel({barcode:"9667800031057",weight:"0.691",
+  unit:"4.500",printed:"3.108",confirmed:true});
+assert.equal(explicitWrongWeight.weight,"0.690");
+assert.equal(explicitWrongWeight.printed,"3.105");
+assert.equal(verify(explicitWrongWeight).ok,true);
+
 const realFourth=fromBarcode("9667808036450");
 assert.equal(realFourth.confirmed,true);
 assert.equal(realFourth.weight,"0.810");
