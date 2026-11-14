@@ -6,12 +6,12 @@
 <meta name="theme-color" content="#183c32">
 <meta name="description" content="Scan printed minced and boneless beef labels, double-check price and weight, and prepare Recipe Issue and GRN production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=auto-batch-1">
+<link rel="stylesheet" href="scanner.css?v=barcode-first-4">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong><small>Label-based production paper</small></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
 <main class="container noprint">
-  <div class="intro"><span class="kicker">Recipe Issue + Recipe GRN</span><h1>Scan labels. Get your production paper.</h1><p>Take a photo of your sticker sheet. The scanner automatically identifies minced (6780) and boneless (6781) labels, checks their written weights and prices against the barcodes, and totals the production paper. Only unclear labels need attention.</p></div>
+  <div class="intro"><span class="kicker">Recipe Issue + Recipe GRN</span><h1>Scan labels. Get your production paper.</h1><p>Photograph your sticker sheet. The scanner reads each 6780 or 6781 barcode, finds its weight in the saved 5-gram catalog, and totals your production paper. Printed text is only used as a secondary check.</p></div>
 
   <div class="workgrid">
     <div class="maincol">
@@ -20,18 +20,18 @@
         <div class="upload-area">
           <div class="upload-symbol">▣</div>
           <p class="upload-title">Add clear photos of the sticker sheet</p>
-          <p class="muted">Include every printed weight, unit price, total price and barcode. You can scan multiple photos of the same production batch.</p>
+          <p class="muted">Make sure all 13-digit barcodes are visible. Printed numbers help cross-check but are not required for automatic barcode weight lookup.</p>
           <div class="buttons"><label class="btn" for="sheetPhotos">Scan photos<input id="sheetPhotos" type="file" accept="image/*" multiple hidden></label><label class="btn btn-light" for="cameraPhoto">Use camera<input id="cameraPhoto" type="file" accept="image/*" capture="environment" hidden></label></div>
         </div>
         <div id="photoQueue" class="photo-queue"></div>
         <div class="buttons"><button id="quickPrintBtn" class="btn" type="button" disabled>Print production paper</button><button id="scanBtn" class="btn btn-light" type="button" disabled>Retry queued photos</button><button id="clearPhotos" class="btn btn-outline" type="button" disabled>Remove queued photos</button></div>
         <div id="scanMsg" class="message" role="status" aria-live="polite">Choose a photo or open the camera. Scanning starts automatically on your device. Photos are not uploaded.</div>
-        <p class="fineprint">For best results, keep labels straight, well lit and fully readable. Missed or unclear labels can be added manually below. Never rely on a barcode alone for the exact weight.</p>
+        <p class="fineprint">The price barcode identifies a weight in the saved 5 g catalog, but not necessarily the exact scale weight. Check the detected sticker count before printing; printed weights may differ by a few grams.</p>
       </section>
 
       <section class="panel">
         <div class="section-top"><div><span class="kicker">Step 2</span><h2>Automatic label checks</h2></div><span id="labelCount" class="tag">0 labels</span></div>
-        <p class="muted">Labels whose barcode and all three written numbers agree are accepted automatically. Only unclear or mismatched labels appear for review. Check the number of detected stickers before printing.</p>
+        <p class="muted">Valid barcodes are added automatically with catalog-derived weights, even when photo text is unreadable. OCR is only a secondary mismatch check. Review invalid codes or conflicts, and check every sticker was detected.</p>
         <div id="labels" class="labels"><p class="empty">No labels yet. Scan your photos or add a missing label manually.</p></div>
         <div class="buttons"><button id="addLabel" type="button" class="btn btn-light">+ Add unreadable label</button><button id="clearLabels" type="button" class="btn btn-outline">New production paper</button></div>
       </section>
@@ -60,14 +60,14 @@
         <div class="total"><span>GRN · 6780 Minced</span><strong id="mincedTotal">0.000 kg</strong></div>
         <div class="total"><span>GRN · 6781 Without Bone</span><strong id="bonelessTotal">0.000 kg</strong></div>
         <div class="total"><span>Bones / trimming</span><strong id="wasteTotal">0.000 kg</strong></div>
-        <div class="total"><span>Labels confirmed</span><strong id="verifiedTotal">0 / 0</strong></div>
+        <div class="total"><span>Barcodes ready</span><strong id="verifiedTotal">0 / 0</strong></div>
         <p id="balanceText" class="message">No verified finished weights yet.</p>
       </section>
       <section class="panel example"><div class="kicker">Your exact example</div><h2>No-bones conversion</h2><p>Original 6777 weight was not recorded. You prepared two finished products:</p>
         <div class="sample"><span>6780 · Minced</span><b>3.500 kg</b></div><div class="sample"><span>6781 · Without Bone</span><b>6.500 kg</b></div><div class="sample"><span>6777 · Recipe Issue</span><b>10.000 kg</b></div><div class="sample"><span>Wastage</span><b>0.000 kg</b></div>
         <button id="sampleBtn" type="button" class="btn btn-outline">Load demonstration data</button>
       </section>
-      <section class="panel"><div class="kicker">Important</div><p class="muted">The printed weight is essential. The barcode records price, not exact weight, and different nearby weights can produce the same rounded price. This page checks both, and requires you to correct missing or inconsistent values before printing.</p><p class="fineprint">All scanning and worksheet data stays in this browser. No Supabase upload or staff account is required on this scanner page.</p></section>
+      <section class="panel"><div class="kicker">Important</div><p class="muted">Barcode-first mode uses saved product rates to recover each weight from the 5 g catalog. A barcode encodes rounded price, not exact scale weight. If unit prices change or exact gram-level accuracy is required, consult the printed labels.</p><p class="fineprint">All scanning and worksheet data stays in this browser. No Supabase upload or staff account is required on this scanner page.</p></section>
     </aside>
   </div>
 </main>
@@ -79,10 +79,10 @@
   <h3>Recipe GRN (Bundling)</h3>
   <table class="paper-table"><thead><tr><th>Barcode</th><th>Item Name</th><th>UOM</th><th>QTY</th></tr></thead><tbody id="ppGrn"></tbody></table>
   <div class="paper-method" id="ppMode"></div>
-  <h3>Checked printed label details</h3>
+  <h3>Barcode weight details</h3>
   <table class="paper-table"><thead><tr><th>#</th><th>Item</th><th>Weight (kg)</th><th>Unit Price (BD/kg)</th><th>Price (BD)</th><th>EAN-13</th></tr></thead><tbody id="ppLabels"></tbody></table>
-  <p class="paper-footnote">Weights and prices checked against printed scale labels and 13-digit barcodes. * denotes catalog unit price used when OCR could not read printed unit price; check for store price changes. Barcode price is rounded; written weight controls the total. Attach original printed labels to the paper if required by store procedure.</p>
+  <p class="paper-footnote">Barcodes determine weights from the saved 5 g price catalog. † indicates barcode-derived weight (not confirmed exact scale weight). * indicates unit price from the saved product rate. Printed text is a secondary check. Verify label count and current prices; attach original stickers if required.</p>
   <div class="signature"><span>Prepared by: __________________________</span><span>Supervisor: __________________________</span></div>
 </section>
-<script src="scanner.js?v=unit-rate-3"></script>
+<script src="scanner.js?v=barcode-first-4"></script>
 </body></html>
