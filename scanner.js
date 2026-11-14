@@ -905,10 +905,11 @@ async function scanPhotos(){
   scanning=true;
   const batch=photos.splice(0,photos.length);
   $("scanBtn").textContent="Scanning…";updatePhotoQueue();
-  let added=0,ready=0,review=0,ocrChecks=0,worker=null,errors=0;
+  let added=0,ready=0,review=0,ocrChecks=0,worker=null,errors=0,orderingWarning=false;
   try{
     for(let i=0;i<batch.length;i++){
       const {file,sheetId}=batch[i];
+      const countBeforePhoto=added;
       show("scanMsg","Scanning "+(i+1)+"/"+batch.length+"…");
       let bitmap=null;
       try{
@@ -926,7 +927,7 @@ async function scanPhotos(){
             // Without detected positions, OCR alone cannot reliably pair
             // originals and finished labels on a bone-in sticker sheet.
             if(classifyPhotoBarcodes(codes)==="bone"){
-              errors++;
+              errors++;orderingWarning=true;
               show("scanMsg","6777 found, but label order is unclear. Rescan the sheet.","warn");
             }else{
               for(const code of codes){
@@ -965,7 +966,7 @@ async function scanPhotos(){
             }
           }
         }
-        scannedPhotoKeys.add(photoKey(file));
+        if(added>countBeforePhoto)scannedPhotoKeys.add(photoKey(file));
       }catch(err){errors++;show("scanMsg","Unable to scan "+file.name+": "+err.message,"warn")}
       finally{bitmap?.close?.()}
     }
@@ -973,8 +974,11 @@ async function scanPhotos(){
     if(worker)try{await worker.terminate()}catch(_){}
     scanning=false;$("scanBtn").textContent="Retry queued photos";updatePhotoQueue();render();
     show("scanMsg",added?
-      added+" scanned · "+ready+" verified"+(review?" · "+review+" review":"")+(errors?" · "+errors+" reading warnings":""):
-      "No valid barcodes found.",!added||errors||review?"warn":"");
+      added+" scanned · "+ready+" verified"+(review?" · "+review+" review":"")+
+      (orderingWarning?" · 6777 order unclear, rescan photo":"")+
+      (errors?" · "+errors+" reading warnings":""):
+      orderingWarning?"6777 order unclear. Rescan photo.":"No valid barcodes found.",
+      !added||errors||review?"warn":"");
 
     if(photos.length)void scanPhotos();
   }
