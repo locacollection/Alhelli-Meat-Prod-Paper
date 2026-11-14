@@ -21,7 +21,7 @@
           <label class="btn btn-light" for="cameraPhoto">Use camera<input id="cameraPhoto" type="file" accept="image/*" capture="environment" hidden></label>
         </div>
         <div id="photoQueue" class="photo-queue"></div>
-        <div class="buttons"><button id="quickPrintBtn" class="btn" type="button" disabled>Print production paper</button><button id="scanBtn" class="btn btn-light" type="button" disabled>Scan queued</button><button id="clearPhotos" class="btn btn-outline" type="button" disabled>Clear queue</button></div>
+        <div class="buttons"><button id="scanBtn" class="btn btn-light" type="button" disabled>Scan queued</button><button id="clearPhotos" class="btn btn-outline" type="button" disabled>Clear queue</button></div>
         <div id="scanMsg" class="message" role="status" aria-live="polite"></div>
         <p class="fineprint">Refreshing this page starts a blank production sheet and clears the previous scan, including cropped label photos. Save or print your paper first.</p>
       </section>
@@ -57,7 +57,8 @@
           <label>Reference<input id="reference" maxlength="80" placeholder="Production paper reference"></label>
         </div>
         <div id="paperWarning" class="message warn" role="alert"></div>
-        <div class="buttons"><button id="printBtn" class="btn" disabled>Print production paper / Save PDF</button><button id="exportBtn" class="btn btn-light" disabled>Export reviewed labels CSV</button></div>
+        <div class="buttons"><button id="printBtn" class="btn" type="button" disabled>Preview Paper</button><button id="saveBtn" class="btn btn-light" type="button" disabled><span>Save Paper</span></button></div>
+        <p class="fineprint">Preview the production form before saving. Saved papers are private to your signed-in account.</p>
       </section>
     </div>
 
@@ -86,6 +87,19 @@
           </div>
         </div>
       </section>
+      <section class="panel extra-info">
+        <h2>Additional information</h2>
+        <div class="extra-stat"><span>Finished weight (6780 + 6781)</span><strong id="extraWeight">0.000 kg</strong></div>
+        <div class="extra-stat"><span>Finished-product total price</span><strong id="extraPrice">0.000 BD</strong></div>
+        <p class="fineprint">Price adds only minced and boneless labels; original 6777 is excluded to avoid double counting.</p>
+      </section>
+      <section class="panel saved-papers">
+        <div class="section-top"><div><h2>Saved papers</h2><p class="fineprint">By production date · private to your account</p></div><button id="openSaveMenu" type="button" class="mini">Account</button></div>
+        <div id="savedPaperStatus" class="muted">Sign in to view saved papers.</div>
+        <label class="saved-date-filter">Filter by date<input id="savedDateFilter" type="date"></label>
+        <div id="savedPaperList" class="saved-paper-list"></div>
+        <button type="button" id="refreshSaved" class="btn btn-light btn-small">Refresh saved papers</button>
+      </section>
     </aside>
   </div>
 </main>
@@ -93,6 +107,28 @@
   <div class="crop-dialog-top"><h2 id="cropHeading">Scanned label</h2><button id="cropClose" type="button" aria-label="Close label photo">✕</button></div>
   <img id="cropImage" alt="Cropped label sticker">
   <p id="cropDetails" class="crop-details"></p>
+</dialog>
+<dialog id="paperPreviewDialog" class="paper-dialog noprint" aria-labelledby="paperPreviewTitle">
+  <div class="dialog-head"><h2 id="paperPreviewTitle">Production paper preview</h2><button id="closePaperPreview" class="mini" type="button">Close</button></div>
+  <div id="paperPreviewContent" class="paper-preview-content"></div>
+  <div class="dialog-actions"><button id="previewPdf" type="button" class="btn btn-light">Save as PDF</button><button id="previewSave" type="button" class="btn">Save Paper</button></div>
+</dialog>
+<dialog id="savePaperDialog" class="paper-dialog save-dialog noprint" aria-labelledby="savePaperHeading">
+  <div class="dialog-head"><h2 id="savePaperHeading">Save production paper</h2><button id="closeSaveMenu" type="button" class="mini">Close</button></div>
+  <p id="savePaperSummary" class="save-summary"></p>
+  <div id="paperAuthArea">
+    <form id="paperLoginForm" class="paper-auth-form">
+      <h3>Staff sign-in</h3>
+      <p class="muted">Sign in with an account from the Meat Production Supabase project to save privately.</p>
+      <label>Email<input id="paperEmail" type="email" autocomplete="email" required></label>
+      <label>Password<input id="paperPassword" type="password" autocomplete="current-password" required></label>
+      <button id="paperSignIn" type="submit" class="btn">Sign in</button>
+    </form>
+    <div id="paperLoggedIn" hidden><span>Signed in as <strong id="paperSignedInAs"></strong></span> <button type="button" class="mini" id="paperSignOut">Sign out</button></div>
+  </div>
+  <div class="save-pdf-choice"><label><input id="alsoPdf" type="checkbox"> Also download a PDF after saving to the database</label></div>
+  <div id="savePaperStatus" class="muted" role="status" aria-live="polite"></div>
+  <div class="dialog-actions"><button id="saveToDatabase" type="button" class="btn">Save to database</button><button id="savePdfOnly" type="button" class="btn btn-light">Save PDF only</button></div>
 </dialog>
 <section id="printPaper" class="paper printonly" aria-label="Production in store form">
   <header class="paper-letterhead">
@@ -127,5 +163,7 @@
     </tbody>
   </table>
 </section>
-<script src="scanner.js?v=fresh-sheet-17"></script>
+<script src="scanner.js?v=saved-papers-18"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="paper-store.js?v=saved-papers-18"></script>
 </body></html>
