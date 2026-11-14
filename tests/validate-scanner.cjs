@@ -348,6 +348,27 @@ assert.equal(getId("ppGrn").children[1].children[3].textContent,"6.000");
 assert.equal(getId("ppGrn").children[2].children[1].textContent,"Wastage for Meat");
 assert.equal(getId("ppGrn").children[2].children[3].textContent,"2.000");
 console.log("Single A4 issue/GRN print passed for combined normal and bone-in sheets.");
+const conciseHtml=fs.readFileSync("index.html","utf8");
+for(const removed of ["Step 1","Step 2","Step 3","Combined example","Both workflows, one paper",
+  'class="intro"','class="combined-method"','id="sampleBtn"','id="balanceText"',
+  "Review that all stickers were detected","Tap Preview label","The site combines them into one production paper"]){
+  assert.equal(conciseHtml.includes(removed),false,"Unnecessary operator instruction remains: "+removed);
+}
+for(const required of ['id="sheetPhotos"','id="bonePhotos"','id="labels"','id="paperWarning"',
+  'id="printPaper"','id="ppIssueRows"','id="ppGrn"','id="issueTotal"','id="mincedTotal"',
+  'id="bonelessTotal"','id="wasteTotal"']){
+  assert.ok(conciseHtml.includes(required),"Required control or paper field missing: "+required);
+}
+const simplifiedJs=fs.readFileSync("scanner.js","utf8");
+assert.ok(!simplifiedJs.includes('$("sampleBtn").addEventListener'));
+assert.ok(!simplifiedJs.includes('$("originalWeight").addEventListener'));
+assert.ok(!simplifiedJs.includes('show("balanceText"'));
+const slimCard=buildRow(scanEntry("6777",3745,"bone","bone-1"),0);
+assert.ok(!flattened(slimCard).some(node=>node.className==="label-evidence"||node.className==="label-source-photo"));
+assert.ok(flattened(slimCard).some(node=>node.className==="label-item-code"&&node.textContent==="6777"));
+assert.ok(flattened(slimCard).some(node=>node.className==="label-price-details"),"Audit details remain available");
+console.log("Concise UI checks passed: no instructional panels, all scan/print controls and errors retained.");
+
 
 // Manual recovery: choosing bone-in starts with 6777 and inserts before
 // a previously scanned finished label if the original sticker was missed.
