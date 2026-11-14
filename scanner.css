@@ -207,3 +207,38 @@ input:focus,select:focus{outline:2px solid #8eb49c;border-color:#448967}.mode-se
   .label-primary .label-barcode{font-size:12px}
 }
 @media print{.label-price-details{display:none!important}}
+
+/* Clear 6777 source vs 6780 minced vs 6781 boneless identity. */
+.label-card-heading{width:100%;min-width:0}
+.label-identity{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 3px}
+.label-item-code{display:inline-flex;align-items:center;justify-content:center;min-width:68px;
+  padding:6px 10px;border-radius:8px;border:1px solid currentColor;letter-spacing:.02em;
+  font-size:21px;font-weight:850;font-variant-numeric:tabular-nums}
+.label-item-role{font-size:12px;line-height:1.3;font-weight:850;letter-spacing:.025em}
+.read-only-card.product-6777{border-left:5px solid #b17a2b}
+.read-only-card.product-6780{border-left:5px solid #23806c}
+.read-only-card.product-6781{border-left:5px solid #527ca8}
+.identity-6777{color:#916020}
+.identity-6777 .label-item-code{background:#fff5e6}
+.identity-6780{color:#136d59}
+.identity-6780 .label-item-code{background:#e9f7f1}
+.identity-6781{color:#356a99}
+.identity-6781 .label-item-code{background:#ecf4fc}
+.read-only-card .label-sequence{font-size:10px}
+.read-only-card .label-card-head h3{font-size:13px;font-weight:600;color:#5c7164;line-height:1.4}
+.processing-portion{border:1px solid #cedbd1;border-radius:14px;background:#f9fbf9;
+  padding:10px;margin:12px 0 17px}
+.processing-portion-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:5px;
+  padding:8px 8px 10px;border-bottom:1px solid #d6e2da;margin:0 0 11px}
+.processing-portion-header strong{font-size:14px;color:#274b3b;letter-spacing:.025em}
+.processing-portion-header span{font-size:11px;color:#60776a;font-weight:700}
+.processing-portion .read-only-card{margin:8px 0}
+.processing-portion.portion-unpaired{border-color:#dfb8a3}
+@media(max-width:440px){
+  .label-identity{gap:6px}
+  .label-item-code{min-width:62px;font-size:19px;padding:5px 8px}
+  .label-item-role{font-size:11px}
+  .processing-portion{padding:8px;margin:9px 0 13px}
+  .processing-portion-header{padding:7px 5px}
+}
+@media print{.processing-portion,.processing-portion-header{display:none!important}}
