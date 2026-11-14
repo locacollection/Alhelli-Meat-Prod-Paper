@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#183c32">
 <meta name="description" content="Scan printed minced and boneless beef labels, double-check price and weight, and prepare Recipe Issue and GRN production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=preview-on-demand-9">
+<link rel="stylesheet" href="scanner.css?v=read-only-results-10">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong><small>Label-based production paper</small></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
@@ -31,9 +31,19 @@
 
       <section class="panel">
         <div class="section-top"><div><span class="kicker">Step 2</span><h2>Automatic label checks</h2></div><span id="labelCount" class="tag">0 labels</span></div>
-        <p class="muted">Labels are listed once below. Open the confirmed-label section, then tap Preview label beside any barcode to see its cropped sticker. Photos stay hidden until you open a preview. OCR remains a secondary check.</p>
+        <p class="muted">Scanned barcodes are shown as read-only results. Open the confirmed-label section to review weights and prices, or tap Preview label to compare a cropped sticker. Use manual barcode entry only if a label was missed.</p>
         <div id="labels" class="labels"><p class="empty">No labels yet. Scan your photos or add a missing label manually.</p></div>
-        <div class="buttons"><button id="addLabel" type="button" class="btn btn-light">+ Add unreadable label</button><button id="clearLabels" type="button" class="btn btn-outline">New production paper</button></div>
+        <div class="buttons"><button id="addLabel" type="button" class="btn btn-light">+ Enter barcode manually</button><button id="clearLabels" type="button" class="btn btn-outline">New production paper</button></div>
+        <form id="manualBarcodeForm" class="manual-barcode-form" hidden>
+          <label for="manualBarcode">Enter the 13-digit barcode from an unreadable sticker</label>
+          <div class="manual-barcode-controls">
+            <input id="manualBarcode" type="text" inputmode="numeric" pattern="[0-9]{13}" maxlength="13" autocomplete="off" spellcheck="false" placeholder="e.g. 9667800031057" required>
+            <button class="btn" type="submit">Add barcode</button>
+            <button id="cancelManualBarcode" class="btn btn-outline" type="button">Cancel</button>
+          </div>
+          <p class="fineprint">Only the barcode is entered manually. The product, weight and prices are calculated from the verified catalog.</p>
+          <p id="manualBarcodeError" class="manual-barcode-error" role="alert" aria-live="polite"></p>
+        </form>
       </section>
 
       <section class="panel">
@@ -111,5 +121,5 @@
   </table>
   <p class="paper-auditnote">Calculated from price-encoded barcodes. Check exact weights against original scale labels before signing.</p>
 </section>
-<script src="scanner.js?v=preview-on-demand-9"></script>
+<script src="scanner.js?v=read-only-results-10"></script>
 </body></html>
