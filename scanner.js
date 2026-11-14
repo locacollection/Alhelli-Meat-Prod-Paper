@@ -353,7 +353,8 @@ function buildRow(entry,i){
   box.className="label-card read-only-card "+(status.ok?(entry.confirmed?"good":""):"bad");
   const head=document.createElement("div");head.className="label-card-head";
   const headerText=document.createElement("div");headerText.className="label-card-heading";
-  const sequence=document.createElement("span");sequence.className="label-sequence";sequence.textContent="LABEL "+(i+1);
+  const sequence=document.createElement("span");sequence.className="label-sequence";
+  sequence.textContent="LABEL "+(i+1)+" · "+(sourceKind(entry)==="bone"?(decode(entry.barcode).code==="6777"?"BONE-IN ORIGINAL":"BONE-IN OUTPUT"):"NORMAL PRODUCTION");
   const title=document.createElement("h3");title.textContent=product?PRODUCT[product]:"Unreadable barcode";
   headerText.append(sequence,title);
   const statusLabel=chip(status.ok?(entry.confirmed?"Verified":"Ready to confirm"):"Needs review","status");
@@ -495,22 +496,38 @@ function paperState(){
   else if(t.original<=0)error=error||"No finished meat is available for the production paper.";
   return {...t,error};
 }
+function appendReviewGroup(container,title,rows,open=false,description=""){
+  if(!rows.length)return;
+  const section=document.createElement("details");section.className="auto-verified production-review-group";
+  section.open=open;
+  const summary=document.createElement("summary");summary.textContent=title+" · "+rows.length+" label"+(rows.length===1?"":"s");
+  section.append(summary);
+  if(description){const p=document.createElement("p");p.className="fineprint";p.textContent=description;section.append(p)}
+  for(const row of rows)section.append(buildRow(row.entry,row.index));
+  container.append(section);
+}
 function render(){
   const container=$("labels");container.replaceChildren();
   if(!entries.length){
     const p=document.createElement("p");p.className="empty";
-    p.textContent="No labels yet. Choose a label-sheet photo to scan automatically.";
+    p.textContent="No labels yet. Scan normal and/or bone-in label sheets for this production paper.";
     container.append(p);
   }else{
-    const ready=[],needsReview=[];
-    entries.forEach((entry,index)=>((entry.confirmed&&verify(entry).ok)?ready:needsReview).push({entry,index}));
-    if(ready.length){
-      const details=document.createElement("details");details.className="auto-verified";
-      const summary=document.createElement("summary");
-      const warns=ready.filter(x=>x.entry.ocrWarning).length;summary.textContent="✓ "+ready.length+" barcode-derived label"+(ready.length===1?"":"s")+" included"+(warns?" · "+warns+" nonblocking OCR warning"+(warns===1?"":"s"):"")+" · Tap to inspect";
-      details.append(summary);
-      for(const row of ready)details.append(buildRow(row.entry,row.index));
-      container.append(details);
+    const normal=[],boneSheets=new Map(),needsReview=[];
+    entries.forEach((entry,index)=>{
+      const row={entry,index};
+      if(!entry.confirmed||!verify(entry).ok){needsReview.push(row);return}
+      if(sourceKind(entry)==="normal")normal.push(row);
+      else{
+        const key=entry.sheetId||"Unassigned bone-in sheet";
+        if(!boneSheets.has(key))boneSheets.set(key,[]);
+        boneSheets.get(key).push(row);
+      }
+    });
+    if(normal.length)appendReviewGroup(container,"Normal production",normal,false,"These 6780/6781 weights contribute to the 6777 Recipe Issue without wastage.");
+    for(const [sheetId,rows] of boneSheets){
+      appendReviewGroup(container,"Bone-in sheet: "+sheetId,rows,false,
+        "Read top to bottom: 6777 original, then 6780 minced (or rarely 6781 boneless). The difference is recorded as bones/wastage.");
     }
     if(needsReview.length){
       const tip=document.createElement("p");tip.className="review-heading";
@@ -523,15 +540,32 @@ function render(){
 }
 function refreshSummary(){
   $("labelCount").textContent=entries.length+" label"+(entries.length===1?"":"s");
-  $("originalWeightBlock").classList.toggle("hidden",mode()!=="with-bones");
   const t=paperState();
-  $("issueTotal").textContent=t.original===null?"—":fmtKg(t.original)+" kg";
-  $("mincedTotal").textContent=fmtKg(t.m)+" kg";$("bonelessTotal").textContent=fmtKg(t.b)+" kg";
-  $("wasteTotal").textContent=fmtKg(t.waste)+" kg";$("verifiedTotal").textContent=t.c+" / "+entries.length;
+  $("issueTotal").textContent=fmtKg(t.original)+" kg";
+  $("mincedTotal").textContent=fmtKg(t.m)+" kg";
+  $("bonelessTotal").textContent=fmtKg(t.b)+" kg";
+  $("wasteTotal").textContent=fmtKg(t.waste)+" kg";
+  $("verifiedTotal").textContent=t.c+" / "+entries.length;
+  $("normalIssueTotal").textContent=fmtKg(t.normalOriginal)+" kg";
+  $("boneIssueTotal").textContent=fmtKg(t.boneOriginal)+" kg";
   const blocked=Boolean(t.error)||scanning;
-  $("printBtn").disabled=blocked;if($("quickPrintBtn"))$("quickPrintBtn").disabled=blocked;$("exportBtn").disabled=blocked;
-  show("paperWarning",t.error||"Paper ready: Recipe Issue "+fmtKg(t.original)+" kg = finished products "+fmtKg(t.m+t.b)+" kg"+(mode()==="with-bones"?" + bones/trimming "+fmtKg(t.waste)+" kg.":"; zero wastage."),t.error?"warn":"");
-  show("balanceText",t.error||"Barcode-derived weights totalled. Check the label count and current product prices.",t.error?"warn":"");
+  $("printBtn").disabled=blocked;
+  if($("quickPrintBtn"))$("quickPrintBtn").disabled=blocked;
+  $("exportBtn").disabled=blocked;
+  const balance="Recipe Issue "+fmtKg(t.original)+" kg = minced "+fmtKg(t.m)+
+    " kg + boneless "+fmtKg(t.b)+" kg + bones/wastage "+fmtKg(t.waste)+" kg.";
+  show("paperWarning",t.error||"Paper ready. "+balance,t.error?"warn":"");
+  show("balanceText",t.error||balance,t.error?"warn":"");
+  const section=$("boneBatchSummary");section.replaceChildren();
+  for(const batch of t.batches){
+    const row=document.createElement("div");row.className="batch-balance-row";
+    const name=document.createElement("strong");name.textContent="6777 "+fmtKg(batch.original)+" kg";
+    const desc=document.createElement("span");
+    desc.textContent=" → 6780 "+fmtKg(batch.minced)+" kg"+(batch.boneless?" + 6781 "+fmtKg(batch.boneless)+" kg":"")+
+      " · Wastage "+fmtKg(batch.waste)+" kg";
+    row.append(name,desc);section.append(row);
+  }
+  $("boneBatchContainer").hidden=!t.batches.length;
 }
 function addLabel(entry={}){
   const barcode=String(entry.barcode||"").replace(/\s/g,"");
@@ -545,24 +579,37 @@ function addLabel(entry={}){
   persist();render();
   return entries[entries.length-1];
 }
-function imgPreview(file){
-  const item=document.createElement("div");item.className="photo-item";const pic=document.createElement("img");pic.alt="Selected photo preview";pic.src=URL.createObjectURL(file);pic.onload=()=>URL.revokeObjectURL(pic.src);const span=document.createElement("span");span.textContent=file.name;item.append(pic,span);return item;
+function imgPreview(job){
+  const file=job.file;
+  const item=document.createElement("div");item.className="photo-item";
+  const pic=document.createElement("img");pic.alt="Selected photo preview";
+  pic.src=URL.createObjectURL(file);pic.onload=()=>URL.revokeObjectURL(pic.src);
+  const span=document.createElement("span");span.textContent=(job.kind==="bone"?"Bone-in: ":"Normal: ")+file.name;
+  item.append(pic,span);return item;
 }
 function updatePhotoQueue(){
-  $("photoQueue").replaceChildren();photos.forEach(f=>$("photoQueue").append(imgPreview(f)));$("scanBtn").disabled=!photos.length||scanning;$("clearPhotos").disabled=!photos.length||scanning;
+  $("photoQueue").replaceChildren();
+  photos.forEach(job=>$("photoQueue").append(imgPreview(job)));
+  $("scanBtn").disabled=!photos.length||scanning;
+  $("clearPhotos").disabled=!photos.length||scanning;
 }
-function addPhotos(files){
+function newSheetId(kind,file){
+  const stem=String(file.name||"photo").slice(0,40);
+  return (kind==="bone"?"Bone-in ":"Normal ")+stem+" #"+createCropKey().slice(-6);
+}
+function addPhotos(files,kind="normal"){
   let count=0;
   for(const file of files){
     if(file.type.startsWith("image/")&&photos.length<30&&!scannedPhotoKeys.has(photoKey(file))){
-      photos.push(file);count++;
+      photos.push({file,kind:kind==="bone"?"bone":"normal",sheetId:newSheetId(kind,file)});
+      count++;
     }
   }
   updatePhotoQueue();
   if(count){
-    show("scanMsg",count+" photo(s) selected. Reading the labels automatically now...");
+    show("scanMsg",count+" "+(kind==="bone"?"bone-in":"normal")+" photo(s) selected. Scanning now...");
     void scanPhotos();
-  }else show("scanMsg","These photos have already been scanned in this production paper. Use New production paper to start again.","warn");
+  }else show("scanMsg","This photo was already scanned. Use New production paper to start again, or add another distinct sheet.","warn");
 }
 function createScaledCanvas(bitmap,maxDimension=2600){
   const scale=Math.min(1,maxDimension/Math.max(bitmap.width,bitmap.height));
@@ -747,8 +794,8 @@ async function scanPhotos(){
   let added=0,ready=0,review=0,ocrChecks=0,worker=null,errors=0;
   try{
     for(let i=0;i<batch.length;i++){
-      const file=batch[i];
-      show("scanMsg","Scanning barcodes in photo "+(i+1)+" of "+batch.length+"…");
+      const {file,kind,sheetId}=batch[i];
+      show("scanMsg","Scanning "+(kind==="bone"?"bone-in":"normal")+" sheet "+(i+1)+" of "+batch.length+"…");
       let bitmap=null;
       try{
         bitmap=await createImageBitmap(file);
@@ -761,7 +808,7 @@ async function scanPhotos(){
             if(!worker)worker=await(await loadOCR()).createWorker("eng");
             const text=(await worker.recognize(canvas)).data.text||"";
             for(const code of fallbackBarcodesFromText(text)){
-              const entry=addLabel({barcode:code,photoName:file.name,source:"OCR barcode fallback"});
+              const entry=addLabel({barcode:code,kind,sheetId,photoName:file.name,source:"OCR barcode fallback"});
               added++;if(entry.confirmed)ready++;else review++;
             }
           }catch(err){errors++}
@@ -770,7 +817,7 @@ async function scanPhotos(){
             const region=regions[j],decoded=decode(region.barcode);
             if(decoded.error)continue;
             // PRIMARY: Add barcode and catalog-derived weight before OCR starts.
-            const entry=addLabel({barcode:region.barcode,photoName:file.name,source:"Barcode + 5 g catalog"});
+            const entry=addLabel({barcode:region.barcode,kind,sheetId,photoName:file.name,source:"Barcode + 5 g catalog"});
             // Crop directly from the detected BARCODE position. Never use the
             // barcode digits as an image key because different stickers repeat.
             try{
@@ -805,7 +852,7 @@ async function scanPhotos(){
     show("scanMsg",added
       ?"Detected "+added+" label(s). "+ready+" barcode-derived weight(s) ready; "+review+" need review. Printed-text cross-checks: "+ocrChecks+
        ". Check the count against your sticker sheet before printing."+(errors?" Some labels' text could not be read.":"")
-      :"No valid 6780/6781 barcodes found. Try a clearer image, or photograph smaller groups.",added?"":"warn");
+      :"No valid 6777/6780/6781 barcodes found. Try a clearer image, or photograph smaller groups.",added?"":"warn");
     if(photos.length)void scanPhotos();
   }
 }
@@ -830,14 +877,15 @@ function preparePaper(){
   const grn=[];
   if(p.m>0)grn.push(["6780","Pakistani Beef Minced","kg",fmtKg(p.m)]);
   if(p.b>0)grn.push(["6781","Pakistani Beef Without Bone","kg",fmtKg(p.b)]);
-  if(mode()==="with-bones"&&p.waste>0)grn.push(["","Wastage for Meat","kg",fmtKg(p.waste)]);
+  if(p.waste>0)grn.push(["","Wastage for Meat","kg",fmtKg(p.waste)]);
   padPaperRows($("ppGrn"),grn,9);
 }
 function exportCsv(){
   const p=paperState();if(p.error)return;
-  const table=[["item","barcode","weight_kg","unit_BD_per_kg","total_BD"]];
-  for(const e of entries){const v=verify(e);table.push([v.info.code,e.barcode,fmtKg(v.grams),fmtMoney(v.unit),fmtMoney(v.printed)])}
-  table.push(["Recipe Issue 6777","",fmtKg(p.original),"",""]);
+  const table=[["item","barcode","weight_kg","unit_BD_per_kg","total_BD","source","sheet"]];
+  for(const e of entries){const v=verify(e);table.push([v.info.code,e.barcode,fmtKg(v.grams),fmtMoney(v.unit),fmtMoney(v.printed),sourceKind(e),e.sheetId||""])}
+  table.push(["Recipe Issue 6777","",fmtKg(p.original),"","","combined",""]);
+  table.push(["Bones and wastage","",fmtKg(p.waste),"","","bone-in",""]);
   const csv=table.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\r\n");
   const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
   const a=document.createElement("a");a.href=url;a.download="meat-production-verified-"+($("date").value||"paper")+".csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -876,9 +924,10 @@ $("clearLabels").addEventListener("click",()=>{
 function printWithBarcodeNotice(){
   const state=paperState();if(state.error)return;
   const estimated=entries.filter(e=>e.confirmed&&e.weightSource==="catalog").length;
-  const warning="Detected "+entries.length+" labels. Check this matches the stickers on the plastic sheet."+
+  const warning="Detected "+entries.length+" labels across normal and bone-in sheets. Check every sticker and the 6777-to-6780 sequence."+
+    String.fromCharCode(10)+"Recipe Issue "+fmtKg(state.original)+" kg; minced "+fmtKg(state.m)+" kg; boneless "+fmtKg(state.b)+" kg; wastage "+fmtKg(state.waste)+" kg."+
     (estimated?String.fromCharCode(10)+estimated+" weight(s) inferred from the 5 g barcode catalog, not verified exact printed weights.":"")+
-    String.fromCharCode(10)+"Prepare the production paper?";
+    String.fromCharCode(10)+"Prepare ONE combined production paper?";
   if(!confirm(warning))return;
   preparePaper();window.print();
 }
