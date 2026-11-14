@@ -501,4 +501,24 @@ const beforeImageTotal=totals().m;
   assert.ok(html.includes('id="cropDialog"'),"Preview opens the existing dialog");
   console.log("Cropped-label tests passed: unique per-sticker images, correct position, no changes to totals.");
 })().catch(err=>{console.error(err);process.exitCode=1});
+
+const summaryHtml=fs.readFileSync("index.html","utf8");
+const summaryStart=summaryHtml.indexOf('<section class="panel summary-panel"');
+const summaryEnd=summaryHtml.indexOf('</section>',summaryStart);
+assert.ok(summaryStart>=0 && summaryEnd>summaryStart,"Recipe summary panel must exist");
+const summaryMarkup=summaryHtml.slice(summaryStart,summaryEnd);
+assert.match(summaryMarkup,/Recipe Issue \(Subcontract PO\)/);
+assert.match(summaryMarkup,/Recipe GRN \(Bundling\)/);
+for(const id of ["issueTotal","mincedTotal","bonelessTotal","wasteTotal"]){
+  assert.match(summaryMarkup,new RegExp('id="'+id+'"'),id+" displayed");
+}
+for(const former of ["normalIssueTotal","boneIssueTotal","boneBatchContainer","verifiedTotal","boneBatchSummary"]){
+  assert.equal(summaryMarkup.includes(former),false,"Do not display intermediate breakdown "+former);
+}
+assert.equal((summaryMarkup.match(/class="recipe-summary-line/g)||[]).length,4);
+assert.equal(summaryMarkup.includes('Pakistani Beef With Bone'),true);
+assert.equal(summaryMarkup.includes('Pakistani Beef Minced'),true);
+assert.equal(summaryMarkup.includes('Pakistani Beef Without Bone'),true);
+assert.equal(summaryMarkup.includes('Wastage For Meat'),true);
+console.log("Simple Recipe Issue / GRN preview test passed: exactly four rows, no intermediate totals.");
 console.log("Scanner validation tests passed: verified EAN, internal price digit, rounding, label consistency, and product constraints.");
