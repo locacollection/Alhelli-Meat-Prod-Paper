@@ -645,7 +645,7 @@ $("sampleBtn").addEventListener("click",()=>{
   // These examples are only demonstrations; verify the barcodes before use.
   for(const s of sample)addLabel({...s,source:"demo"});render();show("scanMsg","Demonstration rows loaded. They are not confirmed real labels. Review and confirm each barcode and printed price before producing a paper.","warn");
 });
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState};
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 restore();render();
 })();
