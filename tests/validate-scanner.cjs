@@ -26,7 +26,7 @@ const sandbox = {
   console,Date,confirm:()=>true
 };
 vm.runInNewContext(source,sandbox,{filename:"scanner.js",timeout:2000});
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
 assert.equal(readUniqueDecimal("1.000 4.500"),"");
