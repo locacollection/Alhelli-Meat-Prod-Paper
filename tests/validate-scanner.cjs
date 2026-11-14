@@ -148,8 +148,35 @@ assert.equal(verify(firstBarcodeOnly).ok,true);
 assert.equal(matchPrintedOCR(firstBarcodeOnly,{}).confirmed,true);
 assert.equal(matchPrintedOCR(firstBarcodeOnly,{weight:"0.400",unit:"4.500",printed:"1.800"}).confirmed,true);
 const ocrConflict=matchPrintedOCR(firstBarcodeOnly,{weight:"0.400",unit:"4.500",printed:"3.645"});
-assert.equal(ocrConflict.confirmed,false);
-assert.match(ocrConflict.ocrConflict,/printed/);
+assert.equal(ocrConflict.confirmed,true);
+assert.equal(ocrConflict.ocrConflict,"");
+assert.match(ocrConflict.ocrWarning,/3.645/);
+assert.equal(ocrConflict.weight,"0.400");
+assert.equal(ocrConflict.printed,"1.800");
+const realSecond=matchPrintedOCR(fromBarcode("9667800031057"),{
+  weight:"0.690",unit:"4.500",printed:"3.108"
+});
+assert.equal(realSecond.confirmed,true);
+assert.equal(realSecond.weight,"0.690");
+assert.equal(realSecond.printed,"3.105");
+assert.match(realSecond.ocrWarning,/3.108/);
+assert.equal(realSecond.ocrConflict,"");
+const realFourth=fromBarcode("9667808036450");
+assert.equal(realFourth.confirmed,true);
+assert.equal(realFourth.weight,"0.810");
+assert.equal(decode(realFourth.barcode).code,"6780");
+const productConflict=matchPrintedOCR(realFourth,{ocrProduct:"6781"});
+assert.equal(productConflict.confirmed,false);
+assert.match(productConflict.ocrConflict,/Product category/);
+const fourMinced=[
+  "9667807018006",
+  "9667800031057",
+  encodeFromPrinted("6780",740,4500),
+  "9667808036450"
+];
+assert.equal(fourMinced.reduce((sum,code)=>sum+catalogFromBarcode(code).grams,0),2640);
+assert.ok(fourMinced.every(code=>catalogFromBarcode(code).info.code==="6780"));
+console.log("4-label photo audit passed: minced 2.640 kg, OCR 3.108 false reading ignored.");
 const noOCRNeeded=matchPrintedOCR(secondBarcodeOnly,{});
 assert.equal(noOCRNeeded.confirmed,true);
 assert.equal(noOCRNeeded.weight,"0.810");
