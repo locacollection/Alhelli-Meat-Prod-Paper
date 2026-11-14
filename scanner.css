@@ -252,3 +252,8 @@ main.container{padding-top:16px}
 .section-top{margin-bottom:12px}
 .summary-panel h2{margin-top:0}
 @media(max-width:520px){main.container{padding-top:12px}.panel{margin-bottom:12px}.source-card{padding:13px}}
+
+/* Single entry point for all normal and bone-in sticker photos. */
+.unified-scan{margin:0;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:10px}
+.unified-scan .btn{display:flex;align-items:center;justify-content:center;min-height:50px;padding:12px 14px}
+@media(max-width:390px){.unified-scan{grid-template-columns:1fr 1fr;gap:8px}.unified-scan .btn{padding:11px 8px;font-size:12px}}
