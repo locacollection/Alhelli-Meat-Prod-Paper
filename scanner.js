@@ -1,9 +1,9 @@
 (()=>{
 "use strict";
 const $=id=>document.getElementById(id);
-const RATE={ "6780":4500, "6781":4500 };
-const PRODUCT={ "6780":"Pakistani Beef Minced", "6781":"Pakistani Beef Without Bone" };
-const PREFIX={ "966780":"6780", "966781":"6781" };
+const RATE={ "6777":3190, "6780":4500, "6781":4500 };
+const PRODUCT={ "6777":"Pakistani Beef With Bone", "6780":"Pakistani Beef Minced", "6781":"Pakistani Beef Without Bone" };
+const PREFIX={ "966777":"6777", "966780":"6780", "966781":"6781" };
 const STORAGE="alhelli-label-scanner-v2";
 const photos=[];
 const scannedPhotoKeys=new Set();
@@ -47,7 +47,7 @@ function decode(s){
   s=String(s||"").replace(/\s/g,"");
   if(!/^\d{13}$/.test(s))return {error:"A barcode must contain 13 digits."};
   const code=PREFIX[s.slice(0,6)];
-  if(!code)return {error:"Only finished minced (6780) and without-bone (6781) labels are accepted."};
+  if(!code)return {error:"Only 6777, 6780 and 6781 production barcodes are accepted."};
   if(Number(s[12])!==checkDigit(s.slice(0,12)))return {error:"The barcode's final EAN-13 check digit is incorrect."};
   const price=Number(s.slice(7,12));
   if(priceVerifier(price)!==Number(s[6]))return {error:"The barcode's internal price-verification digit is incorrect."};
@@ -319,14 +319,14 @@ function closeEntryPreview(){
 }
 
 function persist(){
-  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source,cropKey,cropKind})=>({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source,cropKey,cropKind}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
+  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source,cropKey,cropKind,kind,sheetId})=>({id,barcode,weight,weightSource,unit,unitSource,printed,printedSource,ocrConflict,ocrWarning,ocrChecked,photoName,ocrProduct,confirmed,autoConfirmed,source,cropKey,cropKind,kind,sheetId}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
 }
 function restore(){
   try{
     const saved=JSON.parse(localStorage.getItem(STORAGE)||"[]");
     if(!Array.isArray(saved))return;
     entries=saved.slice(0,250).filter(x=>x&&typeof x.barcode==="string").map(x=>{
-      const old={...x,id:makeId(),barcode:String(x.barcode||""),weight:String(x.weight||""),
+      const old={...x,id:makeId(),kind:x.kind==="bone"?"bone":"normal",sheetId:String(x.sheetId||""),barcode:String(x.barcode||""),weight:String(x.weight||""),
         unit:String(x.unit||""),printed:String(x.printed||""),photoName:String(x.photoName||"")};
       // Older OCR and manual values may be wrong or off the 5 g grid.
       // Always restore the scanned barcode's catalog weight and price.
@@ -427,23 +427,73 @@ function buildRow(entry,i){
   actions.append(closeup,attach,remove);box.append(actions);
   return box;
 }
-function mode(){return document.querySelector('input[name="materialMode"]:checked')?.value||"no-bones"}
-function totals(){
-  let m=0,b=0,c=0;
-  for(const e of entries){const v=verify(e);if(e.confirmed&&v.ok){if(v.info.code==="6780")m+=v.grams;else b+=v.grams;c++}}
-  return {m,b,c,pending:entries.length-c};
-}
-function paperState(){
-  const t=totals(),out=t.m+t.b;let original=out,waste=0,error="";
-  if(!entries.length)error="Add at least one minced or boneless label. No production means no Recipe GRN.";
-  else if(t.pending>0)error=t.pending+" label(s) need to be checked and confirmed before printing.";
-  else if(out<=0)error="No finished meat weight was recorded.";
-  if(mode()==="with-bones"){
-    original=fixed3($("originalWeight").value);
-    if(original===null||original<=0)error="Enter the actual weighed 6777 amount before generating a with-bones production paper.";
-    else {waste=original-out;if(waste<0)error="Original 6777 weight is less than finished output. Recheck the printed labels."}
+function sourceKind(entry){return entry.kind==="bone"?"bone":"normal"}
+function finishedCode(code){return code==="6780"||code==="6781"}
+function productionCalculation(records){
+  let normalM=0,normalB=0,boneM=0,boneB=0,boneOriginal=0,waste=0,c=0,pending=0;
+  const errors=[],sheetGroups=new Map(),batches=[];
+  for(const e of records){
+    const v=verify(e);
+    if(!e.confirmed||!v.ok){
+      pending++;errors.push("Label "+(records.indexOf(e)+1)+": "+(!v.ok?v.reason:"barcode not confirmed"));
+      continue;
+    }
+    c++;
+    const kind=sourceKind(e);
+    if(kind==="normal"){
+      if(v.info.code==="6777"){
+        errors.push("6777 original label is on a normal-production sheet. Scan it as a bone-in sheet.");
+        continue;
+      }
+      if(v.info.code==="6780")normalM+=v.grams;
+      if(v.info.code==="6781")normalB+=v.grams;
+    }else{
+      const key=String(e.sheetId||"bone-unassigned");
+      if(!sheetGroups.has(key))sheetGroups.set(key,[]);
+      sheetGroups.get(key).push({entry:e,code:v.info.code,grams:v.grams});
+    }
   }
-  return {...t,original,waste,error};
+  for(const [sheetId,items] of sheetGroups){
+    let current=null;let batchNumber=0;
+    function closeBatch(){
+      if(!current)return;
+      const out=current.minced+current.boneless;
+      if(out===0)errors.push("Bone-in sheet "+current.name+" has 6777 but no finished 6780/6781 label after it.");
+      else if(out>current.original)errors.push("Bone-in sheet "+current.name+" has more finished meat than its original 6777 weight.");
+      else{
+        boneOriginal+=current.original;boneM+=current.minced;boneB+=current.boneless;
+        waste+=current.original-out;
+        batches.push({...current,waste:current.original-out});
+      }
+    }
+    for(const item of items){
+      if(item.code==="6777"){
+        closeBatch();batchNumber++;
+        current={sheetId,name:sheetId+" / pair "+batchNumber,original:item.grams,minced:0,boneless:0,
+          originalBarcode:item.entry.barcode,finishedBarcodes:[]};
+      }else if(!current){
+        errors.push("Bone-in sheet "+sheetId+" has a "+item.code+" label before its 6777 original. Recheck the sticker order.");
+      }else if(item.code==="6780"){
+        current.minced+=item.grams;current.finishedBarcodes.push(item.entry.barcode);
+      }else if(item.code==="6781"){
+        current.boneless+=item.grams;current.finishedBarcodes.push(item.entry.barcode);
+      }
+    }
+    closeBatch();
+  }
+  const m=normalM+boneM,b=normalB+boneB;
+  const normalOriginal=normalM+normalB,original=normalOriginal+boneOriginal;
+  return {m,b,c,pending,normalM,normalB,normalOriginal,boneM,boneB,boneOriginal,waste,original,
+    batches,boneSheets:sheetGroups.size,errors,error:errors.length?errors[0]:""};
+}
+function totals(){return productionCalculation(entries)}
+function paperState(){
+  const t=totals();
+  let error=t.error;
+  if(!entries.length)error="Scan normal 6780/6781 labels or a bone-in 6777 → 6780 sheet to create a production paper.";
+  else if(t.pending)error=t.pending+" label(s) still need barcode review. "+(error||"");
+  else if(t.original<=0)error=error||"No finished meat is available for the production paper.";
+  return {...t,error};
 }
 function render(){
   const container=$("labels");container.replaceChildren();
@@ -490,7 +540,7 @@ function addLabel(entry={}){
     unit:derived.unit||"",unitSource:derived.unitSource||"manual",
     printed:derived.printed||"",printedSource:derived.printedSource||"manual",
     ocrConflict:derived.ocrConflict||"",ocrWarning:derived.ocrWarning||"",ocrChecked:!!derived.ocrChecked,
-    photoName:derived.photoName||"",ocrProduct:derived.ocrProduct||null, cropKey:derived.cropKey||"",cropKind:derived.cropKind||"",cropUrl:derived.cropUrl||"",
+    photoName:derived.photoName||"",ocrProduct:derived.ocrProduct||null,kind:derived.kind==="bone"?"bone":"normal",sheetId:derived.sheetId||"", cropKey:derived.cropKey||"",cropKind:derived.cropKind||"",cropUrl:derived.cropUrl||"",
     confirmed:!!derived.confirmed,autoConfirmed:!!derived.autoConfirmed,source:derived.source||"manual"});
   persist();render();
   return entries[entries.length-1];
@@ -640,7 +690,8 @@ function ocrFields(text,decoded){
   const printed=values.some(v=>v.n===decoded.price)?fmtMoney(decoded.price):"";
   const minHint=/\bMIN(CED)?\b|MIN\s+KG/i.test(text);
   const bonelessHint=/W\s*[/\\]?\s*OUT\s*BONE|WITHOUT\s+BONE/i.test(text);
-  return {weight,unit:rate,printed,ocrProduct:minHint&&!bonelessHint?"6780":bonelessHint&&!minHint?"6781":null};
+  const withBoneHint=/W\s*[/\\]?\s*BON\b|WITH\s+BONE/i.test(text)&&!bonelessHint;
+  return {weight,unit:rate,printed,ocrProduct:minHint&&!bonelessHint?"6780":bonelessHint&&!minHint?"6781":withBoneHint&&!minHint?"6777":null};
 }
 let loadOCRPromise=null;
 async function loadOCR(){
@@ -684,8 +735,8 @@ async function readLabelCloseup(file,entry){
 }
 
 function fallbackBarcodesFromText(text){
-  const out=[];const regexp=/9[\s:|]*6678([01])(\d)[\s:|]*(\d{6})/g;let m;
-  while((m=regexp.exec(text))!==null){const value="96678"+m[1]+m[2]+m[3];if(!decode(value).error&&!out.includes(value))out.push(value)}
+  const out=[];const regexp=/9[\s:|]*667(77|80|81)(\d)[\s:|]*(\d{6})/g;let m;
+  while((m=regexp.exec(text))!==null){const value="9667"+m[1]+m[2]+m[3];if(!decode(value).error&&!out.includes(value))out.push(value)}
   return out;
 }
 async function scanPhotos(){
