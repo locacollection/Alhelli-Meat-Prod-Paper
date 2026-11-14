@@ -582,8 +582,14 @@ function refreshSummary(){
   $("wasteTotal").textContent=fmtKg(t.waste)+" kg";
   const blocked=Boolean(t.error)||scanning;
   $("printBtn").disabled=blocked;
-  if($("quickPrintBtn"))$("quickPrintBtn").disabled=blocked;
-  $("exportBtn").disabled=blocked;
+  $("saveBtn").disabled=blocked;
+  let finishedValue=0;
+  for(const e of entries){
+    const v=verify(e);
+    if(e.confirmed&&v.ok&&finishedCode(v.info.code))finishedValue+=v.printed;
+  }
+  $("extraWeight").textContent=fmtKg(t.m+t.b)+" kg";
+  $("extraPrice").textContent=fmtMoney(finishedValue)+" BD";
   show("paperWarning",t.error||"",t.error?"warn":"");
 }
 function addLabel(entry={}){
@@ -1024,18 +1030,32 @@ $("clearLabels").addEventListener("click",()=>{
   clearAllCrops(entries);entries=[];photos.splice(0);scannedPhotoKeys.clear();persist();render();updatePhotoQueue();
   show("scanMsg","");
 });
-function printWithBarcodeNotice(){
-  const state=paperState();if(state.error)return;
-  const warning="Print paper? "+entries.length+" labels"+
-    String.fromCharCode(10)+"6777 "+fmtKg(state.original)+" kg · 6780 "+fmtKg(state.m)+
-    " kg · 6781 "+fmtKg(state.b)+" kg · Wastage "+fmtKg(state.waste)+" kg";
-  if(!confirm(warning))return;
-  preparePaper();window.print();
+// Preview, saving, and optional PDF export are handled by paper-store.js.
+function paperSnapshot(){
+  const state=paperState();
+  if(scanning)throw new Error("Wait for scanning to finish.");
+  if(state.error)throw new Error(state.error);
+  const date=$("date").value;
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))throw new Error("Select a production date.");
+  const labels=entries.map(e=>{
+    const v=verify(e);
+    if(!e.confirmed||!v.ok)throw new Error("An unverified barcode remains.");
+    return {barcode:e.barcode,product_code:v.info.code,
+      weight_grams:v.grams,price_fils:v.printed,
+      source:sourceKind(e),sheet_id:String(e.sheetId||"").slice(0,100)};
+  });
+  const finishedValue=labels.filter(e=>finishedCode(e.product_code)).reduce((n,e)=>n+e.price_fils,0);
+  return {
+    production_date:date,plant:$("plant").value.trim()||"Seef Arad / Meat",
+    staff_name:$("staff").value.trim(),paper_reference:$("reference").value.trim(),
+    issue_weight_grams:state.original,minced_weight_grams:state.m,
+    boneless_weight_grams:state.b,wastage_weight_grams:state.waste,
+    finished_value_fils:finishedValue,label_count:labels.length,
+    label_details:labels
+  };
 }
-$("printBtn").addEventListener("click",printWithBarcodeNotice);
-$("quickPrintBtn")?.addEventListener("click",printWithBarcodeNotice);
-$("exportBtn").addEventListener("click",exportCsv);
 
+window.MeatProductionApp={paperSnapshot,preparePaper,paperState};
 window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,addPhotos};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 startBlankSheet();render();updatePhotoQueue();
