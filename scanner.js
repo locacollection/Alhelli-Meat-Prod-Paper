@@ -1,0 +1,324 @@
+(()=>{
+"use strict";
+const $=id=>document.getElementById(id);
+const RATE={ "6780":4500, "6781":4500 };
+const PRODUCT={ "6780":"Pakistani Beef Minced", "6781":"Pakistani Beef Without Bone" };
+const PREFIX={ "966780":"6780", "966781":"6781" };
+const STORAGE="alhelli-label-scanner-v2";
+const photos=[];
+let entries=[];
+let scanning=false;
+let seq=0;
+const makeId=()=>++seq;
+const fmtKg=g=>(g/1000).toFixed(3);
+const fmtMoney=f=>(f/1000).toFixed(3);
+const chip=(txt,cls)=>{const span=document.createElement("span");span.className=cls;span.textContent=txt;return span};
+function show(id,msg,cls=""){const el=$(id);el.textContent=msg;el.className="message"+(cls?" "+cls:"")}
+function fixed3(text){
+  const x=String(text??"").trim().replace(",",".");
+  if(!/^\d{1,2}(?:\.\d{1,3})?$/.test(x))return null;
+  const [whole,dec=""]=x.split(".");
+  return Number(whole)*1000+Number(dec.padEnd(3,"0"));
+}
+function checkDigit(twelve){
+  if(!/^\d{12}$/.test(twelve))return null;
+  let s=0;for(let i=0;i<12;i++)s+=Number(twelve[i])*(i%2===0?1:3);
+  return (10-s%10)%10;
+}
+const fivePlus=[0,5,1,6,2,7,3,8,4,9];
+const twoMinus=[0,2,4,6,8,9,1,3,5,7];
+const fiveMinus=[0,5,9,4,8,3,7,2,6,1];
+const inverseFiveMinus=[0,9,7,5,3,1,8,6,4,2];
+function priceVerifier(price){
+  if(!Number.isInteger(price)||price<0||price>99999)return null;
+  let s=String(price).padStart(5,"0");let t=0;
+  for(let i=0;i<5;i++)t+=[fivePlus,twoMinus,fiveMinus,fivePlus,twoMinus][i][Number(s[i])];
+  return inverseFiveMinus[(10-t%10)%10];
+}
+function decode(s){
+  s=String(s||"").replace(/\s/g,"");
+  if(!/^\d{13}$/.test(s))return {error:"A barcode must contain 13 digits."};
+  const code=PREFIX[s.slice(0,6)];
+  if(!code)return {error:"Only finished minced (6780) and without-bone (6781) labels are accepted."};
+  if(Number(s[12])!==checkDigit(s.slice(0,12)))return {error:"The barcode's final EAN-13 check digit is incorrect."};
+  const price=Number(s.slice(7,12));
+  if(priceVerifier(price)!==Number(s[6]))return {error:"The barcode's internal price-verification digit is incorrect."};
+  return {code,price,barcode:s};
+}
+function roundedPrice(grams,unitFils){
+  if(!Number.isSafeInteger(grams)||!Number.isSafeInteger(unitFils))return null;
+  return Math.floor((grams*unitFils+2500)/5000)*5;
+}
+function verify(entry){
+  const info=decode(entry.barcode);
+  if(info.error)return {ok:false,reason:info.error};
+  const grams=fixed3(entry.weight);
+  if(grams===null||grams<1||grams>10000)return {ok:false,reason:"Read or enter the exact printed weight between 0.001 and 10.000 kg."};
+  const unit=fixed3(entry.unit);
+  if(unit===null||unit<=0)return {ok:false,reason:"Read or enter the unit price printed on the label."};
+  const printed=fixed3(entry.printed);
+  if(printed===null||printed<0)return {ok:false,reason:"Read or enter the total price printed on the label."};
+  if(printed!==info.price)return {ok:false,reason:"Printed total "+fmtMoney(printed)+" BD does not match barcode price "+fmtMoney(info.price)+" BD."};
+  const expected=roundedPrice(grams,unit);
+  if(expected!==info.price)return {ok:false,reason:"Printed weight × unit price rounds to "+fmtMoney(expected)+" BD, but barcode and total say "+fmtMoney(info.price)+" BD."};
+  if(entry.ocrProduct&&entry.ocrProduct!==info.code)return {ok:false,reason:"Printed product name seems to disagree with the barcode. Review the label."};
+  return {ok:true,info,grams,unit,printed};
+}
+function persist(){
+  try{localStorage.setItem(STORAGE,JSON.stringify(entries.map(({id,barcode,weight,unit,printed,photoName,ocrProduct,confirmed,source})=>({id,barcode,weight,unit,printed,photoName,ocrProduct,confirmed,source}))))}catch(err){show("scanMsg","Could not store browser session: "+err.message,"warn")}
+}
+function restore(){
+  try{const v=JSON.parse(localStorage.getItem(STORAGE)||"[]");if(Array.isArray(v))entries=v.slice(0,250).filter(x=>x&&typeof x.barcode==="string").map(x=>({id:makeId(),barcode:x.barcode,weight:String(x.weight||""),unit:String(x.unit||""),printed:String(x.printed||""),photoName:String(x.photoName||""),ocrProduct:x.ocrProduct||null,confirmed:Boolean(x.confirmed),source:x.source||"saved"}));}catch(_){}
+}
+function field(name,val,placeholder,onChange,extra){
+  const lbl=document.createElement("label");if(extra)lbl.className=extra;
+  const title=document.createElement("span");title.textContent=name;lbl.append(title);
+  const input=document.createElement("input");input.type="text";input.value=val||"";input.placeholder=placeholder||"";input.autocomplete="off";if(name.includes("Barcode")){input.inputMode="numeric";input.maxLength=13}else input.inputMode="decimal";
+  input.addEventListener("input",e=>onChange(e.target.value));lbl.append(input);return lbl;
+}
+function buildRow(entry,i){
+  const status=verify(entry);
+  if(!status.ok)entry.confirmed=false;
+  const box=document.createElement("article");box.className="label-card "+(status.ok?(entry.confirmed?"good":""):"bad");
+  const head=document.createElement("div");head.className="label-card-head";
+  const title=document.createElement("h3");title.textContent="Label "+(i+1)+" · "+(decode(entry.barcode).code?PRODUCT[decode(entry.barcode).code]:"Check barcode");
+  head.append(title,chip(status.ok?(entry.confirmed?"Confirmed":"Ready to confirm"):"Needs review","status"));box.append(head);
+  const fields=document.createElement("div");fields.className="label-fields";
+  for(const [name,key,placeholder,cls] of [
+    ["13-digit barcode","barcode","9667802045007","wide"],
+    ["Printed weight (kg)","weight","3.500",""],
+    ["Unit price (BD/kg)","unit","4.500",""],
+    ["Printed total price (BD)","printed","15.750",""]
+  ]){
+    fields.append(field(name,entry[key],placeholder,v=>{entry[key]=v;entry.confirmed=false;persist();render()},cls));
+  }
+  box.append(fields);
+  const msg=document.createElement("div");msg.className="message"+(status.ok?"":" warn");
+  msg.textContent=status.ok?(entry.confirmed?"Printed values and EAN-13 barcode agree. Label confirmed.":"All values agree. Compare them with the actual printed label, then tap Confirm printed values."):status.reason;
+  box.append(msg);
+  const actions=document.createElement("div");actions.className="label-extra";
+  const source=document.createElement("small");source.textContent=entry.photoName?"From photo: "+entry.photoName:"Manual / sample label";
+  const wrap=document.createElement("div");wrap.className="label-actions";
+  const confirm=document.createElement("button");confirm.type="button";confirm.className="mini";confirm.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";confirm.disabled=!status.ok||entry.confirmed;confirm.addEventListener("click",()=>{entry.confirmed=true;persist();render()});
+  const remove=document.createElement("button");remove.type="button";remove.className="mini";remove.textContent="Remove";remove.addEventListener("click",()=>{entries=entries.filter(x=>x.id!==entry.id);persist();render()});
+  wrap.append(confirm,remove);actions.append(source,wrap);box.append(actions);return box;
+}
+function mode(){return document.querySelector('input[name="materialMode"]:checked')?.value||"no-bones"}
+function totals(){
+  let m=0,b=0,c=0;
+  for(const e of entries){const v=verify(e);if(e.confirmed&&v.ok){if(v.info.code==="6780")m+=v.grams;else b+=v.grams;c++}}
+  return {m,b,c,pending:entries.length-c};
+}
+function paperState(){
+  const t=totals(),out=t.m+t.b;let original=out,waste=0,error="";
+  if(!entries.length)error="Add at least one minced or boneless label. No production means no Recipe GRN.";
+  else if(t.pending>0)error=t.pending+" label(s) need to be checked and confirmed before printing.";
+  else if(out<=0)error="No finished meat weight was recorded.";
+  if(mode()==="with-bones"){
+    original=fixed3($("originalWeight").value);
+    if(original===null||original<=0)error="Enter the actual weighed 6777 amount before generating a with-bones production paper.";
+    else {waste=original-out;if(waste<0)error="Original 6777 weight is less than finished output. Recheck the printed labels."}
+  }
+  return {...t,original,waste,error};
+}
+function render(){
+  $("labels").replaceChildren();if(!entries.length){const p=document.createElement("p");p.className="empty";p.textContent="No labels yet. Scan your photos or add a missing label manually."; $("labels").append(p);}
+  entries.forEach((e,i)=>$("labels").append(buildRow(e,i)));
+  $("labelCount").textContent=entries.length+" label"+(entries.length===1?"":"s");
+  $("originalWeightBlock").classList.toggle("hidden",mode()!=="with-bones");
+  const t=paperState();
+  $("issueTotal").textContent=t.original===null?"—":fmtKg(t.original)+" kg";
+  $("mincedTotal").textContent=fmtKg(t.m)+" kg";$("bonelessTotal").textContent=fmtKg(t.b)+" kg";
+  $("wasteTotal").textContent=fmtKg(t.waste)+" kg";$("verifiedTotal").textContent=t.c+" / "+entries.length;
+  $("printBtn").disabled=Boolean(t.error);$("exportBtn").disabled=Boolean(t.error);
+  show("paperWarning",t.error||"Paper ready: Recipe Issue "+fmtKg(t.original)+" kg = finished products "+fmtKg(t.m+t.b)+" kg"+(mode()==="with-bones"?" + bones/trimming "+fmtKg(t.waste)+" kg.":"; zero wastage."),t.error?"warn":"");
+  show("balanceText",t.error||"All labels confirmed. Recipe Issue and GRN match.",t.error?"warn":"");
+}
+function addLabel(entry={}){
+  entries.push({id:makeId(),barcode:entry.barcode||"",weight:entry.weight||"",unit:entry.unit||"",printed:entry.printed||"",photoName:entry.photoName||"",ocrProduct:entry.ocrProduct||null,confirmed:false,source:entry.source||"manual"});
+  persist();render();
+}
+function imgPreview(file){
+  const item=document.createElement("div");item.className="photo-item";const pic=document.createElement("img");pic.alt="Selected photo preview";pic.src=URL.createObjectURL(file);pic.onload=()=>URL.revokeObjectURL(pic.src);const span=document.createElement("span");span.textContent=file.name;item.append(pic,span);return item;
+}
+function updatePhotoQueue(){
+  $("photoQueue").replaceChildren();photos.forEach(f=>$("photoQueue").append(imgPreview(f)));$("scanBtn").disabled=!photos.length||scanning;$("clearPhotos").disabled=!photos.length||scanning;
+}
+function addPhotos(files){for(const file of files){if(file.type.startsWith("image/")&&photos.length<30)photos.push(file)}updatePhotoQueue();show("scanMsg",photos.length+" photo(s) queued. Tap Scan all photos to read the labels.")}
+function createScaledCanvas(bitmap,maxDimension=2600){
+  const scale=Math.min(1,maxDimension/Math.max(bitmap.width,bitmap.height));
+  const canvas=document.createElement("canvas");canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);
+  canvas.getContext("2d",{willReadFrequently:true}).drawImage(bitmap,0,0,canvas.width,canvas.height);
+  return canvas;
+}
+function crop(canvas,x,y,w,h){const c=document.createElement("canvas");c.width=Math.max(1,Math.floor(w));c.height=Math.max(1,Math.floor(h));c.getContext("2d",{willReadFrequently:true}).drawImage(canvas,x,y,w,h,0,0,c.width,c.height);return c;}
+function nearby(a,b){const dx=(a.x+a.w/2)-(b.x+b.w/2);const dy=(a.y+a.h/2)-(b.y+b.h/2);return Math.hypot(dx,dy)<Math.max(20,Math.min(a.w,b.w)*.32)}
+async function detectAll(canvas){
+  if(!("BarcodeDetector" in window))return [];
+  const detector=new BarcodeDetector({formats:["ean_13"]});
+  const results=[];
+  async function run(x,y,w,h){
+    try{
+      const img=(x===0&&y===0&&w===canvas.width&&h===canvas.height)?canvas:crop(canvas,x,y,w,h);
+      const found=await detector.detect(img);
+      for(const q of found){
+        const value=q.rawValue.replace(/\s/g,"");
+        if(!/^\d{13}$/.test(value))continue;
+        const rect=q.boundingBox||{x:0,y:0,width:w,height:h};
+        const p={barcode:value,x:x+rect.x,y:y+rect.y,w:rect.width,h:rect.height};
+        if(!results.some(r=>r.barcode===p.barcode&&nearby(r,p)))results.push(p);
+      }
+    }catch(_){}
+  }
+  await run(0,0,canvas.width,canvas.height);
+  for(const grid of [2,3]){
+    const tileW=canvas.width*(grid===2?.64:.46),tileH=canvas.height*(grid===2?.64:.46);
+    const starts=grid===2?[0,.36]:[0,.27,.54];
+    for(const xx of starts)for(const yy of starts){
+      const x=Math.floor(xx*canvas.width),y=Math.floor(yy*canvas.height);
+      const w=Math.min(canvas.width-x,Math.ceil(tileW)),h=Math.min(canvas.height-y,Math.ceil(tileH));
+      if(w>30&&h>30)await run(x,y,w,h);
+    }
+    if(results.length>30)break;
+  }
+  return results.sort((a,b)=>a.y-b.y||a.x-b.x);
+}
+function photoRegion(canvas,r){
+  const width=Math.max(r.w,100),height=Math.max(r.h,45);
+  const x=Math.max(0,Math.floor(r.x-width*.38));
+  const y=Math.max(0,Math.floor(r.y-Math.max(height*3.5,width*.9)));
+  const w=Math.min(canvas.width-x,Math.ceil(width*2.7)),h=Math.min(canvas.height-y,Math.ceil(r.y+r.h*1.6-y));
+  return crop(canvas,x,y,w,h);
+}
+function ocrFields(text,decoded){
+  const normalized=text.replace(/,/g,".");
+  const nums=[...normalized.matchAll(/(^|[^\d])(\d{1,2}\.\d{3})(?!\d)/gm)].map(x=>x[2]);
+  const values=nums.map(x=>({s:x,n:fixed3(x)}));
+  const standardRate=RATE[decoded.code];
+  const candidates=values.filter(v=>v.n>0&&v.n<=10000&&roundedPrice(v.n,standardRate)===decoded.price);
+  const weights=[...new Set(candidates.map(v=>v.n))];
+  const weight=weights.length===1?fmtKg(weights[0]):"";
+  const rate=values.some(v=>v.n===standardRate)?fmtMoney(standardRate):"";
+  const printed=values.some(v=>v.n===decoded.price)?fmtMoney(decoded.price):"";
+  const minHint=/\bMIN(CED)?\b|MIN\s+KG/i.test(text);
+  const bonelessHint=/W\s*[/\\]?\s*OUT\s*BONE|WITHOUT\s+BONE/i.test(text);
+  return {weight,unit:rate,printed,ocrProduct:minHint&&!bonelessHint?"6780":bonelessHint&&!minHint?"6781":null};
+}
+let loadOCRPromise=null;
+async function loadOCR(){
+  if(window.Tesseract)return window.Tesseract;
+  if(!loadOCRPromise)loadOCRPromise=new Promise((resolve,reject)=>{
+    const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    script.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(new Error("OCR library unavailable"));
+    script.onerror=()=>reject(new Error("OCR library could not load. An internet connection is required."));
+    document.head.append(script);
+  });
+  return loadOCRPromise;
+}
+function fallbackBarcodesFromText(text){
+  const out=[];const regexp=/9[\s:|]*6678([01])(\d)[\s:|]*(\d{6})/g;let m;
+  while((m=regexp.exec(text))!==null){const value="96678"+m[1]+m[2]+m[3];if(!decode(value).error&&!out.includes(value))out.push(value)}
+  return out;
+}
+async function scanPhotos(){
+  if(!photos.length||scanning)return;
+  scanning=true;updatePhotoQueue();$("scanBtn").textContent="Scanning…";
+  let detected=0;let added=0;let worker=null;let errorCount=0;
+  try{
+    for(let i=0;i<photos.length;i++){
+      const file=photos[i];show("scanMsg","Photo "+(i+1)+" of "+photos.length+": finding all visible 13-digit barcodes…");
+      let bitmap=null;
+      try{
+        bitmap=await createImageBitmap(file);
+        const canvas=createScaledCanvas(bitmap);
+        bitmap.close();bitmap=null;
+        let regions=await detectAll(canvas);
+        let fallbackText="";
+        if(!regions.length){
+          show("scanMsg","Photo "+(i+1)+": barcode detection missed the labels. Trying printed-digit recognition…","warn");
+          try{
+            if(!worker)worker=await (await loadOCR()).createWorker("eng");
+            const r=await worker.recognize(canvas);fallbackText=r.data.text||"";
+            const codes=fallbackBarcodesFromText(fallbackText);
+            for(const code of codes){
+              addLabel({barcode:code,photoName:file.name,source:"OCR barcode",...ocrFields(fallbackText,decode(code))});
+              added++;
+            }
+          }catch(e){errorCount++;show("scanMsg","Photo "+(i+1)+": "+e.message+" Add labels manually if necessary.","warn")}
+          continue;
+        }
+        detected+=regions.length;
+        if(!worker)worker=await (await loadOCR()).createWorker("eng");
+        for(let j=0;j<regions.length;j++){
+          const region=regions[j];
+          const decoded=decode(region.barcode);
+          if(decoded.error)continue;
+          show("scanMsg","Photo "+(i+1)+"/"+photos.length+", label "+(j+1)+"/"+regions.length+": checking written weight and prices…");
+          let fields={weight:"",unit:"",printed:"",ocrProduct:null};
+          try{
+            const labelImage=photoRegion(canvas,region);
+            const result=await worker.recognize(labelImage);
+            fields=ocrFields(result.data.text||"",decoded);
+          }catch(_){errorCount++}
+          addLabel({barcode:region.barcode,...fields,photoName:file.name,source:"BarcodeDetector + OCR"});added++;
+        }
+      }catch(e){errorCount++;show("scanMsg","Photo "+(i+1)+": "+e.message,"warn")}
+      finally{bitmap?.close?.()}
+    }
+  }finally{
+    if(worker)try{await worker.terminate()}catch(_){}
+    scanning=false;$("scanBtn").textContent="Scan all photos";updatePhotoQueue();
+    show("scanMsg",added
+      ? "Found "+added+" label(s) from "+photos.length+" photo(s). Review every written weight and price below. "+(errorCount?"Some text could not be read. ":"")+"If labels were missed, add them manually."
+      :"No usable 6780/6781 barcodes were found. Try sharp, closer photos of smaller groups of labels, or add their numbers and written values manually.",added?"":"warn");
+  }
+}
+function td(text){const e=document.createElement("td");e.textContent=String(text);return e}
+function tr(values){const e=document.createElement("tr");values.forEach(v=>e.append(td(v)));return e}
+function preparePaper(){
+  const p=paperState();if(p.error)return;
+  $("ppPlant").textContent=$("plant").value||"________________";
+  $("ppDate").textContent=$("date").value||"________________";
+  $("ppStaff").textContent=$("staff").value||"________________";
+  $("ppReference").textContent=$("reference").value||"________________";
+  $("ppIssue").textContent=fmtKg(p.original);
+  $("ppMode").textContent=mode()==="no-bones"?"No-bones conversion: Recipe Issue is the sum of the two finished products. Wastage: 0.000 kg.":"With-bones conversion: original 6777 weight is measured before processing. Calculated bones/trimming: "+fmtKg(p.waste)+" kg.";
+  const tbody=$("ppGrn");tbody.replaceChildren();
+  if(p.m>0)tbody.append(tr(["6780","Pakistani Beef Minced","kg",fmtKg(p.m)]));
+  if(p.b>0)tbody.append(tr(["6781","Pakistani Beef Without Bone","kg",fmtKg(p.b)]));
+  if(mode()==="with-bones"&&p.waste>0)tbody.append(tr(["—","Bones / trimming (calculated)","kg",fmtKg(p.waste)]));
+  const labels=$("ppLabels");labels.replaceChildren();entries.forEach((e,i)=>{const v=verify(e);labels.append(tr([i+1,v.info.code,fmtKg(v.grams),fmtMoney(v.unit),fmtMoney(v.printed),e.barcode]))});
+}
+function exportCsv(){
+  const p=paperState();if(p.error)return;
+  const table=[["item","barcode","weight_kg","unit_BD_per_kg","total_BD"]];
+  for(const e of entries){const v=verify(e);table.push([v.info.code,e.barcode,fmtKg(v.grams),fmtMoney(v.unit),fmtMoney(v.printed)])}
+  table.push(["Recipe Issue 6777","",fmtKg(p.original),"",""]);
+  const csv=table.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\r\n");
+  const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  const a=document.createElement("a");a.href=url;a.download="meat-production-verified-"+($("date").value||"paper")+".csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+$("sheetPhotos").addEventListener("change",e=>{addPhotos(e.target.files);e.target.value=""});
+$("cameraPhoto").addEventListener("change",e=>{addPhotos(e.target.files);e.target.value=""});
+$("scanBtn").addEventListener("click",scanPhotos);
+$("clearPhotos").addEventListener("click",()=>{photos.splice(0);updatePhotoQueue();show("scanMsg","Photos removed from the queue. Previously scanned label values are unchanged.")});
+$("addLabel").addEventListener("click",()=>addLabel());
+$("clearLabels").addEventListener("click",()=>{if(entries.length&&confirm("Clear all scanned and manually entered labels?")){entries=[];persist();render()}});
+$("printBtn").addEventListener("click",()=>{if(paperState().error)return;preparePaper();window.print()});
+$("exportBtn").addEventListener("click",exportCsv);
+document.querySelectorAll('input[name="materialMode"]').forEach(el=>el.addEventListener("change",render));
+$("originalWeight").addEventListener("input",render);
+$("sampleBtn").addEventListener("click",()=>{
+  if(entries.length&&!confirm("Replace all current labels with demonstration values?"))return;
+  entries=[];document.querySelector('input[name="materialMode"][value="no-bones"]').checked=true;
+  const sample=[
+    {barcode:"9667808157508",weight:"3.500",unit:"4.500",printed:"15.750"},
+    {barcode:"9667812292501",weight:"6.500",unit:"4.500",printed:"29.250"}
+  ];
+  // These examples are only demonstrations; verify the barcodes before use.
+  for(const s of sample)addLabel({...s,source:"demo"});render();show("scanMsg","Demonstration rows loaded. They are not confirmed real labels. Review and confirm each barcode and printed price before producing a paper.","warn");
+});
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify};
+const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
+restore();render();
+})();
