@@ -16,3 +16,11 @@ input:focus,select:focus{outline:2px solid #8eb49c;border-color:#448967}.mode-se
 @media(max-width:850px){.workgrid{grid-template-columns:1fr}.header-row{align-items:flex-start}.site-head nav{justify-content:flex-end}}
 @media(max-width:520px){.site-head nav{font-size:12px;gap:8px}.header-row{flex-wrap:wrap}.two-fields{grid-template-columns:1fr}.label-fields{grid-template-columns:1fr}.label-fields .wide{grid-column:1}.panel{padding:16px}.intro{padding:22px 0 15px}.label-card-head{align-items:flex-start}.label-extra{align-items:flex-start;flex-direction:column}}
 @media print{html,body{background:#fff;color:#000}.noprint{display:none!important}.printonly{display:block!important}.paper{padding:0;margin:0}.paper-table tr{page-break-inside:avoid}@page{size:A4;margin:14mm}}
+
+/* Scanner review: placeholders must look distinct from actual detected text. */
+.label-fields input::placeholder{color:#9eafa5;font-style:italic;opacity:1}
+.label-card.bad .label-fields input:placeholder-shown{border-color:#ddad96;background:#fff9f5}
+.label-card .label-fields input:not(:placeholder-shown){font-weight:650;color:#163a2f}
+.closeup-upload{display:inline-flex;align-items:center;justify-content:center;cursor:pointer;white-space:nowrap}
+.closeup-upload:hover{background:#e7f5e9}
+@media(max-width:520px){.label-actions{flex-wrap:wrap}}
