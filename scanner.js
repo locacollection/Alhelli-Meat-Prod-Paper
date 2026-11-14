@@ -90,7 +90,7 @@ function buildRow(entry,i){
     ["Unit price (BD/kg)","unit","4.500",""],
     ["Printed total price (BD)","printed","15.750",""]
   ]){
-    fields.append(field(name,entry[key],placeholder,v=>{entry[key]=v;entry.confirmed=false;persist();render()},cls));
+    fields.append(field(name,entry[key],placeholder,v=>{entry[key]=v;entry.confirmed=false;persist();refreshRow(box,entry);refreshSummary()},cls));
   }
   box.append(fields);
   const msg=document.createElement("div");msg.className="message"+(status.ok?"":" warn");
@@ -99,7 +99,7 @@ function buildRow(entry,i){
   const actions=document.createElement("div");actions.className="label-extra";
   const source=document.createElement("small");source.textContent=entry.photoName?"From photo: "+entry.photoName:"Manual / sample label";
   const wrap=document.createElement("div");wrap.className="label-actions";
-  const confirm=document.createElement("button");confirm.type="button";confirm.className="mini";confirm.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";confirm.disabled=!status.ok||entry.confirmed;confirm.addEventListener("click",()=>{entry.confirmed=true;persist();render()});
+  const confirm=document.createElement("button");confirm.type="button";confirm.className="mini";confirm.dataset.confirm="1";confirm.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";confirm.disabled=!status.ok||entry.confirmed;confirm.addEventListener("click",()=>{entry.confirmed=true;persist();render()});
   const remove=document.createElement("button");remove.type="button";remove.className="mini";remove.textContent="Remove";remove.addEventListener("click",()=>{entries=entries.filter(x=>x.id!==entry.id);persist();render()});
   wrap.append(confirm,remove);actions.append(source,wrap);box.append(actions);return box;
 }
@@ -121,9 +121,24 @@ function paperState(){
   }
   return {...t,original,waste,error};
 }
+function refreshRow(box,entry){
+  const v=verify(entry);if(!v.ok)entry.confirmed=false;
+  box.className="label-card "+(v.ok?(entry.confirmed?"good":""):"bad");
+  box.querySelector(".label-card-head h3").textContent="Label "+(entries.indexOf(entry)+1)+" · "+(decode(entry.barcode).code?PRODUCT[decode(entry.barcode).code]:"Check barcode");
+  box.querySelector(".status").textContent=v.ok?(entry.confirmed?"Confirmed":"Ready to confirm"):"Needs review";
+  const msg=box.querySelector(".message");
+  msg.className="message"+(v.ok?"":" warn");
+  msg.textContent=v.ok?(entry.confirmed?"Printed values and EAN-13 barcode agree. Label confirmed.":"All values agree. Compare them with the actual printed label, then tap Confirm printed values."):v.reason;
+  const button=box.querySelector('[data-confirm="1"]');
+  button.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";
+  button.disabled=!v.ok||entry.confirmed;
+}
 function render(){
   $("labels").replaceChildren();if(!entries.length){const p=document.createElement("p");p.className="empty";p.textContent="No labels yet. Scan your photos or add a missing label manually."; $("labels").append(p);}
   entries.forEach((e,i)=>$("labels").append(buildRow(e,i)));
+  refreshSummary();
+}
+function refreshSummary(){
   $("labelCount").textContent=entries.length+" label"+(entries.length===1?"":"s");
   $("originalWeightBlock").classList.toggle("hidden",mode()!=="with-bones");
   const t=paperState();
@@ -312,8 +327,8 @@ $("sampleBtn").addEventListener("click",()=>{
   if(entries.length&&!confirm("Replace all current labels with demonstration values?"))return;
   entries=[];document.querySelector('input[name="materialMode"][value="no-bones"]').checked=true;
   const sample=[
-    {barcode:"9667808157508",weight:"3.500",unit:"4.500",printed:"15.750"},
-    {barcode:"9667812292501",weight:"6.500",unit:"4.500",printed:"29.250"}
+    {barcode:"9667806157508",weight:"3.500",unit:"4.500",printed:"15.750"},
+    {barcode:"9667818292501",weight:"6.500",unit:"4.500",printed:"29.250"}
   ];
   // These examples are only demonstrations; verify the barcodes before use.
   for(const s of sample)addLabel({...s,source:"demo"});render();show("scanMsg","Demonstration rows loaded. They are not confirmed real labels. Review and confirm each barcode and printed price before producing a paper.","warn");
