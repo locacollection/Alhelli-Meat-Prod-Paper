@@ -305,7 +305,8 @@ function refreshSummary(){
   $("issueTotal").textContent=t.original===null?"—":fmtKg(t.original)+" kg";
   $("mincedTotal").textContent=fmtKg(t.m)+" kg";$("bonelessTotal").textContent=fmtKg(t.b)+" kg";
   $("wasteTotal").textContent=fmtKg(t.waste)+" kg";$("verifiedTotal").textContent=t.c+" / "+entries.length;
-  $("printBtn").disabled=Boolean(t.error);if($("quickPrintBtn"))$("quickPrintBtn").disabled=Boolean(t.error);$("exportBtn").disabled=Boolean(t.error);
+  const blocked=Boolean(t.error)||scanning;
+  $("printBtn").disabled=blocked;if($("quickPrintBtn"))$("quickPrintBtn").disabled=blocked;$("exportBtn").disabled=blocked;
   show("paperWarning",t.error||"Paper ready: Recipe Issue "+fmtKg(t.original)+" kg = finished products "+fmtKg(t.m+t.b)+" kg"+(mode()==="with-bones"?" + bones/trimming "+fmtKg(t.waste)+" kg.":"; zero wastage."),t.error?"warn":"");
   show("balanceText",t.error||"All labels confirmed. Recipe Issue and GRN match.",t.error?"warn":"");
 }
@@ -481,39 +482,33 @@ async function loadOCR(){
 }
 async function readLabelCloseup(file,entry){
   const known=decode(entry.barcode);
-  if(known.error){show("scanMsg","Enter or correct the 13-digit barcode first, then re-read a close-up label image.","warn");return}
-  show("scanMsg","Reading close-up photo for "+PRODUCT[known.code]+"…");
+  if(known.error){show("scanMsg","A valid 6780/6781 barcode is required first.","warn");return}
+  show("scanMsg","Checking printed text from a close-up photo...");
   let worker=null;
-  let validCountInCloseup=0;
   try{
     if("BarcodeDetector" in window){
       try{
-        const bitmap=await createImageBitmap(file);const detector=new BarcodeDetector({formats:["ean_13"]});
-        const found=await detector.detect(bitmap);bitmap.close();
-        const valid=found.map(x=>String(x.rawValue).replace(/\s/g,"")).filter(x=>!decode(x).error);
-        validCountInCloseup=valid.length;
-        if(valid.length>0 && !valid.includes(entry.barcode)){
-          show("scanMsg","Close-up shows a different product/price barcode. No values were changed. Check that you selected the correct label.","warn");return;
+        const bitmap=await createImageBitmap(file);
+        const found=await(new BarcodeDetector({formats:["ean_13"]})).detect(bitmap);bitmap.close();
+        const visible=found.map(x=>String(x.rawValue).replace(/\s/g,"")).filter(x=>!decode(x).error);
+        if(visible.length>1||visible.length===1&&visible[0]!==entry.barcode){
+          show("scanMsg","Crop the close-up to exactly this label. The picture contains another barcode.","warn");return;
         }
       }catch(_){}
     }
     worker=await(await loadOCR()).createWorker("eng");
     const result=await worker.recognize(file);
-    const fields=fillCatalogUnit(known,{barcode:entry.barcode,...ocrFields(result.data.text||"",known)});
-    // A close-up should show only one label. Refuse OCR assignments if it looks like a sticker sheet.
-    if(validCountInCloseup>1){show("scanMsg","This close-up contains multiple barcodes. Crop it to just one label before re-reading.","warn");return}
-    if(!fields.weight&&!fields.unit&&!fields.printed){
-      show("scanMsg","The close-up was not clear enough to extract printed values. Enter the exact weight and prices manually.","warn");return;
-    }
-    if(fields.weight)entry.weight=fields.weight;
-    if(fields.unit){entry.unit=fields.unit;entry.unitSource=fields.unitSource||"label"}
-    if(fields.printed)entry.printed=fields.printed;
-    if(fields.ocrProduct)entry.ocrProduct=fields.ocrProduct;
-    entry.photoName=file.name;entry.confirmed=false;entry.autoConfirmed=false;persist();render();
-    show("scanMsg","Close-up processed. Recheck every extracted number against the actual printed label, then confirm it.");
-  }catch(e){show("scanMsg","Could not read close-up: "+e.message+". You can enter the label values manually.","warn")}
+    const textFields=ocrFields(result.data.text||"",known);
+    Object.assign(entry,matchPrintedOCR(entry,textFields));
+    entry.photoName=file.name;
+    persist();render();
+    show("scanMsg",entry.ocrConflict
+      ?"The close-up conflicts with the barcode. Review this one label, or choose Keep barcode values."
+      :"Barcode figures are ready. Recognized printed values are only used for checking.",entry.ocrConflict?"warn":"");
+  }catch(err){show("scanMsg","Close-up reading failed, but the barcode-derived values remain: "+err.message,"warn")}
   finally{if(worker)try{await worker.terminate()}catch(_){}}
 }
+
 function fallbackBarcodesFromText(text){
   const out=[];const regexp=/9[\s:|]*6678([01])(\d)[\s:|]*(\d{6})/g;let m;
   while((m=regexp.exec(text))!==null){const value="96678"+m[1]+m[2]+m[3];if(!decode(value).error&&!out.includes(value))out.push(value)}
@@ -524,54 +519,62 @@ async function scanPhotos(){
   scanning=true;
   const batch=photos.splice(0,photos.length);
   $("scanBtn").textContent="Scanning…";updatePhotoQueue();
-  let added=0,auto=0,errorCount=0,worker=null;
+  let added=0,ready=0,review=0,ocrChecks=0,worker=null,errors=0;
   try{
     for(let i=0;i<batch.length;i++){
       const file=batch[i];
-      show("scanMsg","Scanning photo "+(i+1)+" of "+batch.length+"…");
+      show("scanMsg","Scanning barcodes in photo "+(i+1)+" of "+batch.length+"…");
       let bitmap=null;
       try{
         bitmap=await createImageBitmap(file);
         const canvas=createScaledCanvas(bitmap);bitmap.close();bitmap=null;
         const regions=await detectAll(canvas);
         if(!regions.length){
-          show("scanMsg","No machine-readable barcodes in "+file.name+". Trying text recognition…","warn");
+          // OCR fallback is not the primary scanning path. A correctly read 13
+          // digit number still uses the barcode catalog to resolve its weight.
           try{
-            if(!worker)worker=await (await loadOCR()).createWorker("eng");
-            const result=await worker.recognize(canvas);
-            const codes=fallbackBarcodesFromText(result.data.text||"");
-            for(const code of codes){
-              addLabel({barcode:code,photoName:file.name,source:"OCR barcode - needs printed weight review"});added++;
+            if(!worker)worker=await(await loadOCR()).createWorker("eng");
+            const text=(await worker.recognize(canvas)).data.text||"";
+            for(const code of fallbackBarcodesFromText(text)){
+              const entry=addLabel({barcode:code,photoName:file.name,source:"OCR barcode fallback"});
+              added++;if(entry.confirmed)ready++;else review++;
             }
-          }catch(err){errorCount++}
+          }catch(err){errors++}
         }else{
-          try{if(!worker)worker=await (await loadOCR()).createWorker("eng")}catch(err){errorCount++}
           for(let j=0;j<regions.length;j++){
             const region=regions[j],decoded=decode(region.barcode);
             if(decoded.error)continue;
-            show("scanMsg","Photo "+(i+1)+"/"+batch.length+" · label "+(j+1)+"/"+regions.length+" · checking weight and price…");
-            let fields={weight:"",unit:"",printed:"",ocrProduct:null,autoReady:false};
-            if(worker){
-              try{fields=await readFieldsForBarcode(worker,canvas,region,decoded)}catch(err){errorCount++}
+            // PRIMARY: Add barcode and catalog-derived weight before OCR starts.
+            const entry=addLabel({barcode:region.barcode,photoName:file.name,source:"Barcode + 5 g catalog"});
+            added++;
+            if(entry.confirmed)ready++;else review++;
+            show("scanMsg","Read barcode "+(j+1)+"/"+regions.length+" in photo "+(i+1)+". Checking visible text only as a backup…");
+            if(!entry.confirmed)continue;
+            try{
+              if(!worker)worker=await(await loadOCR()).createWorker("eng");
+              const fields=await readFieldsForBarcode(worker,canvas,region,decoded);
+              const verified=matchPrintedOCR(entry,fields);
+              Object.assign(entry,verified);
+              if(entry.ocrChecked)ocrChecks++;
+              if(!entry.confirmed){ready--;review++}
+              persist();render();
+            }catch(err){
+              // OCR failure is not a barcode failure; leave the derived weight.
+              errors++;
             }
-            const ok=shouldAutoConfirm({barcode:region.barcode,...fields},fields.autoReady,3);
-            addLabel({barcode:region.barcode,...fields,photoName:file.name,
-              confirmed:ok,autoConfirmed:ok,
-              source:ok?"Barcode + written values auto-checked":"Needs label review"});
-            added++;if(ok)auto++;
           }
         }
         scannedPhotoKeys.add(photoKey(file));
-      }catch(err){errorCount++;show("scanMsg","Could not process "+file.name+": "+err.message,"warn")}
+      }catch(err){errors++;show("scanMsg","Unable to scan "+file.name+": "+err.message,"warn")}
       finally{bitmap?.close?.()}
     }
   }finally{
     if(worker)try{await worker.terminate()}catch(_){}
-    scanning=false;$("scanBtn").textContent="Retry queued photos";updatePhotoQueue();
-    render();
+    scanning=false;$("scanBtn").textContent="Retry queued photos";updatePhotoQueue();render();
     show("scanMsg",added
-      ? "Done: "+added+" label(s) found; "+auto+" auto-checked. "+(added-auto?((added-auto)+" need attention. "):"Ready to print after checking that every label was detected. ")+(errorCount?"Some text could not be read.":"")
-      :"No labels detected. Try a sharper image showing all stickers, or photograph smaller groups.",added?"":"warn");
+      ?"Detected "+added+" label(s). "+ready+" barcode-derived weight(s) ready; "+review+" need review. Printed-text cross-checks: "+ocrChecks+
+       ". Check the count against your sticker sheet before printing."+(errors?" Some labels' text could not be read.":"")
+      :"No valid 6780/6781 barcodes found. Try a clearer image, or photograph smaller groups.",added?"":"warn");
     if(photos.length)void scanPhotos();
   }
 }
@@ -590,7 +593,11 @@ function preparePaper(){
   if(p.m>0)tbody.append(tr(["6780","Pakistani Beef Minced","kg",fmtKg(p.m)]));
   if(p.b>0)tbody.append(tr(["6781","Pakistani Beef Without Bone","kg",fmtKg(p.b)]));
   if(mode()==="with-bones"&&p.waste>0)tbody.append(tr(["—","Bones / trimming (calculated)","kg",fmtKg(p.waste)]));
-  const labels=$("ppLabels");labels.replaceChildren();entries.forEach((e,i)=>{const v=verify(e);labels.append(tr([i+1,v.info.code,fmtKg(v.grams),fmtMoney(v.unit)+(e.unitSource==="catalog"?"*":""),fmtMoney(v.printed),e.barcode]))});
+  const labels=$("ppLabels");labels.replaceChildren();
+  entries.forEach((e,i)=>{
+    const v=verify(e);
+    labels.append(tr([i+1,v.info.code,fmtKg(v.grams)+(e.weightSource==="catalog"?"†":""),fmtMoney(v.unit)+(e.unitSource==="catalog"?"*":""),fmtMoney(v.printed),e.barcode]));
+  });
 }
 function exportCsv(){
   const p=paperState();if(p.error)return;
@@ -611,8 +618,17 @@ $("clearLabels").addEventListener("click",()=>{
   entries=[];photos.splice(0);scannedPhotoKeys.clear();persist();render();updatePhotoQueue();
   show("scanMsg","New production paper ready. Choose photos to scan automatically.");
 });
-$("printBtn").addEventListener("click",()=>{if(paperState().error)return;preparePaper();window.print()});
-$("quickPrintBtn")?.addEventListener("click",()=>{if(paperState().error)return;preparePaper();window.print()});
+function printWithBarcodeNotice(){
+  const state=paperState();if(state.error)return;
+  const estimated=entries.filter(e=>e.confirmed&&e.weightSource==="catalog").length;
+  const warning="Detected "+entries.length+" labels. Please check this matches the labels on your plastic sheet."+
+    (estimated?"\\n"+estimated+" weight(s) come from the 5 g barcode catalog, not verified exact printed weights.":"")+
+    "\\nPrepare the production paper?";
+  if(!confirm(warning))return;
+  preparePaper();window.print();
+}
+$("printBtn").addEventListener("click",printWithBarcodeNotice);
+$("quickPrintBtn")?.addEventListener("click",printWithBarcodeNotice);
 $("exportBtn").addEventListener("click",exportCsv);
 document.querySelectorAll('input[name="materialMode"]').forEach(el=>el.addEventListener("change",render));
 $("originalWeight").addEventListener("input",render);
