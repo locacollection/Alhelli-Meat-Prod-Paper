@@ -26,7 +26,17 @@ const sandbox = {
   console,Date,confirm:()=>true
 };
 vm.runInNewContext(source,sandbox,{filename:"scanner.js",timeout:2000});
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields}=sandbox.window.MeatProductionChecks;
+assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
+assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
+assert.equal(readUniqueDecimal("1.000 4.500"),"");
+const mincedOCR=ocrFields("PAKISTANI BEEF MIN KG\nWEIGHT 1.000 UNIT PRICE 4.500\nTOTAL PRICE 4.500",decode("9667802045007"));
+assert.equal(mincedOCR.weight,"1.000");
+assert.equal(mincedOCR.unit,"4.500");
+assert.equal(mincedOCR.printed,"4.500");
+const bonelessOCR=ocrFields("PAK BEEF W/OUT BONE\nWEIGHT 1.000 UNIT PRICE 4.500\nTOTAL PRICE 4.500",decode("9667812045004"));
+assert.equal(bonelessOCR.weight,"1.000");
+assert.equal(bonelessOCR.printed,"4.500");
 assert.equal(fixed3("3.500"),3500);
 assert.equal(fixed3("6.500"),6500);
 assert.equal(fixed3("bad"),null);
