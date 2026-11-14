@@ -335,123 +335,97 @@ function restore(){
     });
   }catch(_){}
 }
-function field(name,val,placeholder,onChange,extra){
-  const lbl=document.createElement("label");if(extra)lbl.className=extra;
-  const title=document.createElement("span");title.textContent=name;lbl.append(title);
-  const input=document.createElement("input");input.type="text";input.value=val||"";input.placeholder=placeholder||"";input.autocomplete="off";if(name.includes("Barcode")){input.inputMode="numeric";input.maxLength=13}else input.inputMode="decimal";
-  input.addEventListener("input",e=>onChange(e.target.value));lbl.append(input);return lbl;
+function createLabelValue(title,value,unit,className){
+  const item=document.createElement("div");item.className="label-value "+className;
+  const name=document.createElement("span");name.className="label-value-title";name.textContent=title;
+  const body=document.createElement("div");body.className="label-value-number";
+  const number=document.createElement("strong");number.textContent=value||"—";
+  body.append(number);
+  if(unit){const suffix=document.createElement("span");suffix.textContent=unit;body.append(suffix)}
+  item.append(name,body);
+  return item;
 }
 function buildRow(entry,i){
   const status=verify(entry);
   if(!status.ok)entry.confirmed=false;
-  const box=document.createElement("article");box.className="label-card "+(status.ok?(entry.confirmed?"good":""):"bad");
+  const product=decode(entry.barcode).code;
+  const box=document.createElement("article");
+  box.className="label-card read-only-card "+(status.ok?(entry.confirmed?"good":""):"bad");
   const head=document.createElement("div");head.className="label-card-head";
-  const title=document.createElement("h3");title.textContent="Label "+(i+1)+" · "+(decode(entry.barcode).code?PRODUCT[decode(entry.barcode).code]:"Check barcode");
-  head.append(title,chip(status.ok?(entry.confirmed?"Confirmed":"Ready to confirm"):"Needs review","status"));box.append(head);
+  const headerText=document.createElement("div");headerText.className="label-card-heading";
+  const sequence=document.createElement("span");sequence.className="label-sequence";sequence.textContent="LABEL "+(i+1);
+  const title=document.createElement("h3");title.textContent=product?PRODUCT[product]:"Unreadable barcode";
+  headerText.append(sequence,title);
+  const statusLabel=chip(status.ok?(entry.confirmed?"Verified":"Ready to confirm"):"Needs review","status");
+  head.append(headerText,statusLabel);box.append(head);
+
   const preview=document.createElement("button");
   preview.type="button";preview.className="mini label-preview-button";
-  preview.textContent="Preview label";
-  preview.disabled=!entry.cropUrl;
+  preview.textContent="Preview label";preview.disabled=!entry.cropUrl;
   preview.title=entry.cropUrl?"Open cropped label image":"No saved label photo. Use Attach label photo below.";
   preview.setAttribute("aria-label","Preview cropped sticker for barcode "+(entry.barcode||"not entered"));
   preview.addEventListener("click",()=>previewEntryCrop(entry));
-  box.append(preview);
-  const fields=document.createElement("div");fields.className="label-fields";
-  for(const [name,key,placeholder,cls] of [
-    ["13-digit barcode","barcode","Enter the actual 13 digits","wide"],
-    ["Catalog weight (kg) *","weight","From barcode, e.g. 1.000",""],
-    ["Catalog unit price (BD/kg) *","unit","From saved product rate",""],
-    ["Barcode total price (BD) *","printed","From barcode",""]
-  ]){
-    fields.append(field(name,entry[key],placeholder,v=>{
-      entry[key]=v;entry.confirmed=false;entry.autoConfirmed=false;entry.ocrConflict="";entry.ocrWarning="";
-      if(key==="barcode"){
-        const updated=fromBarcode(v,entry);
-        Object.assign(entry,updated);
-        if(updated.confirmed){persist();render();return}
-      }else if(key==="weight")entry.weightSource="manual";
-      else if(key==="unit")entry.unitSource="manual";
-      else if(key==="printed")entry.printedSource="manual";
-      persist();refreshRow(box,entry);refreshSummary();
-    },cls));
+
+  const barcodeBlock=document.createElement("div");barcodeBlock.className="label-barcode-block";
+  const barcodeHeading=document.createElement("span");barcodeHeading.textContent="13-digit barcode";barcodeHeading.className="label-value-title";
+  const barcode=document.createElement("code");barcode.className="label-barcode";barcode.textContent=entry.barcode||"—";
+  barcodeBlock.append(barcodeHeading,barcode);
+  const overview=document.createElement("div");overview.className="label-overview";
+  overview.append(
+    createLabelValue("Weight",entry.weight,"kg","weight"),
+    createLabelValue("Total price",entry.printed,"BD","price"),
+    createLabelValue("Unit price",entry.unit,"BD/kg","rate")
+  );
+  box.append(barcodeBlock,overview);
+
+  const evidence=document.createElement("div");evidence.className="label-evidence";
+  const source=document.createElement("small");
+  source.textContent="Calculated from barcode · 5 g catalog · "+(entry.ocrChecked?"Printed text matched":entry.ocrWarning?"Photo text uncertain":"Printed text not fully checked");
+  evidence.append(source);
+  if(entry.photoName){
+    const file=document.createElement("small");file.className="label-source-photo";
+    file.textContent="Photo: "+entry.photoName;
+    evidence.append(file);
   }
-  box.append(fields);
-  if(entry.weightSource==="catalog"){
-    const note=document.createElement("p");note.className="fineprint catalog-weight";
-    note.textContent="Weight "+entry.weight+" kg inferred from the 5 g barcode catalog. Printed weight may differ by a few grams.";
-    box.append(note);
+  box.append(evidence);
+  if(!status.ok||entry.ocrWarning){
+    const warning=document.createElement("div");warning.className="message warn label-validation-warning";
+    warning.textContent=!status.ok?status.reason:entry.ocrWarning;
+    box.append(warning);
   }
-  if(entry.unitSource==="catalog"){
-    const inferred=document.createElement("p");inferred.className="fineprint catalog-rate";
-    inferred.textContent="Unit price filled from saved product rate ("+entry.unit+" BD/kg), not read from the photo. Check if the store price has changed.";
-    box.append(inferred);
-  }
-  const msg=document.createElement("div");msg.className="message"+(status.ok?"":" warn");
-  msg.textContent=status.ok?(entry.confirmed?(entry.ocrWarning?"Barcode valid. OCR had a suspected number-reading error.":entry.ocrChecked?"Barcode matched the recognized printed values.":"Barcode valid. Catalog weight used; printed values not fully recognized."):"Check the printed label if this weight differs from the catalog value."):status.reason;
-  box.append(msg);
-  if(entry.ocrWarning){
-    const warning=document.createElement("p");warning.className="message warn";
-    warning.textContent=entry.ocrWarning;box.append(warning);
-  }
-  const actions=document.createElement("div");actions.className="label-extra";
-  const source=document.createElement("small");source.textContent=entry.photoName?"From photo: "+entry.photoName:"Manual / sample label";
-  const wrap=document.createElement("div");wrap.className="label-actions";
+
+  const actions=document.createElement("div");actions.className="label-actions read-only-actions";
+  actions.append(preview);
   if(entry.ocrConflict&&catalogFromBarcode(entry.barcode).ok){
     const keep=document.createElement("button");keep.type="button";keep.className="mini";
-    keep.textContent="Keep barcode values";keep.onclick=()=>{
+    keep.textContent="Use barcode values";keep.addEventListener("click",()=>{
       Object.assign(entry,fromBarcode(entry.barcode,{...entry,source:"Barcode value accepted after OCR mismatch"}));
       persist();render();
-    };
-    wrap.append(keep);
+    });
+    actions.append(keep);
   }
-  const confirm=document.createElement("button");confirm.type="button";confirm.className="mini";confirm.dataset.confirm="1";confirm.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";confirm.disabled=!status.ok||entry.confirmed;confirm.addEventListener("click",()=>{entry.confirmed=true;entry.autoConfirmed=false;persist();render()});
-  const remove=document.createElement("button");remove.type="button";remove.className="mini";remove.textContent="Remove";remove.addEventListener("click",()=>{clearEntryCrop(entry);entries=entries.filter(x=>x.id!==entry.id);persist();render()});
-  const closeup=document.createElement("label");closeup.className="mini closeup-upload";closeup.textContent="Re-read close-up";
+  if(status.ok&&!entry.confirmed){
+    const confirm=document.createElement("button");confirm.type="button";confirm.className="mini";
+    confirm.textContent="Confirm barcode";confirm.dataset.confirm="1";
+    confirm.addEventListener("click",()=>{entry.confirmed=true;entry.autoConfirmed=false;persist();render()});
+    actions.append(confirm);
+  }
+  const closeup=document.createElement("label");closeup.className="mini closeup-upload";
+  closeup.textContent="Re-read photo";
   const choose=document.createElement("input");choose.type="file";choose.accept="image/*";choose.hidden=true;
-  choose.addEventListener("change",()=>{const file=choose.files?.[0];if(file)readLabelCloseup(file,entry);choose.value=""});
+  choose.addEventListener("change",()=>{const file=choose.files?.[0];if(file)void readLabelCloseup(file,entry);choose.value=""});
   closeup.append(choose);
-  const attach=document.createElement("label");attach.className="mini closeup-upload";attach.textContent=entry.cropUrl?"Replace photo":"Attach label photo";
+  const attach=document.createElement("label");attach.className="mini closeup-upload";
+  attach.textContent=entry.cropUrl?"Replace photo":"Attach photo";
   const attachInput=document.createElement("input");attachInput.type="file";attachInput.accept="image/*";attachInput.hidden=true;
-  attachInput.addEventListener("change",()=>{const f=attachInput.files?.[0];if(f)void attachLabelFromFile(f,entry);attachInput.value=""});
+  attachInput.addEventListener("change",()=>{const file=attachInput.files?.[0];if(file)void attachLabelFromFile(file,entry);attachInput.value=""});
   attach.append(attachInput);
-  wrap.append(confirm,closeup,attach,remove);actions.append(source,wrap);box.append(actions);return box;
-}
-function mode(){return document.querySelector('input[name="materialMode"]:checked')?.value||"no-bones"}
-function totals(){
-  let m=0,b=0,c=0;
-  for(const e of entries){const v=verify(e);if(e.confirmed&&v.ok){if(v.info.code==="6780")m+=v.grams;else b+=v.grams;c++}}
-  return {m,b,c,pending:entries.length-c};
-}
-function paperState(){
-  const t=totals(),out=t.m+t.b;let original=out,waste=0,error="";
-  if(!entries.length)error="Add at least one minced or boneless label. No production means no Recipe GRN.";
-  else if(t.pending>0)error=t.pending+" label(s) need to be checked and confirmed before printing.";
-  else if(out<=0)error="No finished meat weight was recorded.";
-  if(mode()==="with-bones"){
-    original=fixed3($("originalWeight").value);
-    if(original===null||original<=0)error="Enter the actual weighed 6777 amount before generating a with-bones production paper.";
-    else {waste=original-out;if(waste<0)error="Original 6777 weight is less than finished output. Recheck the printed labels."}
-  }
-  return {...t,original,waste,error};
-}
-function refreshRow(box,entry){
-  const v=verify(entry);if(!v.ok)entry.confirmed=false;
-  box.className="label-card "+(v.ok?(entry.confirmed?"good":""):"bad");
-  box.querySelector(".label-card-head h3").textContent="Label "+(entries.indexOf(entry)+1)+" · "+(decode(entry.barcode).code?PRODUCT[decode(entry.barcode).code]:"Check barcode");
-  box.querySelector(".status").textContent=v.ok?(entry.confirmed?"Confirmed":"Ready to confirm"):"Needs review";
-  const weightNote=box.querySelector(".catalog-weight");
-  if(weightNote)weightNote.textContent=entry.weightSource==="catalog"
-    ?"Weight "+entry.weight+" kg inferred from 5 g barcode catalog; printed weight may differ by a few grams.":"";
-  const priorNote=box.querySelector(".catalog-rate");
-  if(priorNote)priorNote.textContent=entry.unitSource==="catalog"
-    ?"Unit price filled from saved product rate ("+entry.unit+" BD/kg), not read from the photo. Check if the store price has changed."
-    :"";
-  const msg=box.querySelector(".message");
-  msg.className="message"+(v.ok?"":" warn");
-  msg.textContent=v.ok?(entry.confirmed?(entry.ocrWarning?"Barcode valid. OCR warning is informational only.":entry.ocrChecked?"Barcode and recognized printed values agree.":"Barcode valid; catalog weight used, printed values not fully recognized."):"Check the printed label if this weight differs from the catalog value."):v.reason;
-  const button=box.querySelector('[data-confirm="1"]');
-  button.textContent=entry.confirmed?"Confirmed ✓":"Confirm printed values";
-  button.disabled=!v.ok||entry.confirmed;
+  const remove=document.createElement("button");remove.type="button";remove.className="mini remove-label";
+  remove.textContent="Remove";remove.addEventListener("click",()=>{
+    clearEntryCrop(entry);entries=entries.filter(item=>item.id!==entry.id);persist();render();
+  });
+  actions.append(closeup,attach,remove);box.append(actions);
+  return box;
 }
 function render(){
   const container=$("labels");container.replaceChildren();
@@ -805,7 +779,26 @@ $("sheetPhotos").addEventListener("change",e=>{addPhotos(e.target.files);e.targe
 $("cameraPhoto").addEventListener("change",e=>{addPhotos(e.target.files);e.target.value=""});
 $("scanBtn").addEventListener("click",scanPhotos);
 $("clearPhotos").addEventListener("click",()=>{photos.splice(0);updatePhotoQueue();show("scanMsg","Photos removed from the queue. Previously scanned label values are unchanged.")});
-$("addLabel").addEventListener("click",()=>addLabel());
+$("addLabel").addEventListener("click",()=>{
+  const form=$("manualBarcodeForm");
+  form.hidden=!form.hidden;
+  $("manualBarcodeError").textContent="";
+  if(!form.hidden)$("manualBarcode").focus();
+});
+$("manualBarcodeForm").addEventListener("submit",event=>{
+  event.preventDefault();
+  const raw=$("manualBarcode").value.replace(/\s/g,"");
+  const result=catalogFromBarcode(raw);
+  if(!result.ok){$("manualBarcodeError").textContent=result.reason;return}
+  addLabel({barcode:raw,source:"Manual barcode entry"});
+  $("manualBarcode").value="";
+  $("manualBarcodeError").textContent="";
+  $("manualBarcodeForm").hidden=true;
+});
+$("cancelManualBarcode").addEventListener("click",()=>{
+  $("manualBarcodeForm").hidden=true;$("manualBarcodeError").textContent="";
+  $("manualBarcode").value="";
+});
 $("clearLabels").addEventListener("click",()=>{
   if(entries.length&&!confirm("Start a new production paper and clear all labels?"))return;
   clearAllCrops(entries);entries=[];photos.splice(0);scannedPhotoKeys.clear();persist();render();updatePhotoQueue();
