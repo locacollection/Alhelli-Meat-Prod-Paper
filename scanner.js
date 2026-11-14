@@ -350,13 +350,20 @@ function buildRow(entry,i){
   if(!status.ok)entry.confirmed=false;
   const product=decode(entry.barcode).code;
   const box=document.createElement("article");
-  box.className="label-card read-only-card "+(status.ok?(entry.confirmed?"good":""):"bad");
+  box.className="label-card read-only-card product-"+(product||"unknown")+" "+(status.ok?(entry.confirmed?"good":""):"bad");
   const head=document.createElement("div");head.className="label-card-head";
   const headerText=document.createElement("div");headerText.className="label-card-heading";
   const sequence=document.createElement("span");sequence.className="label-sequence";
-  sequence.textContent="LABEL "+(i+1)+" · "+(sourceKind(entry)==="bone"?(decode(entry.barcode).code==="6777"?"BONE-IN ORIGINAL":"BONE-IN OUTPUT"):"NORMAL PRODUCTION");
+  sequence.textContent="LABEL "+(i+1);
+  const identity=document.createElement("div");identity.className="label-identity identity-"+(product||"unknown");
+  const itemCode=document.createElement("strong");itemCode.className="label-item-code";itemCode.textContent=product||"????";
+  const role=document.createElement("span");role.className="label-item-role";
+  role.textContent=product==="6777"?"ORIGINAL · WITH BONE":
+    product==="6780"?(sourceKind(entry)==="bone"?"OUTPUT · MINCED":"MINCED"):
+    product==="6781"?(sourceKind(entry)==="bone"?"OUTPUT · BONELESS":"BONELESS"):"UNKNOWN PRODUCT";
+  identity.append(itemCode,role);
   const title=document.createElement("h3");title.textContent=product?PRODUCT[product]:"Unreadable barcode";
-  headerText.append(sequence,title);
+  headerText.append(sequence,identity,title);
   const statusLabel=chip(status.ok?(entry.confirmed?"Verified":"Ready to confirm"):"Needs review","status");
   head.append(headerText,statusLabel);box.append(head);
 
@@ -390,16 +397,6 @@ function buildRow(entry,i){
   priceDetails.append(priceSummary,priceValues);
   box.append(priceDetails);
 
-  const evidence=document.createElement("div");evidence.className="label-evidence";
-  const source=document.createElement("small");
-  source.textContent="Calculated from barcode · 5 g catalog · "+(entry.ocrChecked?"Printed text matched":entry.ocrWarning?"Photo text uncertain":"Printed text not fully checked");
-  evidence.append(source);
-  if(entry.photoName){
-    const file=document.createElement("small");file.className="label-source-photo";
-    file.textContent="Photo: "+entry.photoName;
-    evidence.append(file);
-  }
-  box.append(evidence);
   if(!status.ok||entry.ocrWarning){
     const warning=document.createElement("div");warning.className="message warn label-validation-warning";
     warning.textContent=!status.ok?status.reason:entry.ocrWarning;
@@ -507,6 +504,22 @@ function paperState(){
   else if(t.original<=0)error=error||"No finished meat is available for the production paper.";
   return {...t,error};
 }
+function groupBoneSheetRows(rows){
+  const groups=[];
+  let current=null,portion=0;
+  for(const row of rows){
+    const code=decode(row.entry.barcode).code;
+    if(code==="6777"){
+      current={number:++portion,rows:[row],unpaired:false};
+      groups.push(current);
+    }else if(current){
+      current.rows.push(row);
+    }else{
+      groups.push({number:null,rows:[row],unpaired:true});
+    }
+  }
+  return groups;
+}
 function appendReviewGroup(container,title,rows,open=false,description=""){
   if(!rows.length)return;
   const section=document.createElement("details");section.className="auto-verified production-review-group";
@@ -515,6 +528,26 @@ function appendReviewGroup(container,title,rows,open=false,description=""){
   section.append(summary);
   if(description){const p=document.createElement("p");p.className="fineprint";p.textContent=description;section.append(p)}
   for(const row of rows)section.append(buildRow(row.entry,row.index));
+  container.append(section);
+}
+function appendBoneReviewGroup(container,sheetId,rows){
+  if(!rows.length)return;
+  const section=document.createElement("details");section.className="auto-verified production-review-group bone-review-group";
+  const title=document.createElement("summary");title.textContent="Bone-in sheet · "+rows.length+" labels";
+  section.append(title);
+  for(const group of groupBoneSheetRows(rows)){
+    const wrapper=document.createElement("div");
+    wrapper.className="processing-portion"+(group.unpaired?" portion-unpaired":"");
+    const header=document.createElement("div");header.className="processing-portion-header";
+    const name=document.createElement("strong");
+    name.textContent=group.unpaired?"UNPAIRED OUTPUT":"PORTION "+group.number;
+    const count=document.createElement("span");
+    count.textContent=group.unpaired?"Original 6777 needed":
+      "6777 ORIGINAL → "+group.rows.slice(1).map(r=>decode(r.entry.barcode).code).join(" + ").replace(/^$/,"Awaiting output");
+    header.append(name,count);wrapper.append(header);
+    for(const row of group.rows)wrapper.append(buildRow(row.entry,row.index));
+    section.append(wrapper);
+  }
   container.append(section);
 }
 function render(){
@@ -535,11 +568,8 @@ function render(){
         boneSheets.get(key).push(row);
       }
     });
-    if(normal.length)appendReviewGroup(container,"Normal production",normal,false,"These 6780/6781 weights contribute to the 6777 Recipe Issue without wastage.");
-    for(const [sheetId,rows] of boneSheets){
-      appendReviewGroup(container,"Bone-in sheet: "+sheetId,rows,false,
-        "Read top to bottom: 6777 original, then 6780 minced (or rarely 6781 boneless). The difference is recorded as bones/wastage.");
-    }
+    if(normal.length)appendReviewGroup(container,"Normal production",normal);
+    for(const [sheetId,rows] of boneSheets)appendBoneReviewGroup(container,sheetId,rows);
     if(needsReview.length){
       const tip=document.createElement("p");tip.className="review-heading";
       tip.textContent=needsReview.length+" label"+(needsReview.length===1?" needs":"s need")+" attention";
@@ -1048,7 +1078,7 @@ $("sampleBtn").addEventListener("click",()=>{
   show("scanMsg","Combined example loaded: 6777 issue 13.000 kg, minced 5.000 kg, boneless 6.000 kg, wastage 2.000 kg. These are demonstration numbers, not actual stock records.","warn");
 });
 
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry};
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 restore();render();void recoverLabelCrops();
 })();
