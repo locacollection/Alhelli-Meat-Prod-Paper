@@ -28,7 +28,7 @@ const sandbox = {
   console,Date,confirm:()=>true
 };
 vm.runInNewContext(source,sandbox,{filename:"scanner.js",timeout:2000});
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,addPhotos}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
 assert.equal(readUniqueDecimal("1.000 4.500"),"");
@@ -268,6 +268,33 @@ const boneSheetWrapper=new FakeElement();
 appendBoneReviewGroup(boneSheetWrapper,"sheet-A",mixedEntries.slice(2).map((entry,index)=>({entry,index})));
 assert.equal(boneSheetWrapper.children.length,1);
 assert.ok(flattened(boneSheetWrapper.children[0]).some(node=>node.className==="processing-portion"));
+// The same scan control accepts both label-sheet formats.
+const normalCodes=[
+  encodeFromPrinted("6780",2000,4500),
+  encodeFromPrinted("6781",6000,4500)
+];
+const boneCodes=[
+  encodeFromPrinted("6777",5000,3190),
+  encodeFromPrinted("6780",3000,4500)
+];
+assert.equal(classifyPhotoBarcodes(normalCodes),"normal");
+assert.equal(classifyPhotoBarcodes(boneCodes),"bone");
+assert.equal(classifyPhotoBarcodes([...normalCodes,...boneCodes]),"bone");
+assert.equal(classifyPhotoBarcodes([]),"normal");
+assert.equal(classifyPhotoBarcodes([normalCodes[0],encodeFromPrinted("6777",5000,3190)]),"bone");
+assert.equal(typeof addPhotos,"function");
+const oneScanHtml=fs.readFileSync("index.html","utf8");
+assert.equal((oneScanHtml.match(/id="sheetPhotos"/g)||[]).length,1);
+assert.equal((oneScanHtml.match(/id="cameraPhoto"/g)||[]).length,1);
+assert.equal(oneScanHtml.includes('id="bonePhotos"'),false);
+assert.equal(oneScanHtml.includes('id="boneCamera"'),false);
+assert.equal(oneScanHtml.includes('class="source-cards"'),false);
+assert.ok(oneScanHtml.includes('unified-scan'));
+const oneScanJS=fs.readFileSync("scanner.js","utf8");
+assert.ok(!oneScanJS.includes('$("bonePhotos").addEventListener'));
+assert.ok(!oneScanJS.includes('$("boneCamera").addEventListener'));
+console.log("Unified scanner tests passed: normal and bone-in sheets auto-classified from barcodes.");
+
 const mixed=productionCalculation(mixedEntries);
 assert.equal(mixed.error,"");
 assert.equal(mixed.normalOriginal,8000);
@@ -354,7 +381,7 @@ for(const removed of ["Step 1","Step 2","Step 3","Combined example","Both workfl
   "Review that all stickers were detected","Tap Preview label","The site combines them into one production paper"]){
   assert.equal(conciseHtml.includes(removed),false,"Unnecessary operator instruction remains: "+removed);
 }
-for(const required of ['id="sheetPhotos"','id="bonePhotos"','id="labels"','id="paperWarning"',
+for(const required of ['id="sheetPhotos"','id="cameraPhoto"','id="labels"','id="paperWarning"',
   'id="printPaper"','id="ppIssueRows"','id="ppGrn"','id="issueTotal"','id="mincedTotal"',
   'id="bonelessTotal"','id="wasteTotal"']){
   assert.ok(conciseHtml.includes(required),"Required control or paper field missing: "+required);
