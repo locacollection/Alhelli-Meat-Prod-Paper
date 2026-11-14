@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Meat Production | Portion Conversion Worksheet</title>
+<meta name="theme-color" content="#112827">
+<style>
+:root{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#1a2628;background:#f3f5f3;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}a{color:inherit}
+.top{background:#112827;color:white;padding:18px 0;border-bottom:4px solid #d2ad68}
+.wrap{width:min(1120px,calc(100% - 32px));margin:auto}.top .wrap{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:12px}.mark{display:grid;place-items:center;background:#d2ad68;color:#112827;width:42px;height:42px;border-radius:12px;font-weight:900}.brand strong{display:block;font-size:20px}.brand small{color:#b9c9c4;letter-spacing:.04em}
+.tag{color:#c8d4d0;border:1px solid #52645e;padding:6px 10px;border-radius:99px;font-size:12px}
+main{padding:28px 0 65px}.hero{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:20px}
+h1{font-size:clamp(26px,4vw,38px);margin:0 0 7px;letter-spacing:-.035em}h2{font-size:19px;margin:0}p{line-height:1.5}.muted{color:#657370}.hero p{margin:0;color:#60716c;max-width:670px}
+.grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(300px,1fr);gap:18px}.card{background:white;border:1px solid #e0e7e2;box-shadow:0 4px 15px #24332908;border-radius:17px;padding:22px;margin-bottom:18px}
+.sectionhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:17px}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;color:#688276;margin-bottom:5px;text-transform:uppercase}.pill{padding:6px 10px;border-radius:99px;background:#edf5f0;color:#286448;font-size:12px;font-weight:700}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.field{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:650;color:#38514d}.field.full{grid-column:1/-1}
+input,select{width:100%;min-width:0;padding:12px;border:1px solid #cbd9d2;border-radius:10px;background:#fff;color:#172e29;font-size:15px}
+input:focus,select:focus{outline:2px solid #93b9a9;border-color:#426d5b}input::placeholder{color:#a0aca7}
+.help{font-size:12px;line-height:1.5;color:#77847f;margin:5px 0 0}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.btn{background:#153e35;color:white;border:1px solid #153e35;border-radius:10px;font-weight:700;padding:12px 16px}
+.btn.secondary{background:white;color:#294e42;border-color:#b7c8bf}.btn.danger{background:#fff4f1;border-color:#f2c5bc;color:#9c4139}
+.btn:disabled{opacity:.5;cursor:not-allowed}.btn:hover:not(:disabled){filter:brightness(.95)}
+.calc{background:#122b27;color:#fff;border-radius:14px;padding:20px;margin-bottom:14px}
+.calc .muted{color:#b5cbc2}.metric{font-size:34px;font-weight:850;letter-spacing:-.04em;margin:4px 0 15px}.tally{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #45605a;padding:10px 0;font-size:14px}
+.tally strong{font-variant-numeric:tabular-nums}.good{color:#87e0b0}.bad{color:#ffb5a7}
+.note{font-size:13px;line-height:1.55;border:1px solid #d5e2da;border-radius:10px;background:#f6faf7;padding:12px;color:#486554}
+.note.warning{background:#fff6ed;border-color:#f0d5b0;color:#815319}.note.error{background:#fff1ed;border-color:#ecc3b8;color:#923d2b}
+.statgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.stat{border:1px solid #e1e8e2;border-radius:12px;padding:14px;background:#fafcfa}
+.stat b{display:block;font-size:24px;color:#21483d;margin-top:8px;font-variant-numeric:tabular-nums}.stat span{font-size:12px;color:#75847e}
+.table-scroll{overflow-x:auto}.records{width:100%;border-collapse:collapse;min-width:580px;font-size:13px}.records th{text-align:left;color:#6b7974;font-size:11px;letter-spacing:.05em;text-transform:uppercase;background:#f5f8f6}.records td,.records th{padding:11px 9px;border-bottom:1px solid #e8eee9}.records td{font-variant-numeric:tabular-nums}
+.mini{padding:5px 8px;border:1px solid #d8e2db;background:white;border-radius:7px;color:#39564a}
+.foot{font-size:13px;color:#7b8b84;margin-top:15px;line-height:1.5}.hide{display:none!important}.photo-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.preview{max-width:100%;max-height:175px;border-radius:9px;border:1px solid #d6e0d8;margin-top:10px}
+.print-only{display:none}.paper{font-family:Arial,sans-serif;color:#111;padding:0}
+.paper h2,.paper h3{text-align:center;margin:7px 0}.paper h2{font-size:18px}.paper h3{font-size:14px}
+.paper table{border-collapse:collapse;width:100%;margin:8px 0 15px;font-size:12px}.paper td,.paper th{border:1px solid #555;padding:8px;text-align:left}.paper .paperline{display:flex;justify-content:space-between;gap:12px;font-size:12px;margin-bottom:10px}.paper .sticker{height:68px;border:1px dashed #777;display:flex;align-items:center;justify-content:center;font-size:10px;color:#666}.paper .paperfoot{display:flex;justify-content:space-between;margin-top:22px;font-size:12px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}.hero{display:block}.card{padding:17px}.fields{gap:10px}.brand strong{font-size:17px}.tag{display:none}}
+@media(max-width:400px){.fields{grid-template-columns:1fr}.photo-row{grid-template-columns:1fr}}
+@media print{body{background:white}.no-print,.top,main{display:none!important}.print-only{display:block!important}.paper{padding:4mm}@page{size:A4;margin:14mm} }
+</style>
+</head>
+<body>
+<header class="top no-print"><div class="wrap"><div class="brand"><div class="mark">MP</div><div><strong>Meat Production</strong><small>PORTION CONVERSION WORKSHEET</small></div></div><span class="tag">Local records · No automatic uploads</span></div></header>
+<main class="wrap">
+<div class="note no-print" style="margin:0 0 18px"><strong>Barcode Catalog:</strong> Look up the stored 13-digit price barcode for Pakistani beef 6777, minced 6780, or boneless 6781, from 5 g to 10 kg. <a href="./barcode-catalog.html" style="font-weight:800;color:#155b45">Open authenticated barcode lookup</a>.</div>
+<section class="hero"><div><div class="eyebrow">MEAT SECTION · RECIPE ISSUE / RECIPE GRN</div><h1>Prepare your production paper</h1><p>Record the original 6777 label before preparing minced (6780) or boneless beef (6781). Record the finished weights and calculate bones/trimming automatically.</p></div></section>
+<div class="grid">
+<div>
+<section class="card">
+<div class="sectionhead"><div><div class="eyebrow">NEW PORTION</div><h2>Record a conversion</h2></div><span class="pill">Kilograms</span></div>
+<div class="fields">
+<label class="field">Production date<input type="date" id="workDate"></label>
+<label class="field">Plant / section<input type="text" id="plant" value="Seef Arad · Meat" maxlength="70"></label>
+<label class="field full">Staff name (optional)<input type="text" id="staff" maxlength="80" placeholder="Name for printed paper"></label>
+<label class="field full">Original Pakistani Beef W/Bone · 6777<input id="original" type="number" min="0" max="9999" step="0.001" placeholder="e.g. 5.000" inputmode="decimal" required></label>
+<label class="field">Finished minced · 6780<input id="minced" type="number" min="0" step="0.001" value="0" inputmode="decimal"></label>
+<label class="field">Finished boneless · 6781<input id="boneless" type="number" min="0" step="0.001" value="0" inputmode="decimal"></label>
+<label class="field full">Original 6777 barcode (optional)<input id="code6777" type="text" inputmode="numeric" maxlength="18" placeholder="966777…"></label>
+<label class="field">Minced 6780 barcode (optional)<input id="code6780" type="text" inputmode="numeric" maxlength="18" placeholder="966780…"></label>
+<label class="field">Boneless 6781 barcode (optional)<input id="code6781" type="text" inputmode="numeric" maxlength="18" placeholder="966781…"></label>
+</div>
+<p class="help">For each portion, enter the original 6777 weight and whichever finished product you made. You can leave the other finished weight as zero. Barcode values are optional and do not replace the printed weight.</p>
+<div class="actions"><button id="add" class="btn" type="button">Add production portion</button><button id="resetForm" class="btn secondary" type="button">Clear fields</button></div>
+<div id="formNote" class="note hide" role="status" aria-live="polite"></div>
+</section>
+<section class="card">
+<div class="sectionhead"><div><div class="eyebrow">OPTIONAL LABEL PHOTO</div><h2>Read a scale label</h2></div><span class="pill">Confirm weight manually</span></div>
+<div class="photo-row"><label class="field">Photo target<select id="photoTarget"><option value="original">Original 6777</option><option value="minced">Minced 6780</option><option value="boneless">Boneless 6781</option></select></label><label class="field">Take/upload photo<input id="photo" type="file" accept="image/*" capture="environment"></label></div>
+<img id="photoPreview" class="preview hide" alt="Selected label photo preview">
+<p class="help">Photo recognition is experimental, available when online, and may fail on blurry labels. Always confirm the weight printed on the label. Photos are not stored in your records.</p>
+<div class="actions"><button id="readPhoto" type="button" class="btn secondary">Read photo text</button><button id="readBarcode" type="button" class="btn secondary">Detect barcode in photo</button></div>
+<div id="photoStatus" class="note hide" role="status" aria-live="polite"></div>
+</section>
+<section class="card">
+<div class="sectionhead"><div><div class="eyebrow">SESSION</div><h2>Production portions</h2></div><span id="count" class="pill">0 portions</span></div>
+<div class="table-scroll"><table class="records"><thead><tr><th>#</th><th>6777</th><th>6780</th><th>6781</th><th>Bones/trim</th><th></th></tr></thead><tbody id="rows"><tr><td colspan="6">No portions added.</td></tr></tbody></table></div>
+<div class="actions"><button id="print" class="btn" type="button">Print production paper</button><button id="csv" class="btn secondary" type="button">Export CSV</button><button id="clearAll" class="btn danger" type="button">Clear session</button></div>
+<p class="help">Only conversions create paperwork. If you do not prepare minced or boneless beef, do not make a Recipe GRN. Records stay in this browser until you clear them.</p>
+</section>
+</div>
+<aside>
+<section class="card"><div class="eyebrow">LIVE CALCULATION</div><div class="calc"><div class="muted">Calculated bones and trimming</div><div id="difference" class="metric">0.000 kg</div><div class="tally"><span>Original 6777</span><strong id="pvOriginal">0.000 kg</strong></div><div class="tally"><span>Minced 6780</span><strong id="pvMinced">0.000 kg</strong></div><div class="tally"><span>Boneless 6781</span><strong id="pvBoneless">0.000 kg</strong></div><div class="tally"><span>Output difference</span><strong id="pvDiff">0.000 kg</strong></div></div><div id="balanceMessage" class="note">Enter a 6777 weight and a finished meat weight to start.</div></section>
+<section class="card"><div class="eyebrow">PRODUCTION TOTALS</div><h2 style="margin-bottom:13px">Today's summary</h2>
+<div class="statgrid"><div class="stat"><span>Recipe Issue · 6777</span><b id="totalOriginal">0.000</b></div><div class="stat"><span>Recipe GRN · 6780</span><b id="totalMinced">0.000</b></div><div class="stat"><span>Recipe GRN · 6781</span><b id="totalBoneless">0.000</b></div><div class="stat"><span>Bones / trimming</span><b id="totalWaste">0.000</b></div></div>
+<p class="help">All weights in kg. Original issued = finished minced + finished boneless + calculated bones/trimming.</p></section>
+<section class="card"><div class="eyebrow">CLOUD SAVE</div><h2>Supabase setup pending</h2><p class="muted" style="font-size:14px">The site currently works locally. Your new Supabase project needs to be authorized before private sign-in and cloud saving can be enabled.</p><div class="note warning">Never put staff records or production images directly in this public GitHub repository.</div></section>
+</aside></div>
+<footer class="foot">Independent worksheet. Not connected to the supermarket's official stock or invoicing system. Product barcodes carry encoded prices, not the exact measured weight. Review every printed label.</footer>
+</main>
+<section id="paper" class="print-only paper" aria-label="Printable production form">
+<h2>MEAT PRODUCTION · PRODUCTION IN STORE FORM</h2>
+<div class="paperline"><span>Plant / Section: <b id="pPlant"></b></span><span>Date: <b id="pDate"></b></span></div>
+<div class="paperline"><span>Staff: <b id="pStaff"></b></span><span>Production: 6777 → 6780 / 6781</span></div>
+<h3>Recipe Issue (Sub Contract PO)</h3>
+<table><thead><tr><th>Barcode</th><th>Item Name</th><th>UOM</th><th>QTY</th></tr></thead><tbody><tr><td>6777</td><td>Pakistani Beef W/Bone</td><td>kg</td><td id="pIssue"></td></tr></tbody></table>
+<h3>Recipe GRN (Bundling)</h3>
+<table><thead><tr><th>Barcode</th><th>Item Name</th><th>UOM</th><th>QTY</th></tr></thead><tbody id="pGrn"></tbody></table>
+<h3>Portion Labels & Conversion Details</h3>
+<table><thead><tr><th>#</th><th>6777 original label</th><th>6780 minced label</th><th>6781 boneless label</th><th>Bones/trim kg</th></tr></thead><tbody id="pPortions"></tbody></table>
+<div class="paperfoot"><span>Prepared by: __________________</span><span>Checked by: __________________</span></div>
+</section>
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const KEY="meat-production-v1";
+let items=[];
+try{const raw=JSON.parse(localStorage.getItem(KEY)||"[]");if(Array.isArray(raw))items=raw.filter(x=>x&&Number.isInteger(x.a)&&Number.isInteger(x.m)&&Number.isInteger(x.b)&&x.a>0&&x.a>=x.m+x.b)}catch(_){}
+const kg=x=>(x/1000).toFixed(3);
+const grams=(id)=>{let x=Number($(id).value);return Number.isFinite(x)&&x>=0&&Number.isInteger(Math.round(x*1000))?Math.round(x*1000):NaN};
+const sum=k=>items.reduce((t,x)=>t+x[k],0);
+function barcodeValid(s){if(!/^\d{13}$/.test(s))return false;let n=0;for(let i=0;i<12;i++)n+=Number(s[i])*(i%2===0?1:3);return (10-n%10)%10===Number(s[12]);}
+function bar(id,prefix){const s=$(id).value.replace(/\D/g,"");if(!s)return "";if(!barcodeValid(s)||!s.startsWith(prefix)){throw Error("Barcode for "+prefix+" must be a valid EAN-13 label for that product.");}return s;}
+function stateNote(text,type){$("formNote").textContent=text;$("formNote").className="note"+(type?" "+type:"");}
+function totals(){return {a:sum("a"),m:sum("m"),b:sum("b"),w:sum("a")-sum("m")-sum("b")}}
+function render(){
+const t=totals();$("totalOriginal").textContent=kg(t.a);$("totalMinced").textContent=kg(t.m);$("totalBoneless").textContent=kg(t.b);$("totalWaste").textContent=kg(t.w);$("count").textContent=items.length+" portion"+(items.length===1?"":"s");
+$("rows").replaceChildren();if(!items.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=6;td.textContent="No portions added.";tr.append(td);$("rows").append(tr);}
+items.forEach((r,i)=>{const tr=document.createElement("tr");[String(i+1),kg(r.a),r.m?kg(r.m):"—",r.b?kg(r.b):"—",kg(r.a-r.m-r.b)].forEach(v=>{const td=document.createElement("td");td.textContent=v;tr.append(td)});const td=document.createElement("td");const btn=document.createElement("button");btn.className="mini";btn.textContent="Remove";btn.type="button";btn.onclick=()=>{items.splice(i,1);save()};td.append(btn);tr.append(td);$("rows").append(tr)});
+$("print").disabled=!items.length;$("csv").disabled=!items.length;$("clearAll").disabled=!items.length;
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(items));render()}
+function preview(){
+const a=grams("original"),m=grams("minced"),b=grams("boneless");const fine=[a,m,b].every(Number.isFinite);const aa=fine?a:0,mm=fine?m:0,bb=fine?b:0,d=aa-mm-bb;
+$("pvOriginal").textContent=kg(aa)+" kg";$("pvMinced").textContent=kg(mm)+" kg";$("pvBoneless").textContent=kg(bb)+" kg";$("pvDiff").textContent=kg(d)+" kg";$("difference").textContent=kg(d)+" kg";
+const el=$("balanceMessage");if(!fine){el.className="note error";el.textContent="Enter valid non-negative weights.";return}
+if(a<=0||m+b<=0){el.className="note";el.textContent="A production paper is created only when minced or boneless beef has actually been prepared.";return}
+if(d<0){el.className="note error";el.textContent="Finished meat cannot weigh more than the original 6777 portion.";return}
+el.className="note";el.textContent="Ready: "+kg(a)+" kg original = "+kg(m+b)+" kg finished meat + "+kg(d)+" kg bones/trimming.";
+}
+["original","minced","boneless"].forEach(id=>$(id).addEventListener("input",preview));
+$("add").onclick=()=>{
+const a=grams("original"),m=grams("minced"),b=grams("boneless");
+if(![a,m,b].every(Number.isFinite)||a<=0||m+b===0||m+b>a){stateNote("Enter a valid original weight and at least one finished weight. Finished total cannot exceed original.","error");return}
+try{const row={a,m,b,c6777:bar("code6777","966777"),c6780:bar("code6780","966780"),c6781:bar("code6781","966781")};
+if(row.c6780&&!m||row.c6781&&!b)throw Error("Do not attach a finished-product barcode for a zero weight.");
+items.push(row);save();["original","code6777","code6780","code6781"].forEach(id=>$(id).value="");$("minced").value="0";$("boneless").value="0";preview();stateNote("Portion added. Attach or keep its physical scale labels for the printed paper.");}
+catch(e){stateNote(e.message,"error")}
+};
+$("resetForm").onclick=()=>{["original","code6777","code6780","code6781"].forEach(id=>$(id).value="");$("minced").value="0";$("boneless").value="0";$("formNote").className="note hide";preview()};
+$("clearAll").onclick=()=>{if(items.length&&confirm("Clear all portions saved in this browser?")){items=[];save()}};
+function cell(v){const td=document.createElement("td");td.textContent=v;return td}
+function summaryTable(){const t=totals();$("pPlant").textContent=$("plant").value||"____________";$("pDate").textContent=$("workDate").value;$("pStaff").textContent=$("staff").value||"____________";$("pIssue").textContent=kg(t.a);$("pGrn").replaceChildren();
+const createRow=(code,name,weight)=>{if(weight<=0)return;const tr=document.createElement("tr");[code,name,"kg",kg(weight)].forEach(v=>tr.append(cell(v)));$("pGrn").append(tr)};
+createRow("6780","Pakistani Beef Minced",t.m);createRow("6781","Pakistani Beef Without Bone",t.b);createRow("—","Bones / Trimming (calculated)",t.w);
+$("pPortions").replaceChildren();
+items.forEach((r,i)=>{const tr=document.createElement("tr");tr.append(cell(String(i+1)));[["6777",r.a,r.c6777],["6780",r.m,r.c6780],["6781",r.b,r.c6781]].forEach(([code,wt,num])=>{const td=document.createElement("td");if(wt){const span=document.createElement("div");span.textContent=code+" · "+kg(wt)+" kg"+(num?" · "+num:"");td.append(span);const sticker=document.createElement("div");sticker.className="sticker";sticker.textContent="Attach "+code+" scale label here";td.append(sticker)}else{td.textContent="Not prepared"}tr.append(td)});tr.append(cell(kg(r.a-r.m-r.b)));$("pPortions").append(tr)});
+}
+$("print").onclick=()=>{if(!items.length)return;summaryTable();window.print()};
+$("csv").onclick=()=>{if(!items.length)return;const h=["No","Original 6777 kg","Minced 6780 kg","Boneless 6781 kg","Bones / trimming kg","Barcode 6777","Barcode 6780","Barcode 6781"];const data=[h,...items.map((r,i)=>[i+1,kg(r.a),kg(r.m),kg(r.b),kg(r.a-r.m-r.b),r.c6777||"",r.c6780||"",r.c6781||""])];const csv=data.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\r\n");const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="meat-production-"+$("workDate").value+".csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),500)};
+$("workDate").value=new Date().toLocaleDateString("en-CA");
+let photoFile=null;
+$("photo").onchange=e=>{photoFile=e.target.files[0]||null;const im=$("photoPreview");if(!photoFile){im.className="preview hide";return}im.src=URL.createObjectURL(photoFile);im.className="preview";photoStatus("Photo selected. Use read text or barcode, then confirm the printed weight.")};
+function photoStatus(t,bad){$("photoStatus").className="note"+(bad?" warning":"");$("photoStatus").textContent=t}
+function target(){return $("photoTarget").value}
+function assignBarcode(val){const expected={original:"966777",minced:"966780",boneless:"966781"}[target()];if(!barcodeValid(val)||!val.startsWith(expected)){photoStatus("Detected barcode does not match expected product "+expected+".",true);return}$({original:"code6777",minced:"code6780",boneless:"code6781"}[target()]).value=val;photoStatus("Barcode copied: "+val+". Confirm exact printed weight separately.")}
+$("readBarcode").onclick=async()=>{if(!photoFile){photoStatus("Choose a scale-label photo first.",true);return}if(!("BarcodeDetector" in window)){photoStatus("This browser does not support barcode detection from a photo. Enter the 13-digit barcode manually.",true);return}try{const bd=new BarcodeDetector({formats:["ean_13"]});const bmp=await createImageBitmap(photoFile);const vals=await bd.detect(bmp);bmp.close();if(!vals.length){photoStatus("No EAN-13 found. Try a clearer photo.",true);return}assignBarcode(vals[0].rawValue)}catch(e){photoStatus("Could not decode barcode: "+e.message,true)}};
+let tess=null;function loadTesseract(){if(window.Tesseract)return Promise.resolve();if(tess)return tess;tess=new Promise((resolve,reject)=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";s.onload=resolve;s.onerror=()=>reject(Error("Could not load OCR library; check internet access"));document.head.append(s)});return tess}
+$("readPhoto").onclick=async()=>{if(!photoFile){photoStatus("Choose a photo first.",true);return}photoStatus("Reading label in this browser; this may take a moment.");try{await loadTesseract();const result=await Tesseract.recognize(photoFile,"eng");const txt=result.data.text||"";const lines=txt.split(/\n/).map(x=>x.trim()).filter(Boolean);
+const idx=lines.findIndex(l=>/WEIGHT|الوزن/i.test(l));let weights=[];if(idx>=0){const slice=lines.slice(idx,idx+3).join(" ");weights=[...slice.matchAll(/\b(\d{1,3}[.,]\d{3})\b/g)].map(x=>x[1])}
+if(weights.length===1){const field=$(target());field.value=weights[0].replace(",",".");preview();photoStatus("Possible weight "+weights[0]+" kg filled in. Check against the printed label before saving.")}else{photoStatus("Photo text read but weight uncertain. Please enter the exact printed weight manually. Recognized: "+lines.slice(0,6).join(" | ").slice(0,240),true)}}catch(e){photoStatus("Photo text recognition failed: "+e.message,true)}};
+render();preview();
+})();
+</script>
+</body>
+</html>
