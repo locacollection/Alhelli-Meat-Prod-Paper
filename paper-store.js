@@ -286,6 +286,28 @@ $("closeSaveMenu").addEventListener("click",()=>closeDialog($("savePaperDialog")
 $("closePaperPreview").addEventListener("click",()=>closeDialog($("paperPreviewDialog")));
 $("previewSave").addEventListener("click",openSave);
 $("paperLoginForm").addEventListener("submit",signIn);
+$("paperCreateAccount").addEventListener("click",async()=>{
+  if(!client){say("savePaperStatus","Supabase connection is unavailable.",true);return}
+  const email=$("paperEmail").value.trim(),password=$("paperPassword").value;
+  if(!email||password.length<6){say("savePaperStatus","Enter a valid email and password of at least 6 characters.",true);return}
+  $("paperCreateAccount").disabled=true;
+  say("savePaperStatus","Creating a staff account…");
+  try{
+    const {data,error}=await client.auth.signUp({
+      email,password,
+      options:{emailRedirectTo:"https://locacollection.github.io/Alhelli-Meat-Prod-Paper/"}
+    });
+    if(error)throw error;
+    $("paperPassword").value="";
+    if(data.session?.user){
+      setUser(data.session.user);
+      say("savePaperStatus","Account created and signed in. You can save this production paper.");
+    }else{
+      say("savePaperStatus","Account requested. Check your email and confirm it before signing in. The confirmation link must be allowed in your Supabase Auth URL settings.");
+    }
+  }catch(err){say("savePaperStatus","Could not create account: "+err.message,true)}
+  finally{$("paperCreateAccount").disabled=false}
+});
 $("paperSignOut").addEventListener("click",async()=>{
   if(client)await client.auth.signOut();
   setUser(null);
