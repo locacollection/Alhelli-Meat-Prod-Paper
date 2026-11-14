@@ -143,3 +143,36 @@ input:focus,select:focus{outline:2px solid #8eb49c;border-color:#448967}.mode-se
   .read-only-actions .mini,.read-only-actions .closeup-upload{font-size:12px}
 }
 @media print{.read-only-card,.manual-barcode-form{display:none!important}}
+
+/* Two distinct source sheets feeding one combined production issue and GRN. */
+.source-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin:6px 0 16px}
+.source-card{border:1px solid #c5dac9;background:#f7faf7;border-radius:14px;padding:16px;min-width:0}
+.bone-source-card{border-color:#dfceae;background:#fffaf0}
+.source-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;font-size:14px}
+.source-card-header strong{color:#235940}
+.bone-source-card .source-card-header strong{color:#845e23}
+.source-card-header span{border-radius:30px;background:#e1eee4;color:#356d4c;white-space:nowrap;font-weight:750;font-size:11px;padding:5px 7px}
+.bone-source-card .source-card-header span{color:#805f2f;background:#f3e8cf}
+.source-card p{font-size:12px;line-height:1.55;color:#6b7f6f;margin:10px 0}
+.bone-source-card p{color:#7a6b55}
+.source-card .buttons{margin-top:12px;gap:7px}
+.source-card .btn{padding:10px 12px}
+.production-review-group{margin:8px 0}
+.production-review-group > .fineprint{padding:0 10px 7px}
+.combined-method{margin-top:15px;background:#f3f8f4;border:1px solid #d2e6d5;border-radius:12px;padding:14px}
+.combined-method strong{font-size:14px;color:#20593f}
+.combined-method p{font-size:12px;color:#687c6e;line-height:1.6;margin:9px 0 0}
+.bone-batches{margin-top:12px;padding:12px;background:#fff9ed;border:1px solid #ebd6b0;border-radius:11px}
+.bone-batches[hidden]{display:none!important}
+.bone-batches h3{font-size:13px;margin:0 0 9px}
+.batch-balance-row{display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:4px 10px;font-size:12px;padding:8px 0;border-bottom:1px solid #f0e6d4}
+.batch-balance-row:last-child{border:0}
+.batch-balance-row span{color:#805f34}
+.manual-source-selects{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0}
+.manual-source-selects label{display:flex;flex-direction:column;gap:6px}
+.manual-source-selects label[hidden]{display:none!important}
+@media(max-width:700px){
+  .source-cards{grid-template-columns:1fr}
+  .manual-source-selects{grid-template-columns:1fr}
+}
+@media print{.source-cards,.production-review-group,.combined-method,.bone-batches{display:none!important}}
