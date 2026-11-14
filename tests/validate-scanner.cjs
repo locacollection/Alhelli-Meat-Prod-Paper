@@ -26,7 +26,7 @@ const sandbox = {
   console,Date,confirm:()=>true
 };
 vm.runInNewContext(source,sandbox,{filename:"scanner.js",timeout:2000});
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
 assert.equal(readUniqueDecimal("1.000 4.500"),"");
@@ -164,5 +164,25 @@ const productionPaper=paperState();
 assert.equal(productionPaper.original,1210);
 assert.equal(productionPaper.waste,0);
 assert.equal(productionPaper.error,"");
+
+// The official-looking A4 form prints only aggregate Recipe Issue and Recipe GRN rows.
+// It must not print each scanned sticker as its own line.
+const printableHtml=fs.readFileSync("index.html","utf8");
+const paperSection=printableHtml.slice(printableHtml.indexOf('<section id="printPaper"'),printableHtml.indexOf('</section>',printableHtml.indexOf('<section id="printPaper"')));
+assert.ok(paperSection.includes('Recipe Issue (Sub Contract PO)'));
+assert.ok(paperSection.includes('Recipe GRN (Bundling)'));
+assert.ok(!paperSection.includes('ppLabels'));
+assert.ok(!paperSection.includes('EAN-13'));
+preparePaper();
+assert.equal(getId("ppIssueRows").children.length,10);
+assert.equal(getId("ppIssueRows").children[0].children[0].textContent,"6777");
+assert.equal(getId("ppIssueRows").children[0].children[3].textContent,"1.210");
+assert.equal(getId("ppGrn").children.length,9);
+assert.equal(getId("ppGrn").children[0].children[0].textContent,"6780");
+assert.equal(getId("ppGrn").children[0].children[3].textContent,"0.400");
+assert.equal(getId("ppGrn").children[1].children[0].textContent,"6781");
+assert.equal(getId("ppGrn").children[1].children[3].textContent,"0.810");
+assert.equal(getId("ppGrn").children[2].children[1].textContent,"");
+console.log("A4 store-form print tests passed: 6777 issue, 6780/6781 GRN, no individual sticker rows.");
 console.log("Barcode-first scanner checks passed: catalog 0.400 + 0.810 kg, OCR optional, GRN/issue 1.210 kg.");
 console.log("Scanner validation tests passed: verified EAN, internal price digit, rounding, label consistency, and product constraints.");
