@@ -1,0 +1,25 @@
+name: Check barcode scanner
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scanner.js"
+      - "tests/validate-scanner.cjs"
+      - ".github/workflows/test-scanner.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: node --check scanner.js
+      - name: Test barcode and label calculations
+        run: node tests/validate-scanner.cjs
