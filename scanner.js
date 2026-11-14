@@ -581,23 +581,26 @@ async function scanPhotos(){
 
 function td(text){const e=document.createElement("td");e.textContent=String(text);return e}
 function tr(values){const e=document.createElement("tr");values.forEach(v=>e.append(td(v)));return e}
+function padPaperRows(body,rows,minRows=10){
+  body.replaceChildren();
+  for(const record of rows)body.append(tr(record));
+  for(let i=rows.length;i<minRows;i++)body.append(tr(["","","",""]));
+}
 function preparePaper(){
-  const p=paperState();if(p.error)return;
-  $("ppPlant").textContent=$("plant").value||"________________";
-  $("ppDate").textContent=$("date").value||"________________";
-  $("ppStaff").textContent=$("staff").value||"________________";
-  $("ppReference").textContent=$("reference").value||"________________";
-  $("ppIssue").textContent=fmtKg(p.original);
-  $("ppMode").textContent=mode()==="no-bones"?"No-bones conversion: Recipe Issue is the sum of the two finished products. Wastage: 0.000 kg.":"With-bones conversion: original 6777 weight is measured before processing. Calculated bones/trimming: "+fmtKg(p.waste)+" kg.";
-  const tbody=$("ppGrn");tbody.replaceChildren();
-  if(p.m>0)tbody.append(tr(["6780","Pakistani Beef Minced","kg",fmtKg(p.m)]));
-  if(p.b>0)tbody.append(tr(["6781","Pakistani Beef Without Bone","kg",fmtKg(p.b)]));
-  if(mode()==="with-bones"&&p.waste>0)tbody.append(tr(["—","Bones / trimming (calculated)","kg",fmtKg(p.waste)]));
-  const labels=$("ppLabels");labels.replaceChildren();
-  entries.forEach((e,i)=>{
-    const v=verify(e);
-    labels.append(tr([i+1,v.info.code,fmtKg(v.grams)+(e.weightSource==="catalog"?"†":""),fmtMoney(v.unit)+(e.unitSource==="catalog"?"*":""),fmtMoney(v.printed),e.barcode]));
-  });
+  const p=paperState();
+  if(p.error)return;
+  $("ppPlant").textContent=$("plant").value||"SEEF ARAD";
+  const rawDate=$("date").value;
+  const dateParts=/^(\d{4})-(\d{2})-(\d{2})$/.exec(rawDate);
+  $("ppDate").textContent=dateParts?dateParts[3]+"/"+dateParts[2]+"/"+dateParts[1]:(rawDate||"  /  /  ");
+  $("ppStaff").textContent=$("staff").value||"";
+  $("ppReference").textContent=$("reference").value||"";
+  padPaperRows($("ppIssueRows"),[["6777","Pakistani Beef With Bone","kg",fmtKg(p.original)]],10);
+  const grn=[];
+  if(p.m>0)grn.push(["6780","Pakistani Beef Minced","kg",fmtKg(p.m)]);
+  if(p.b>0)grn.push(["6781","Pakistani Beef Without Bone","kg",fmtKg(p.b)]);
+  if(mode()==="with-bones"&&p.waste>0)grn.push(["","Wastage for Meat","kg",fmtKg(p.waste)]);
+  padPaperRows($("ppGrn"),grn,9);
 }
 function exportCsv(){
   const p=paperState();if(p.error)return;
