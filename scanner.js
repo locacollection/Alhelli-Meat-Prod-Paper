@@ -1036,7 +1036,7 @@ function paperSnapshot(){
   if(scanning)throw new Error("Wait for scanning to finish.");
   if(state.error)throw new Error(state.error);
   const date=$("date").value;
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))throw new Error("Select a production date.");
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new Error("Select a production date.");
   const labels=entries.map(e=>{
     const v=verify(e);
     if(!e.confirmed||!v.ok)throw new Error("An unverified barcode remains.");
