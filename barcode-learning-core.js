@@ -66,6 +66,9 @@ function profileConfig(config){
 function sampleCheck(sample,config){
   const barcode=cleanBarcode(sample.barcode);
   if(!validBarcode(barcode))return {ok:false,reason:"Invalid barcode or EAN-13 check digit."};
+  if(sample.weight_grams===null||sample.weight_grams===undefined||
+     sample.total_price_fils===null||sample.total_price_fils===undefined)
+    return {ok:false,reason:"Printed weight and total price are both required."};
   const weight=Number(sample.weight_grams),price=Number(sample.total_price_fils);
   if(!Number.isSafeInteger(weight)||weight<1||weight>100000||weight%config.weight_step_grams!==0)
     return {ok:false,reason:"Weight must be a multiple of "+config.weight_step_grams+" grams (max 100 kg)."};
