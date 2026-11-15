@@ -10,6 +10,8 @@ class FakeElement {
   addEventListener(name,callback){this.listeners=this.listeners||{};this.listeners[name]=callback}
   querySelector(){return new FakeElement()}
   setAttribute(){}
+  removeAttribute(){}
+  style={}
 }
 const elements = new Map();
 const getId=id=>{if(!elements.has(id))elements.set(id,new FakeElement());return elements.get(id)};
@@ -53,7 +55,7 @@ assert.ok(!source.includes('restore();render();'),
   "Previous saved sheets must never be restored");
 console.log("Refresh reset passed: old saved sheets removed and all current totals reset.");
 
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,addPhotos}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,addPhotos,scanTargetPercent,setScanTargets,setScanTargetState,beginScanStage,finishScanStage,scanStageHide}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
 assert.equal(readUniqueDecimal("1.000 4.500"),"");
@@ -556,4 +558,42 @@ assert.equal(summaryMarkup.includes('Pakistani Beef Minced'),true);
 assert.equal(summaryMarkup.includes('Pakistani Beef Without Bone'),true);
 assert.equal(summaryMarkup.includes('Wastage For Meat'),true);
 console.log("Simple Recipe Issue / GRN preview test passed: exactly four rows, no intermediate totals.");
+
+// The scan overlay must follow real BarcodeDetector regions, not invent them.
+const overlayGeometry=scanTargetPercent(
+  {barcode:"9667807018006",x:200,y:400,w:100,h:40},
+  {width:1000,height:1000}
+);
+assert.ok(overlayGeometry.left>=19&&overlayGeometry.left<=21);
+assert.ok(overlayGeometry.top>=39&&overlayGeometry.top<=41);
+assert.ok(overlayGeometry.width>=10&&overlayGeometry.width<=12);
+assert.ok(overlayGeometry.height>=4&&overlayGeometry.height<=6);
+const photoRegions=[
+  {barcode:"9667807018006",x:200,y:400,w:100,h:40},
+  {barcode:"9667818036457",x:200,y:650,w:100,h:40}
+];
+beginScanStage({name:"two-sticker-sheet.jpg"},1,1);
+assert.equal(getId("scanStage").hidden,false);
+assert.equal(getId("scanStageFile").textContent,"two-sticker-sheet.jpg");
+setScanTargets(photoRegions,{width:1000,height:1000});
+assert.equal(getId("scanStageMarkers").children.length,2);
+assert.equal(getId("scanStageMarkers").children[0].className,"scan-stage-target is-waiting");
+setScanTargetState(0,"active");
+assert.equal(getId("scanStageMarkers").children[0].className,"scan-stage-target is-active");
+setScanTargetState(0,"verified",photoRegions[0].barcode);
+setScanTargetState(1,"review",photoRegions[1].barcode);
+assert.equal(getId("scanStageProgress").textContent,"2 / 2 checked");
+finishScanStage("Review completed",true);
+assert.equal(getId("scanStageProgress").textContent,"1 verified · 1 review");
+scanStageHide();
+assert.equal(getId("scanStage").hidden,true);
+assert.equal(getId("scanStageMarkers").children.length,0);
+const scanMarkup=fs.readFileSync("index.html","utf8");
+assert.ok(scanMarkup.includes('id="scanStage"'));
+assert.ok(scanMarkup.includes('id="scanStageMarkers"'));
+assert.ok(scanMarkup.includes('id="scanStageSweep"'));
+const scanCss=fs.readFileSync("scanner.css","utf8");
+assert.match(scanCss,/@keyframes scan-barcode-sweep/);
+assert.match(scanCss,/@media\(prefers-reduced-motion:reduce\)/);
+console.log("Scan mask tests passed: real barcode coordinates, verified/review masks, and reset.");
 console.log("Scanner validation tests passed: verified EAN, internal price digit, rounding, label consistency, and product constraints.");
