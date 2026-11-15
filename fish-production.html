@@ -28,7 +28,7 @@
     <div class="fish-scanning-label">Scanning sheet <span id="fishScanProgress"></span></div>
     <div class="fish-scanning-img"><img id="fishScanImage" alt="Fish label sheet being scanned"><span class="fish-scanning-line" aria-hidden="true"></span></div>
   </div>
-  <p class="fish-fine">Fish uses 0.002 kg (2 g) increments. The barcode number is captured, but the product and weight must be checked against the printed sticker until real salmon barcode samples are verified.</p>
+  <p class="fish-fine">Fish uses 0.002 kg (2 g) increments. A trained barcode may suggest details, but every label still needs your confirmation.</p>
 </section>
 
 <section class="panel fish-panel">
@@ -100,7 +100,7 @@
       <label>Unit price (BD/kg, optional)<input id="fishUnitPrice" type="number" min="0" step="0.001" placeholder="As printed"></label>
       <label>Total price (BD, optional)<input id="fishTotalPrice" type="number" min="0" step="0.001" placeholder="As printed"></label>
     </div>
-    <p class="fish-fine">Verify the printed weight and product. Fish barcode price/weight rules are not yet confirmed by sample labels, so scanning cannot safely calculate these automatically.</p>
+    <p class="fish-fine">Check the printed label. A validated learned pattern may suggest weight and price, but you must confirm them before saving.</p>
     <div id="fishEditError" class="fish-notice is-warning" role="alert" hidden></div>
     <div class="buttons"><button class="btn" type="submit">Confirm label</button><button id="fishEditRemove" class="btn btn-outline" type="button">Remove label</button></div>
   </form>
@@ -138,8 +138,9 @@
 </dialog>
 
 <script src="fish-core.js?v=fish-1"></script>
+<script src="barcode-learning-core.js?v=learning-1"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="fish-production.js?v=fish-1"></script>
-<script src="fish-store.js?v=fish-1"></script>
+<script src="fish-production.js?v=fish-learn-2"></script>
+<script src="fish-store.js?v=fish-learn-2"></script>
 </body>
 </html>
