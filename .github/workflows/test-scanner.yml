@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - "scanner.js"
+      - "barcode-learning-core.js"
+      - "barcode-learning.js"
+      - "tests/validate-barcode-learning.cjs"
       - "fish-core.js"
       - "fish-production.js"
       - "fish-store.js"
@@ -29,8 +32,8 @@ jobs:
         with:
           node-version: '22'
       - name: Check JavaScript syntax
-        run: node --check scanner.js && node --check custom-barcodes.js && node --check live-barcode.js && node --check paper-store.js && node --check fish-core.js && node --check fish-production.js && node --check fish-store.js
+        run: node --check barcode-learning-core.js && node --check barcode-learning.js && node --check scanner.js && node --check custom-barcodes.js && node --check live-barcode.js && node --check paper-store.js && node --check fish-core.js && node --check fish-production.js && node --check fish-store.js
       - name: Test barcode and label calculations
-        run: node tests/validate-scanner.cjs && node tests/validate-live-barcode.cjs && node tests/validate-custom-barcodes.cjs && node tests/validate-fish.cjs
+        run: node tests/validate-barcode-learning.cjs && node tests/validate-scanner.cjs && node tests/validate-live-barcode.cjs && node tests/validate-custom-barcodes.cjs && node tests/validate-fish.cjs
       - name: Test paper saving and preview
         run: node tests/validate-paper-store.cjs
