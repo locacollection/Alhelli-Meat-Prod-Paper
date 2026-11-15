@@ -1067,6 +1067,9 @@ async function scanPhotos(){
       orderingWarning?"6777 order unclear. Rescan photo.":"No valid barcodes found.",
       !added||errors||review?"warn":"");
 
+    // The green overlay is only a live progress view; never leave a completed
+    // full-size scan image on the page. The label cards/results remain intact.
+    scanStageHide();
     if(photos.length)void scanPhotos();
   }
 }
