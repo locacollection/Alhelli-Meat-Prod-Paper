@@ -239,9 +239,15 @@ async function matchLearnedBarcode(raw){
     if(!decoded.ok||decoded.weight_grams%2!==0)continue;
     answers.push({...decoded,product_code:profile.item_code});
   }
-  // Two conflicting models for a similar prefix are not authoritative.
-  if(answers.length!==1)return null;
-  return answers[0];
+  // A private verified rule takes priority if exactly one matches.
+  if(answers.length===1)return answers[0];
+  const builtIn=window.SalmonBarcodeSamples?.match(raw,api)||null;
+  if(answers.length>1&&builtIn)
+    return {...builtIn,weight_grams:null,
+      source:"Conflicting private patterns. Verify printed weight."};
+  // 11 photo-confirmed example stickers provide a cautious fallback even
+  // before the employee imports their training profiles to Supabase.
+  return builtIn;
 }
 function historyCard(row){
   const el=make("article");
