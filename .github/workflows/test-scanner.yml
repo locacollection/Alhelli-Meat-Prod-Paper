@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - "scanner.js"
+      - "custom-barcodes.js"
+      - "tests/validate-custom-barcodes.cjs"
       - "live-barcode.js"
       - "paper-store.js"
       - "tests/validate-paper-store.cjs"
@@ -23,8 +25,8 @@ jobs:
         with:
           node-version: '22'
       - name: Check JavaScript syntax
-        run: node --check scanner.js && node --check live-barcode.js && node --check paper-store.js
+        run: node --check scanner.js && node --check custom-barcodes.js && node --check live-barcode.js && node --check paper-store.js
       - name: Test barcode and label calculations
-        run: node tests/validate-scanner.cjs && node tests/validate-live-barcode.cjs
+        run: node tests/validate-scanner.cjs && node tests/validate-live-barcode.cjs && node tests/validate-custom-barcodes.cjs
       - name: Test paper saving and preview
         run: node tests/validate-paper-store.cjs
