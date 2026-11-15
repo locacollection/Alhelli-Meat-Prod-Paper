@@ -91,6 +91,7 @@ function showCurrentPreview(){
   catch(err){status("fishPaperError",err.message,true)}
 }
 function updateAuth(userNext){
+  fishLearnedProfilesPromise=null;
   user=userNext||null;
   $("fishLoginForm").hidden=!!user;
   $("fishLoggedIn").hidden=!user;
@@ -212,6 +213,36 @@ async function savePDF(s){
   doc.text("Reference: "+String(s.paper_reference||"").slice(0,40),13,284);
   doc.save(pdfName(s));
 }
+let fishLearnedProfilesPromise=null;
+async function verifiedFishProfiles(){
+  if(!client||!user||!window.BarcodeLearningCore)return [];
+  if(!fishLearnedProfilesPromise){
+    fishLearnedProfilesPromise=(async()=>{
+      const {data,error}=await client.from("barcode_learning_profiles")
+        .select("item_code,product_name,barcode_prefix,pattern_mode,review_status,weight_step_grams,unit_price_fils,rounding_fils")
+        .eq("owner_id",user.id).eq("review_status","validated")
+        .in("item_code",["6376","6668","7144"]).limit(100);
+      if(error)throw error;
+      return data||[];
+    })().catch(()=>[]);
+  }
+  return fishLearnedProfilesPromise;
+}
+async function matchLearnedBarcode(raw){
+  const api=window.BarcodeLearningCore;
+  if(!api||!api.validBarcode(raw))return null;
+  const possible=await verifiedFishProfiles();
+  const answers=[];
+  for(const profile of possible){
+    if(raw.slice(0,6)!==profile.barcode_prefix)continue;
+    const decoded=api.decodeLearned(raw,profile);
+    if(!decoded.ok||decoded.weight_grams%2!==0)continue;
+    answers.push({...decoded,product_code:profile.item_code});
+  }
+  // Two conflicting models for a similar prefix are not authoritative.
+  if(answers.length!==1)return null;
+  return answers[0];
+}
 function historyCard(row){
   const el=make("article");
   el.append(make("strong","",dateText(row.production_date)));
@@ -268,6 +299,6 @@ $("fishSavePDFOnly").addEventListener("click",()=>void savePDF(checkedSnapshot()
 $("fishPreviewPDF").addEventListener("click",()=>void savePDF(preview).catch(e=>status("fishHistoryStatus",e.message,true)));
 $("fishHistoryDate").addEventListener("change",()=>void loadHistory());
 $("fishRefreshHistory").addEventListener("click",()=>void loadHistory());
-window.FishStoreChecks={verifySnapshot,dateText,pdfName,renderPaper:previewPaper};
+window.FishStoreChecks={verifySnapshot,dateText,pdfName,renderPaper:previewPaper,matchLearnedBarcode};
 void initialize();
 })();
