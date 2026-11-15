@@ -399,6 +399,25 @@ function buildRow(entry,i){
 
   const actions=document.createElement("div");actions.className="label-actions read-only-actions";
   actions.append(preview);
+  const fix=document.createElement("button");fix.type="button";fix.className="mini";
+  fix.textContent="Correct scanned barcode";
+  fix.addEventListener("click",()=>{
+    const raw=prompt("Enter the 13-digit barcode printed on this sticker:",entry.barcode);
+    if(raw===null)return;
+    const barcode=String(raw).replace(/\\s/g,"");
+    const info=catalogFromBarcode(barcode);
+    if(!info.ok){show("scanMsg",info.reason,"warn");return}
+    const oldCode=decode(entry.barcode).code;
+    if(oldCode&&oldCode!==info.info.code){
+      show("scanMsg","The corrected barcode is for a different product. Remove this label and add it to the appropriate production sheet.","warn");return
+    }
+    Object.assign(entry,fromBarcode(barcode,{...entry,
+      source:"Barcode corrected manually against printed sticker",
+      ocrWarning:""}));
+    persist();render();
+    show("scanMsg","Barcode corrected. Verify the cropped sticker matches "+barcode+".");
+  });
+  actions.append(fix);
   if(entry.ocrConflict&&catalogFromBarcode(entry.barcode).ok){
     const keep=document.createElement("button");keep.type="button";keep.className="mini";
     keep.textContent="Use barcode values";keep.addEventListener("click",()=>{
@@ -592,6 +611,17 @@ function refreshSummary(){
   $("extraWeight").textContent=fmtKg(t.m+t.b)+" kg";
   $("extraPrice").textContent=fmtMoney(finishedValue)+" BD";
   show("paperWarning",t.error||"",t.error?"warn":"");
+  const pair=trailingBonePairSuggestion(entries);
+  const suggestion=$("reversePairSuggestion");
+  if(suggestion){
+    suggestion.hidden=!pair;
+    if(pair){
+      $("reversePairText").textContent=
+        "Possible reversed label order: "+fmtKg(pair.finishedWeight)+" kg of "+
+        decode(pair.previous.barcode).code+" is just above the "+fmtKg(pair.originalWeight)+
+        " kg 6777 sticker. Pair them only if they came from the same piece.";
+    }
+  }
 }
 function addLabel(entry={}){
   const barcode=String(entry.barcode||"").replace(/\s/g,"");
@@ -782,6 +812,58 @@ function newSheetId(file){
 function classifyPhotoBarcodes(barcodes){
   return barcodes.some(barcode=>decode(barcode).code==="6777")?"bone":"normal";
 }
+function classifyPhotoRows(barcodes){
+  // A photo can contain normal retail labels followed by an unrelated
+  // original 6777 sticker. Do not force earlier 6780/6781 labels into a
+  // bone-in batch just because a 6777 appears later in the image.
+  const firstOriginal=barcodes.findIndex(barcode=>decode(barcode).code==="6777");
+  return barcodes.map((_,index)=>
+    firstOriginal<0||index<firstOriginal?"normal":"bone");
+}
+function trailingBonePairSuggestion(records){
+  // Never guess a reverse-order 6777 → 6780 pairing. Offer explicit
+  // confirmation only for the adjacent finished label on the SAME photo.
+  for(let i=records.length-1;i>=1;i--){
+    const original=records[i];
+    if(sourceKind(original)!=="bone"||decode(original.barcode).code!=="6777"||
+      !original.confirmed||!verify(original).ok)continue;
+    const later=records.slice(i+1).some(e=>sourceKind(e)==="bone"&&
+      e.sheetId===original.sheetId&&decode(e.barcode).code!=="6777");
+    if(later)continue;
+    const previous=records[i-1];
+    const priorCode=decode(previous.barcode).code;
+    if(sourceKind(previous)!=="normal"||!["6780","6781"].includes(priorCode)||
+      previous.sheetId!==original.sheetId||
+      previous.photoName!==original.photoName||
+      !previous.confirmed||!verify(previous).ok)continue;
+    const originalWeight=verify(original).grams;
+    const finishedWeight=verify(previous).grams;
+    if(finishedWeight>originalWeight)continue;
+    return {original,previous,originalWeight,finishedWeight,
+      wastage:originalWeight-finishedWeight};
+  }
+  return null;
+}
+function acceptReverseBonePair(){
+  const pair=trailingBonePairSuggestion(entries);
+  if(!pair)return false;
+  const message="Confirm these two stickers belong to the SAME piece of bone-in beef?\n"+
+    "Original 6777: "+fmtKg(pair.originalWeight)+" kg\n"+
+    "Finished "+decode(pair.previous.barcode).code+": "+fmtKg(pair.finishedWeight)+" kg\n"+
+    "Bones / trimming: "+fmtKg(pair.wastage)+" kg\n"+
+    "The other labels on this sheet will remain normal production.";
+  if(!confirm(message))return false;
+  pair.previous.kind="bone";
+  pair.previous.sheetId=pair.original.sheetId;
+  pair.previous.source="Operator confirmed reverse-order bone-in pairing";
+  // Normalize calculation order: original must be first for any bone-in batch.
+  entries=entries.filter(e=>e!==pair.previous);
+  const index=entries.indexOf(pair.original);
+  entries.splice(index+1,0,pair.previous);
+  persist();render();
+  return true;
+}
+
 function addPhotos(files){
   let count=0;
   for(const file of files){
@@ -989,6 +1071,7 @@ async function scanPhotos(){
         const regions=await detectAll(canvas);
         setScanTargets(regions,canvas);
         const effectiveKind=classifyPhotoBarcodes(regions.map(r=>r.barcode));
+        const perLabelKinds=classifyPhotoRows(regions.map(r=>r.barcode));
         if(!regions.length){
           // OCR fallback is not the primary scanning path. A correctly read 13
           // digit number still uses the barcode catalog to resolve its weight.
@@ -1017,7 +1100,7 @@ async function scanPhotos(){
               continue;
             }
             // PRIMARY: Add barcode and catalog-derived weight before OCR starts.
-            const entry=addLabel({barcode:region.barcode,kind:effectiveKind,sheetId,photoName:file.name,source:"Barcode + 5 g catalog"});
+            const entry=addLabel({barcode:region.barcode,kind:perLabelKinds[j],sheetId,photoName:file.name,source:"Barcode + 5 g catalog"});
             // Crop directly from the detected BARCODE position. Never use the
             // barcode digits as an image key because different stickers repeat.
             try{
@@ -1119,6 +1202,7 @@ $("addLabel").addEventListener("click",()=>{
   $("manualBarcodeError").textContent="";
   if(!form.hidden)$("manualBarcode").focus();
 });
+$("acceptReversePair").addEventListener("click",acceptReverseBonePair);
 $("manualSource").addEventListener("change",updateManualInsertionOptions);
 $("manualBarcodeForm").addEventListener("submit",event=>{
   event.preventDefault();
@@ -1166,7 +1250,7 @@ function paperSnapshot(){
 }
 
 window.MeatProductionApp={paperSnapshot,preparePaper,paperState};
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,addPhotos,scanTargetPercent,setScanTargets,setScanTargetState,beginScanStage,finishScanStage,scanStageHide};
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,classifyPhotoRows,trailingBonePairSuggestion,acceptReverseBonePair,addPhotos,scanTargetPercent,setScanTargets,setScanTargetState,beginScanStage,finishScanStage,scanStageHide};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 startBlankSheet();render();updatePhotoQueue();
 })();
