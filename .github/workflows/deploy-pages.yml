@@ -6,6 +6,7 @@ on:
       - "index.html"
       - "barcode-catalog.html"
       - "scanner.js"
+      - "live-barcode.js"
       - "paper-store.js"
       - "scanner.css"
       - ".github/workflows/deploy-pages.yml"
@@ -34,7 +35,7 @@ jobs:
       - name: Assemble static site
         run: |
           mkdir -p _site
-          cp index.html barcode-catalog.html scanner.js paper-store.js scanner.css manual-worksheet.html _site/
+          cp index.html barcode-catalog.html scanner.js live-barcode.js paper-store.js scanner.css manual-worksheet.html _site/
           touch _site/.nojekyll
 
       - name: Configure GitHub Pages
