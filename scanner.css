@@ -330,3 +330,40 @@ main.container{padding-top:16px}
 .extra-stat strong{font-size:17px}
 }
 @media print{.paper-dialog,.saved-papers,.extra-info{display:none!important}}
+
+/* Animated barcode mask follows actual EAN-13 bounding boxes. */
+.scan-stage[hidden]{display:none!important}
+.scan-stage{margin:14px 0 15px;padding:13px;border:1px solid #b8d5c4;border-radius:15px;
+  background:linear-gradient(160deg,#0d2c25,#123f2e);color:#e9fff0}
+.scan-stage-header{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:0 0 10px}
+.scan-stage-header>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.scan-stage-header strong{font-size:14px;letter-spacing:.01em}
+.scan-stage-header small{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;color:#a9d5bc}
+.scan-stage-counter{white-space:nowrap;font-size:11px;font-weight:750;background:#246848aa;border:1px solid #449f6b7c;padding:6px 9px;border-radius:30px}
+.scan-stage-frame{position:relative;display:block;width:min(100%,390px);margin:auto;background:#0b201b;border-radius:11px;overflow:hidden;isolation:isolate}
+.scan-stage-frame img{display:block;width:100%;height:auto;max-width:100%}
+.scan-stage-overlay,.scan-stage-markers{position:absolute;inset:0;pointer-events:none}
+.scan-stage-sweep{position:absolute;inset:0;opacity:0;pointer-events:none}
+.scan-stage-sweep.is-sweeping{opacity:1;background:linear-gradient(180deg,transparent 0%,#00fa4b18 49%,#27ff80b2 51%,#10ed5e14 53%,transparent 57%);
+  background-size:100% 160%;background-position:center -125%;animation:scan-sheet-sweep 2.2s linear infinite}
+.scan-stage-target{position:absolute;display:block;box-sizing:border-box;min-width:15px;min-height:11px;border:2px solid #c0ffca7a;
+  border-radius:5px;box-shadow:0 0 3px #06582a5c;transition:border-color .18s,background-color .18s;overflow:hidden}
+.scan-stage-target.is-waiting{border-color:#d3ffdd8c;background:#3c7c6022}
+.scan-stage-target.is-active{border-color:#21ff72;background:#08b94645;box-shadow:0 0 9px #00f36d7f,inset 0 0 8px #14b8525e}
+.scan-stage-target.is-active::before{content:"";position:absolute;left:0;right:0;height:43%;top:-50%;background:linear-gradient(180deg,transparent,#37ff93a6,#e3ffe8d0);
+  box-shadow:0 0 8px #17ff65;animation:scan-barcode-sweep .95s ease-in-out infinite}
+.scan-stage-target.is-verified{border-color:#3bfc80;background:#03ad3b3e;box-shadow:0 0 8px #05c95888}
+.scan-stage-target.is-review{border-color:#ffc86e;background:#f3a72538;box-shadow:0 0 7px #ffc86e77}
+.scan-stage-label{position:absolute;top:0;right:0;background:#0b6c3e;color:#fff;font-size:10px;
+  line-height:1;padding:2px 4px;border-bottom-left-radius:4px}
+.is-verified .scan-stage-label{background:#05713f}
+.is-verified .scan-stage-label::before{content:"✓ "}
+.is-review .scan-stage-label{background:#b4770a}
+.is-review .scan-stage-label::before{content:"! "}
+.scan-stage-status{font-size:12px;line-height:1.4;color:#dbf6df;min-height:1.2em;margin:10px 0 3px}
+.scan-stage-key{display:flex;gap:15px;justify-content:center;flex-wrap:wrap;font-size:10px;color:#b4d5bf;margin:9px 0 0}
+@keyframes scan-sheet-sweep{from{background-position:center -125%}to{background-position:center 180%}}
+@keyframes scan-barcode-sweep{0%{top:-50%}50%,100%{top:115%}}
+@media(max-width:430px){.scan-stage{padding:10px}.scan-stage-header small{max-width:175px}.scan-stage-key{gap:8px}}
+@media(prefers-reduced-motion:reduce){.scan-stage-sweep.is-sweeping,.scan-stage-target.is-active::before{animation:none;opacity:.7;background-position:center center}}
+@media print{.scan-stage{display:none!important}}
