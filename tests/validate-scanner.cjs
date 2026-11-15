@@ -55,7 +55,7 @@ assert.ok(!source.includes('restore();render();'),
   "Previous saved sheets must never be restored");
 console.log("Refresh reset passed: old saved sheets removed and all current totals reset.");
 
-const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,addPhotos,scanTargetPercent,setScanTargets,setScanTargetState,beginScanStage,finishScanStage,scanStageHide}=sandbox.window.MeatProductionChecks;
+const {decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,classifyPhotoRows,trailingBonePairSuggestion,acceptReverseBonePair,addPhotos,scanTargetPercent,setScanTargets,setScanTargetState,beginScanStage,finishScanStage,scanStageHide}=sandbox.window.MeatProductionChecks;
 assert.equal(readUniqueDecimal("WEIGHT 1.000"),"1.000");
 assert.equal(readUniqueDecimal("UNIT PRICE 4.500"),"4.500");
 assert.equal(readUniqueDecimal("1.000 4.500"),"");
@@ -319,6 +319,27 @@ assert.equal(classifyPhotoBarcodes(boneCodes),"bone");
 assert.equal(classifyPhotoBarcodes([...normalCodes,...boneCodes]),"bone");
 assert.equal(classifyPhotoBarcodes([]),"normal");
 assert.equal(classifyPhotoBarcodes([normalCodes[0],encodeFromPrinted("6777",5000,3190)]),"bone");
+
+assert.deepEqual(Array.from(classifyPhotoRows(normalCodes)),["normal","normal"]);
+assert.deepEqual(Array.from(classifyPhotoRows(boneCodes)),["bone","bone"]);
+assert.deepEqual(Array.from(classifyPhotoRows([...normalCodes,...boneCodes])),
+  ["normal","normal","bone","bone"]);
+assert.deepEqual(Array.from(classifyPhotoRows([...normalCodes,encodeFromPrinted("6777",3230,3190)])),
+  ["normal","normal","bone"]);
+assert.equal(catalogFromBarcode("9667777103054").grams,3230,
+  "This photograph's original 6777 label must read 3.230 kg, not 0.140.");
+const highConfidenceError=matchPrintedOCR(
+  fromBarcode(encodeFromPrinted("6777",140,3190)),
+  {weight:"3.230",printed:"10.305",unit:"3.190"}
+);
+assert.equal(highConfidenceError.confirmed,false,
+  "Coherent printed weight and price must flag an incorrect scan.");
+assert.match(highConfidenceError.ocrConflict,/Correct scanned barcode/);
+assert.equal(highConfidenceError.weight,"0.140",
+  "OCR must not silently replace stored 5 g barcode weight.");
+assert.equal(matchPrintedOCR(fromBarcode("9667800031057"),
+  {weight:"0.690",printed:"3.108",unit:"4.500"}).confirmed,true,
+  "An isolated OCR error of 3 fils is not enough to reject a barcode.");
 assert.equal(typeof addPhotos,"function");
 const oneScanHtml=fs.readFileSync("index.html","utf8");
 assert.equal((oneScanHtml.match(/id="sheetPhotos"/g)||[]).length,1);
@@ -363,6 +384,27 @@ const samePortion=groupBoneSheetRows([
 ].map((entry,index)=>({entry,index})));
 assert.equal(samePortion.length,1);
 assert.equal(samePortion[0].rows.length,3);
+
+const reversePhotoName="IMG_20261115_154319_139.jpg",reverseSheetId="photo-reversed";
+const reverseRows=[
+  scanEntry("6780",6925,"normal",reverseSheetId),
+  scanEntry("6780",225,"normal",reverseSheetId),
+  scanEntry("6781",1175,"normal",reverseSheetId),
+  scanEntry("6781",1190,"normal",reverseSheetId),
+  scanEntry("6780",2635,"normal",reverseSheetId),
+  scanEntry("6777",3230,"bone",reverseSheetId)
+];
+for(const e of reverseRows)e.photoName=reversePhotoName;
+const reverseCandidate=trailingBonePairSuggestion(reverseRows);
+assert.ok(reverseCandidate,"Offer pairing for the adjacent output preceding 6777");
+assert.equal(reverseCandidate.originalWeight,3230);
+assert.equal(reverseCandidate.finishedWeight,2635);
+assert.equal(reverseCandidate.wastage,595);
+assert.match(productionCalculation(reverseRows).error,/no finished/,
+  "Do not automatically pair a reversed original.");
+assert.equal(trailingBonePairSuggestion(reverseRows.map(e=>({...e,photoName:
+  decode(e.barcode).code==="6777"?"different-photo.jpg":reversePhotoName}))),null,
+  "Never pair two stickers from different photographs.");
 const fromPhoto=productionCalculation(photoPairs);
 assert.equal(fromPhoto.error,"");
 assert.equal(fromPhoto.original,8145);
