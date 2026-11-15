@@ -29,6 +29,12 @@
 <div class="learning-column">
 <section class="panel learner-panel">
   <div class="learn-panel-head"><h2>1. Choose an item</h2></div>
+  <div class="learn-salmon-import">
+    <strong>Salmon samples ready</strong>
+    <p>11 printed examples: 6376 (4), 6668 (4), 7144 (3). Import all three items into your account.</p>
+    <button id="learnImportSalmon" class="btn btn-light" type="button">Import salmon examples</button>
+    <p id="learnImportStatus" class="learn-notice" hidden role="status" aria-live="polite"></p>
+  </div>
   <label class="learn-field">Saved learning profiles
     <select id="learnProfiles"><option value="">Create or select an item</option></select>
   </label>
@@ -122,6 +128,7 @@
   <p id="learnCameraMessage" role="status" class="fineprint">Starting camera…</p>
 </dialog>
 <script src="barcode-learning-core.js?v=learning-1"></script>
+<script src="fish-barcode-samples.js?v=fish-samples-1"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="barcode-learning.js?v=learning-1"></script>
+<script src="barcode-learning.js?v=salmon-import-2"></script>
 </body></html>
