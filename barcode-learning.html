@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#143b31">
+<meta name="description" content="Learn kg barcode patterns from confirmed printed labels and test predicted weights safely.">
+<title>Barcode Learning | Meat Production</title>
+<link rel="stylesheet" href="barcode-learning.css?v=learning-1">
+</head><body>
+<header class="site-head"><div class="container header-row">
+  <div class="brand"><div class="brandmark">BL</div><strong>Barcode Learning</strong></div>
+  <nav><a href="./index.html">Meat</a><a href="./fish-production.html">Fish</a><a href="./custom-barcodes.html">Barcode Manager</a></nav>
+</div></header>
+<main class="container learning-layout">
+<section class="panel learner-panel learn-account">
+  <div class="learn-panel-head"><div><h1>Learn barcode patterns</h1><p class="fineprint">Train a kg item with real, confirmed label examples.</p></div></div>
+  <form id="learnLoginForm" class="learn-login">
+    <label>Email <input id="learnEmail" type="email" autocomplete="email" required></label>
+    <label>Password <input id="learnPassword" type="password" autocomplete="current-password" required></label>
+    <button class="btn" type="submit">Sign in</button>
+    <span class="fineprint">Use your existing Supabase account.</span>
+  </form>
+  <div id="learnSignedIn" class="learn-auth-state" hidden>
+    <span>Signed in: <strong id="learnUsername"></strong></span>
+    <button id="learnSignOut" class="mini" type="button">Sign out</button>
+  </div>
+  <p id="learnAuthMessage" class="learn-notice" hidden role="status"></p>
+</section>
+<div class="learning-columns">
+<div class="learning-column">
+<section class="panel learner-panel">
+  <div class="learn-panel-head"><h2>1. Choose an item</h2></div>
+  <label class="learn-field">Saved learning profiles
+    <select id="learnProfiles"><option value="">Create or select an item</option></select>
+  </label>
+  <details id="learnNewProfile" class="learn-details" open>
+    <summary>New kg item</summary>
+    <form id="learnProfileForm" class="learn-form">
+      <div class="learn-pair">
+        <label class="learn-field">Item code / PLU<input id="learnItemCode" maxlength="32" placeholder="e.g. 6376" required></label>
+        <label class="learn-field">Name<input id="learnName" maxlength="120" placeholder="e.g. Atlantic Salmon" required></label>
+      </div>
+      <div class="learn-pair">
+        <label class="learn-field">Weight increment
+          <select id="learnStep">
+            <option value="2">2 g · Fish</option>
+            <option value="5">5 g · Meat</option>
+            <option value="1">1 g</option>
+            <option value="10">10 g</option>
+          </select>
+        </label>
+        <label class="learn-field">Unit price (BD/kg)<input id="learnRate" type="number" inputmode="decimal" min="0.001" max="999.999" step="0.001" placeholder="e.g. 4.500" required></label>
+      </div>
+      <label class="learn-field">Price rounding
+        <select id="learnRounding"><option value="5">0.005 BD (5 fils)</option><option value="1">0.001 BD (1 fil)</option></select>
+      </label>
+      <button id="learnCreate" type="submit" class="btn">Create learning profile</button>
+    </form>
+  </details>
+  <p id="learnProfileInfo" class="learn-notice" hidden role="status"></p>
+  <button id="learnDeleteProfile" class="mini is-danger" type="button" hidden>Delete selected profile</button>
+</section>
+<section class="panel learner-panel">
+  <h2>2. Add label examples</h2>
+  <p class="fineprint">Use at least four different labels with different weights. Read weight and total price from each printed sticker.</p>
+  <div class="learn-buttons">
+    <button id="learnLiveScan" type="button" class="btn btn-light">Scan 1 barcode</button>
+    <label class="btn btn-light learn-file-button" for="learnPhoto">Scan sheet photo<input id="learnPhoto" type="file" accept="image/*" multiple hidden></label>
+  </div>
+  <div id="learnPending" class="learn-pending" hidden></div>
+  <form id="learnSampleForm" class="learn-form">
+    <label class="learn-field">13-digit barcode
+      <input id="learnBarcode" type="text" inputmode="numeric" pattern="[0-9]{13}" maxlength="13" spellcheck="false" placeholder="Scan or type a barcode" required>
+    </label>
+    <div class="learn-pair">
+      <label class="learn-field">Printed weight (kg)<input id="learnWeight" type="number" inputmode="decimal" min="0.001" max="100" step="0.001" placeholder="e.g. 0.690" required></label>
+      <label class="learn-field">Printed total (BD)<input id="learnTotal" type="number" inputmode="decimal" min="0" max="999.999" step="0.001" placeholder="e.g. 3.105" required></label>
+    </div>
+    <button id="learnAddSample" type="submit" class="btn">Confirm & save example</button>
+  </form>
+  <p id="learnSampleMessage" class="learn-notice" hidden role="status"></p>
+  <h3 class="learn-subtitle">Training labels <span id="learnCount">0</span></h3>
+  <div id="learnSamples" class="learn-list"><p class="fineprint">Choose an item to start training.</p></div>
+</section>
+</div>
+<div class="learning-column">
+<section class="panel learner-panel">
+  <h2>3. Learning result</h2>
+  <div class="learn-result-head">
+    <span id="learnStatus" class="learn-state">Not trained</span>
+    <span id="learnCoverage" class="fineprint">0 labels</span>
+  </div>
+  <h3 id="learnPattern" class="learn-pattern">No pattern yet</h3>
+  <p id="learnExplanation" class="fineprint">Add confirmed examples, then the site will compare barcode formats.</p>
+  <div id="learnCandidates" class="learn-candidates"></div>
+  <div id="learnPrefix" class="learn-prefix" hidden></div>
+  <p class="learn-warn">Patterns are hypotheses based on your samples. They do not authorize barcodes for store checkout or update the production catalogs.</p>
+</section>
+<section class="panel learner-panel">
+  <h2>4. Test a new barcode</h2>
+  <p class="fineprint">After validation, check a new barcode against the learned format. Ambiguous weights remain blocked.</p>
+  <form id="learnTestForm" class="learn-form">
+    <label class="learn-field">Barcode to decode<input id="learnTestBarcode" type="text" inputmode="numeric" pattern="[0-9]{13}" maxlength="13" placeholder="13-digit barcode" required></label>
+    <button type="submit" class="btn">Check weight</button>
+  </form>
+  <div id="learnTestResult" class="learn-test-result" hidden role="status"></div>
+</section>
+<section class="panel learner-panel">
+  <h2>Try a predicted barcode</h2>
+  <p class="fineprint">Optional pattern experiment. Compare with a real sticker before using it.</p>
+  <form id="learnPredictForm" class="learn-form">
+    <label class="learn-field">Weight (kg)<input id="learnPredictWeight" type="number" inputmode="decimal" min="0.001" max="100" step="0.001" placeholder="e.g. 0.505" required></label>
+    <button class="btn btn-light" type="submit">Predict from pattern</button>
+  </form>
+  <div id="learnPredictResult" class="learn-test-result" hidden role="status"></div>
+</section>
+</div>
+</div>
+</main>
+<dialog id="learnCameraDialog" class="learn-camera-dialog" aria-labelledby="learnCameraHeading">
+  <div class="learn-camera-head"><h2 id="learnCameraHeading">Scan barcode</h2><button id="learnCameraStop" type="button" class="mini">Close</button></div>
+  <div class="learn-camera-preview"><video id="learnVideo" autoplay muted playsinline aria-label="Rear camera barcode scanner"></video><div class="learn-camera-target" aria-hidden="true"></div></div>
+  <p id="learnCameraMessage" role="status" class="fineprint">Starting camera…</p>
+</dialog>
+<script src="barcode-learning-core.js?v=learning-1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="barcode-learning.js?v=learning-1"></script>
+</body></html>
