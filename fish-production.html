@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#143b31">
+<meta name="description" content="Atlantic Salmon Fish production: original fish, skin-on fillet, bones and wastage.">
+<title>Salmon Fish Production | Meat Production</title>
+<link rel="stylesheet" href="fish-production.css?v=fish-1">
+</head>
+<body>
+<header class="site-head"><div class="container header-row">
+  <div class="brand"><div class="brandmark">FP</div><div><strong>Salmon Fish Production</strong></div></div>
+  <nav><a href="./">Meat production</a><a href="./custom-barcodes.html">Barcode Manager</a></nav>
+</div></header>
+<main class="container">
+<div class="fish-layout">
+<div class="fish-left">
+<section class="panel fish-panel">
+  <h2>Scan fish labels</h2>
+  <div class="buttons unified-scan">
+    <label for="fishPhotos" class="btn">Scan sheets<input id="fishPhotos" type="file" accept="image/*" multiple hidden></label>
+    <label for="fishCameraPhoto" class="btn btn-light">Use camera<input id="fishCameraPhoto" type="file" accept="image/*" capture="environment" hidden></label>
+  </div>
+  <p class="fish-hint">Scan 6376 first, followed by 6668 fillet and 7144 bone stickers for each fish. You can also scan a label individually.</p>
+  <div class="buttons"><button id="fishAddManual" type="button" class="btn btn-light">+ Add label</button><button id="fishLiveStart" type="button" class="btn btn-outline">Scan 1 barcode</button></div>
+  <div id="fishScanStatus" class="fish-notice" role="status" aria-live="polite" hidden></div>
+  <div class="fish-scan-view" id="fishScanStage" hidden>
+    <div class="fish-scanning-label">Scanning sheet <span id="fishScanProgress"></span></div>
+    <div class="fish-scanning-img"><img id="fishScanImage" alt="Fish label sheet being scanned"><span class="fish-scanning-line" aria-hidden="true"></span></div>
+  </div>
+  <p class="fish-fine">Fish uses 0.002 kg (2 g) increments. The barcode number is captured, but the product and weight must be checked against the printed sticker until real salmon barcode samples are verified.</p>
+</section>
+
+<section class="panel fish-panel">
+  <div class="section-top"><h2>Fish labels</h2><span id="fishLabelCount" class="tag">0 labels</span></div>
+  <div id="fishLabels" class="fish-label-list">
+    <p class="fish-hint">No fish labels added yet.</p>
+  </div>
+  <div class="buttons"><button id="fishNewSheet" class="btn btn-outline" type="button">New production paper</button></div>
+  <p class="fish-fine">A page refresh clears the current unsaved sheet, but not your previously saved papers.</p>
+</section>
+
+<section class="panel fish-panel">
+  <h2>Production paper</h2>
+  <div class="two-fields">
+    <label>Production date<input id="fishDate" type="date"></label>
+    <label>Plant / Section<input id="fishPlant" value="Seef Arad / Fish" maxlength="90"></label>
+    <label>Staff name<input id="fishStaff" placeholder="Employee name" maxlength="90"></label>
+    <label>Reference<input id="fishRef" placeholder="Production paper reference" maxlength="80"></label>
+  </div>
+  <div id="fishPaperError" class="fish-notice is-warning" role="alert"></div>
+  <div class="buttons"><button id="fishPreview" class="btn" type="button" disabled>Preview Paper</button><button id="fishSave" class="btn btn-light" type="button" disabled>Save Paper</button></div>
+</section>
+</div>
+
+<aside class="fish-right">
+<section class="panel fish-panel fish-summary" aria-label="Salmon production totals">
+  <h2>Recipe Issue (Subcontract PO)</h2>
+  <div class="fish-primary-row"><div><strong>6376</strong><span>Atlantic Salmon Fish</span></div><strong id="fishIssue">0.000 kg</strong></div>
+  <h2>Recipe GRN (Bundling)</h2>
+  <div class="fish-summary-row"><div><strong>6668</strong><span>Salmon Fillet Fish (With Skin)</span></div><strong id="fishFillet">0.000 kg</strong></div>
+  <div class="fish-summary-row"><div><strong>7144</strong><span>Salmon Fish Bone</span></div><strong id="fishBone">0.000 kg</strong></div>
+  <div class="fish-summary-row"><div><span>Wastage For Fish</span></div><strong id="fishWaste">0.000 kg</strong></div>
+  <div id="fishBatchSummary" class="fish-batch-summary"></div>
+</section>
+<section class="panel fish-panel">
+  <h2>Additional information</h2>
+  <div class="fish-summary-row"><span>Fillet + bones</span><strong id="fishOutput">0.000 kg</strong></div>
+  <div class="fish-summary-row"><span>Recorded output price</span><strong id="fishValue">Not available</strong></div>
+  <p class="fish-fine">Price is informational. Only supplied fillet/bone label prices are counted, not the original fish price.</p>
+</section>
+<section class="panel fish-panel">
+  <div class="section-top"><h2>Saved fish papers</h2><button id="fishAccount" class="mini" type="button">Account</button></div>
+  <p id="fishHistoryStatus" class="fish-hint">Sign in to see your saved papers.</p>
+  <label>Filter by date<input id="fishHistoryDate" type="date"></label>
+  <div id="fishHistory" class="fish-history-list"></div>
+  <button id="fishRefreshHistory" class="btn btn-light" type="button">Refresh saved papers</button>
+</section>
+</aside>
+</div>
+</main>
+
+<dialog id="fishEditDialog" class="fish-modal" aria-labelledby="fishEditTitle">
+  <div class="fish-modal-top"><h2 id="fishEditTitle">Confirm fish label</h2><button id="fishEditCancel" class="mini" type="button">Close</button></div>
+  <div id="fishEditPhotoWrap" class="fish-edit-photo" hidden><img id="fishEditPhoto" alt="Crop of the fish label to check"></div>
+  <form id="fishEditForm" class="fish-form">
+    <label>Product
+      <select id="fishCode" required>
+        <option value="">Choose from printed label</option>
+        <option value="6376">6376 · Atlantic Salmon Fish (Original)</option>
+        <option value="6668">6668 · Salmon Fillet Fish (With Skin)</option>
+        <option value="7144">7144 · Salmon Fish Bone</option>
+      </select>
+    </label>
+    <label>13-digit barcode (optional if unreadable)
+      <input id="fishBarcode" type="text" inputmode="numeric" maxlength="13" pattern="[0-9]{13}" placeholder="Scan EAN-13 or type it">
+    </label>
+    <label>Printed weight (kg) <input id="fishWeight" type="number" inputmode="decimal" min="0.002" max="100" step="0.002" placeholder="e.g. 3.436" required></label>
+    <div class="two-fields">
+      <label>Unit price (BD/kg, optional)<input id="fishUnitPrice" type="number" min="0" step="0.001" placeholder="As printed"></label>
+      <label>Total price (BD, optional)<input id="fishTotalPrice" type="number" min="0" step="0.001" placeholder="As printed"></label>
+    </div>
+    <p class="fish-fine">Verify the printed weight and product. Fish barcode price/weight rules are not yet confirmed by sample labels, so scanning cannot safely calculate these automatically.</p>
+    <div id="fishEditError" class="fish-notice is-warning" role="alert" hidden></div>
+    <div class="buttons"><button class="btn" type="submit">Confirm label</button><button id="fishEditRemove" class="btn btn-outline" type="button">Remove label</button></div>
+  </form>
+</dialog>
+
+<dialog id="fishImageDialog" class="fish-modal" aria-labelledby="fishImageTitle">
+  <div class="fish-modal-top"><h2 id="fishImageTitle">Label preview</h2><button id="fishImageClose" class="mini" type="button">Close</button></div>
+  <img id="fishImage" class="fish-label-preview" alt="Cropped fish sticker">
+</dialog>
+
+<dialog id="fishCameraDialog" class="fish-modal" aria-labelledby="fishCameraTitle">
+  <div class="fish-modal-top"><h2 id="fishCameraTitle">Scan one barcode</h2><button id="fishCameraClose" class="mini" type="button">Stop camera</button></div>
+  <div class="fish-camera-frame"><video id="fishVideo" autoplay muted playsinline></video><div class="fish-camera-target" aria-hidden="true"></div></div>
+  <p id="fishCameraStatus" class="fish-hint" role="status" aria-live="polite">Starting camera…</p>
+</dialog>
+
+<dialog id="fishPreviewDialog" class="fish-modal fish-paper-modal" aria-labelledby="fishPreviewTitle">
+  <div class="fish-modal-top"><h2 id="fishPreviewTitle">Fish production paper</h2><button id="fishPreviewClose" class="mini" type="button">Close</button></div>
+  <div id="fishPreviewContent" class="fish-paper-content"></div>
+  <div class="buttons"><button id="fishPreviewPDF" class="btn btn-light" type="button">Save PDF</button><button id="fishPreviewSave" class="btn" type="button">Save Paper</button></div>
+</dialog>
+
+<dialog id="fishSaveDialog" class="fish-modal" aria-labelledby="fishSaveTitle">
+  <div class="fish-modal-top"><h2 id="fishSaveTitle">Save fish production</h2><button id="fishSaveClose" class="mini" type="button">Close</button></div>
+  <p id="fishSaveSummary" class="fish-hint"></p>
+  <form id="fishLoginForm" class="fish-form">
+    <label>Email<input id="fishEmail" type="email" autocomplete="email" required></label>
+    <label>Password<input id="fishPassword" type="password" autocomplete="current-password" required></label>
+    <button type="submit" class="btn">Sign in</button>
+  </form>
+  <div id="fishLoggedIn" hidden><span>Signed in: <strong id="fishSignedInAs"></strong></span> <button id="fishSignOut" class="mini" type="button">Sign out</button></div>
+  <label class="fish-checkbox"><input id="fishAlsoPDF" type="checkbox"> Download PDF after saving</label>
+  <p id="fishSaveStatus" class="fish-hint" role="status" aria-live="polite"></p>
+  <div class="buttons"><button id="fishSaveDatabase" class="btn" type="button">Save to database</button><button id="fishSavePDFOnly" class="btn btn-light" type="button">PDF only</button></div>
+</dialog>
+
+<script src="fish-core.js?v=fish-1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="fish-production.js?v=fish-1"></script>
+</body>
+</html>
