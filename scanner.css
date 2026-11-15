@@ -392,3 +392,11 @@ main.container{padding-top:16px}
 @media(max-width:440px){.live-barcode-dialog{padding:11px}.live-barcode-header h2{font-size:16px}.live-barcode-video-wrap{aspect-ratio:3/4}.manual-barcode-controls .live-scan-trigger{flex:1 1 135px}}
 @media(prefers-reduced-motion:reduce){.live-barcode-guide span{animation:none;top:50%}}
 @media print{.live-barcode-dialog,.live-scan-trigger{display:none!important}}
+
+/* Explicit pairing prompt for a 6777 sticker beneath a normal output label. */
+.reverse-pair-suggestion[hidden]{display:none!important}
+.reverse-pair-suggestion{margin:12px 0 15px;background:#f2f8f3;border:1px solid #b2d3ba;border-radius:13px;padding:14px;color:#284c36}
+.reverse-pair-suggestion strong{display:block;font-size:15px;margin-bottom:6px}
+.reverse-pair-suggestion p{font-size:13px;line-height:1.55;margin:6px 0 12px}
+.reverse-pair-suggestion .btn{min-height:41px;white-space:normal;text-align:center}
+.reverse-pair-suggestion .fineprint{font-size:11px;color:#657f6c}
