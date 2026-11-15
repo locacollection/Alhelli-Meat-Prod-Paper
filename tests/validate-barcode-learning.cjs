@@ -54,15 +54,15 @@ assert.equal(core.analyze([...savedMeat,{...savedMeat[1],weight_grams:695}],conf
 // For fish 2g weights, a 5-fil price step may encode more than one weight
 // at a low rate. The learner must refuse to assert an exact weight.
 const lowPrice={item_code:"6376",product_name:"Atlantic Salmon Fish",
-  weight_step_grams:2,unit_price_fils:1000,rounding_fils:5};
+  weight_step_grams:2,unit_price_fils:2000,rounding_fils:5};
 const prefix="123456";
 function checksumBarcode(first12){return first12+core.checkDigit(first12)}
-const fishSamples=[100,200,300,400].map(w=>{
-  const price=core.roundedPrice(w,1000,5);
+const fishSamples=[104,202,302,402].map(w=>{
+  const price=core.roundedPrice(w,2000,5);
   const b=checksumBarcode(prefix+core.priceVerifier(price)+String(price).padStart(5,"0"));
   return {barcode:b,weight_grams:w,total_price_fils:price};
 });
-assert.equal(core.analyze([...fishSamples,{...fishSamples[0],weight_grams:102}],lowPrice).status,
+assert.equal(core.analyze([...fishSamples,{...fishSamples[0],weight_grams:106}],lowPrice).status,
   "ambiguous","Same barcode at two 2 g weights must be flagged as ambiguous.");
 const fish=core.analyze(fishSamples,lowPrice);
 assert.equal(fish.status,"validated");
@@ -71,7 +71,7 @@ const fishProfile={...lowPrice,barcode_prefix:prefix,pattern_mode:fish.mode,revi
 const ambiguous=core.decodeLearned(fishSamples[0].barcode,fishProfile);
 assert.equal(ambiguous.ok,false);
 assert.equal(ambiguous.ambiguous,true,"Price rounds across multiple 2 g weights");
-assert.equal(core.suggestBarcode(100,fishProfile).ok,false);
+assert.equal(core.suggestBarcode(104,fishProfile).ok,false);
 const weightSamples=[120,250,340,880].map(grams=>{
   const b=checksumBarcode("621341"+String(grams).padStart(6,"0"));
   return {barcode:b,weight_grams:grams,total_price_fils:core.roundedPrice(grams,3000,5)};
