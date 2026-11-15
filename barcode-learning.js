@@ -20,6 +20,7 @@ function make(tag,cls,text){
   return node;
 }
 function updateControls(){
+  $("learnImportSalmon").disabled=!user||busy;
   $("learnAddSample").disabled=!user||!active||busy;
   $("learnCreate").disabled=!user||busy;
   $("learnDeleteProfile").hidden=!user||!active;
@@ -121,6 +122,72 @@ async function createProfile(e){
   }catch(err){msg("learnProfileInfo","Could not create: "+err.message,true)}
   finally{busy=false;updateControls()}
 }
+async function importSalmonExamples(){
+  if(busy)return;
+  if(!client||!user)return msg("learnImportStatus","Sign in first to save the sample labels.",true);
+  const catalog=window.SalmonBarcodeSamples;
+  if(!catalog||!catalog.checkExamples(core))
+    return msg("learnImportStatus","Salmon example library is unavailable.",true);
+  if(!confirm("Import 11 label examples and create up to 3 salmon learning profiles in your private Supabase account? Existing examples will be kept."))return;
+  busy=true;updateControls();
+  const owner=user.id;
+  let saved=0,created=0,firstProfile=null;
+  msg("learnImportStatus","Importing photo-verified salmon examples…");
+  try{
+    for(const code of ["6376","6668","7144"]){
+      const def=catalog.PRODUCTS[code];
+      if(!def)throw new Error("Unknown sample product "+code);
+      let profile=profiles.find(p=>p.item_code===code &&
+        p.unit_price_fils===def.unit_price_fils &&
+        p.weight_step_grams===def.weight_step_grams &&
+        p.rounding_fils===def.rounding_fils);
+      if(!profile){
+        const {data,error}=await client.from(PROFILES).insert({
+          owner_id:owner,item_code:code,product_name:def.product_name,
+          weight_step_grams:def.weight_step_grams,unit_price_fils:def.unit_price_fils,
+          rounding_fils:def.rounding_fils
+        }).select("*").single();
+        if(error)throw error;
+        profile=data;profiles.push(profile);created++;
+      }
+      firstProfile ||= profile.id;
+      const {data:existing,error:queryError}=await client.from(EXAMPLES)
+        .select("barcode,weight_grams,total_price_fils").eq("owner_id",owner).eq("profile_id",profile.id);
+      if(queryError)throw queryError;
+      const have=new Set((existing||[]).map(e=>e.barcode+"|"+e.weight_grams+"|"+e.total_price_fils));
+      const missing=catalog.examplesFor(code).filter(e=>
+        !have.has(e.barcode+"|"+e.weight_grams+"|"+e.total_price_fils));
+      if(missing.length){
+        const records=missing.map(e=>({
+          owner_id:owner,profile_id:profile.id,barcode:e.barcode,
+          weight_grams:e.weight_grams,total_price_fils:e.total_price_fils,
+          verified_from_label:true
+        }));
+        const {error}=await client.from(EXAMPLES).insert(records);
+        if(error)throw error;
+        saved+=records.length;
+      }
+      const all=[...(existing||[]),...missing];
+      const result=core.analyze(all,profile);
+      const changes={
+        barcode_prefix:result.barcode_prefix||"",
+        pattern_mode:result.mode||"unknown",
+        review_status:result.status||"collecting",
+        sample_count:all.length,updated_at:new Date().toISOString()
+      };
+      const {error:updateError}=await client.from(PROFILES).update(changes)
+        .eq("id",profile.id).eq("owner_id",owner);
+      if(updateError)throw updateError;
+    }
+    await loadProfiles(firstProfile);
+    msg("learnImportStatus","Imported "+saved+" new label examples. "+
+      "Created "+created+" profiles. 6376 and 6668 have 4 examples each; 7144 needs one more independent bone label.");
+  }catch(err){
+    await loadProfiles(firstProfile);
+    msg("learnImportStatus","Import incomplete: "+err.message+". Any successful rows remain saved.",true);
+  }finally{busy=false;updateControls()}
+}
+
 async function chooseProfile(id){
   active=profiles.find(p=>p.id===id)||null;
   samples=[];analysis=null;pendingCodes=[];renderPending();renderSamples();renderAnalysis();
@@ -450,6 +517,7 @@ $("learnSignOut").addEventListener("click",async()=>{
   stopCamera();if(client)await client.auth.signOut();setUser(null);
 });
 $("learnProfileForm").addEventListener("submit",e=>void createProfile(e));
+$("learnImportSalmon").addEventListener("click",()=>void importSalmonExamples());
 $("learnProfiles").addEventListener("change",e=>void chooseProfile(e.target.value));
 $("learnDeleteProfile").addEventListener("click",()=>void deleteProfile());
 $("learnSampleForm").addEventListener("submit",e=>void saveExample(e));
