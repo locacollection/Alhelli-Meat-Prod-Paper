@@ -593,7 +593,7 @@ assert.ok(scanMarkup.includes('id="scanStage"'));
 assert.ok(scanMarkup.includes('id="scanStageMarkers"'));
 assert.ok(scanMarkup.includes('id="scanStageSweep"'));
 const photoScanStart=source.indexOf("async function scanPhotos(){");
-const photoScanEnd=source.indexOf("\\nfunction td(",photoScanStart);
+const photoScanEnd=source.indexOf("\nfunction td(",photoScanStart);
 assert.ok(photoScanStart>=0&&photoScanEnd>photoScanStart);
 const photoScanBody=source.slice(photoScanStart,photoScanEnd);
 assert.match(photoScanBody,/scanStageHide\(\);\s*if\(photos\.length\)void scanPhotos\(\);/,
