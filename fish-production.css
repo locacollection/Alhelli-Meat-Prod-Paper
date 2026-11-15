@@ -1,0 +1,91 @@
+@import url("./scanner.css?v=fish-1");
+.fish-layout{display:grid;grid-template-columns:minmax(0,1.27fr) minmax(0,.83fr);gap:22px;align-items:start;margin:24px 0}
+.fish-left,.fish-right{display:flex;flex-direction:column;gap:20px;min-width:0}
+.fish-panel{margin:0}
+.fish-panel h2{font-size:21px;margin:0 0 17px}
+.fish-hint{font-size:13px;color:#60776a;line-height:1.6;margin:9px 0}
+.fish-fine{font-size:11px;color:#6f8276;line-height:1.55;margin:12px 0 0}
+.fish-label-list{display:grid;gap:12px}
+.fish-card{background:white;border:1px solid #cfddd3;border-radius:15px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.fish-card.is-checked{background:#f4faf5;border-color:#b8d5c0}
+.fish-card.is-pending{border-color:#e1c59a;background:#fffaf4}
+.fish-card-head{display:flex;align-items:start;justify-content:space-between;gap:10px}
+.fish-card-heading{min-width:0;display:flex;flex-direction:column;gap:3px}
+.fish-card-heading small{font-size:10px;color:#7a9985;letter-spacing:.08em;font-weight:800}
+.fish-card-heading strong{font-size:15px;line-height:1.35;color:#183c2c}
+.fish-card-badge{font-size:11px;border-radius:99px;background:#e5f5e8;color:#237b43;padding:5px 10px;white-space:nowrap;font-weight:800}
+.fish-card.is-pending .fish-card-badge{color:#945c21;background:#fff0d9}
+.fish-card-stats{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.fish-card-stat{background:#f7faf8;padding:11px;border:1px solid #e0eae3;border-radius:10px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.fish-card-stat small{font-size:11px;color:#65806f}
+.fish-card-stat strong{font-size:17px;color:#1b4935;font-variant-numeric:tabular-nums}
+.fish-card-code{font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere;color:#2d6951;font-size:12px}
+.fish-card-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:9px;border-top:1px solid #e7eee8}
+.fish-card-actions button{font-size:12px}
+.fish-card-actions .mini{min-height:36px;padding:7px 10px}
+.fish-issues{font-size:12px;color:#985928;background:#fff5e4;border:1px solid #ebd5a9;padding:9px 11px;border-radius:9px}
+.fish-notice{background:#eaf7ef;border:1px solid #b8d9c1;color:#285d3e;padding:11px 13px;margin:11px 0;border-radius:10px;font-size:13px;line-height:1.5}
+.fish-notice[hidden]{display:none!important}
+.fish-notice.is-warning{background:#fff8e9;color:#7e5a26;border-color:#eddbb4}
+.fish-summary h2{font-size:17px;margin:4px 0 12px}
+.fish-primary-row,.fish-summary-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px solid #e2e9e3}
+.fish-primary-row{background:#183e32;color:#fff;padding:17px 14px;border-radius:11px;margin-bottom:25px}
+.fish-primary-row>div,.fish-summary-row>div{min-width:0;display:flex;flex-direction:column;gap:4px}
+.fish-primary-row>div strong,.fish-summary-row>div strong{font-size:12px;color:inherit}
+.fish-primary-row span,.fish-summary-row span{font-size:12px;line-height:1.35}
+.fish-summary-row>strong,.fish-primary-row>strong{font-size:20px;color:#1a5136;white-space:nowrap;font-variant-numeric:tabular-nums}
+.fish-primary-row>strong{color:#fff;font-size:22px}
+.fish-summary-row:last-child{border:0}
+.fish-batch-summary{display:grid;gap:7px;margin-top:16px}
+.fish-batch-summary:empty{display:none}
+.fish-batch-summary div{background:#f7faf6;border:1px solid #e2eae4;padding:9px 11px;border-radius:9px;font-size:12px;color:#51705c}
+.fish-batch-summary strong{color:#28583c}
+.fish-history-list{display:grid;gap:10px;margin:10px 0}
+.fish-history-list article{border-radius:11px;border:1px solid #dbe7de;background:#fcfdfb;padding:12px;font-size:12px}
+.fish-history-list article>div{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px}
+.fish-history-list article>strong{display:block;font-size:14px;margin-bottom:5px}
+.fish-history-list article>small{font-size:11px;color:#6c8371}
+.fish-modal{width:min(680px,calc(100vw - 20px));max-height:92dvh;overflow:auto;border:1px solid #c7d9cb;border-radius:17px;background:#fff;color:#193c2b;padding:18px;box-shadow:0 16px 60px #0b241866}
+.fish-modal::backdrop{background:#0c211bb9}
+.fish-modal-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.fish-modal-top h2{font-size:18px;line-height:1.35;margin:0}
+.fish-form{display:grid;gap:12px}
+.fish-form label,.fish-panel label{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:750;color:#365b43}
+.fish-form label input,.fish-form label select,.fish-panel label input{width:100%;background:#fff;border:1px solid #c6d7ca;border-radius:11px;padding:12px;font-size:15px;min-height:44px;color:#183d2d}
+.fish-form label input:focus,.fish-panel label input:focus,.fish-form select:focus{outline:2px solid #86bc9a}
+.fish-form .buttons{flex-wrap:wrap}
+.fish-form .buttons .btn{min-height:43px}
+.fish-edit-photo{height:210px;margin-bottom:14px;border:1px solid #d8e2db;border-radius:11px;background:#f4f7f4;display:grid;place-items:center;overflow:hidden}
+.fish-edit-photo[hidden]{display:none}
+.fish-edit-photo img{width:100%;height:100%;object-fit:contain}
+.fish-label-preview{width:100%;max-height:75dvh;object-fit:contain;border-radius:9px}
+.fish-camera-frame{position:relative;background:#081b17;border-radius:12px;overflow:hidden}
+.fish-camera-frame video{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+.fish-camera-target{position:absolute;inset:39% 9% 37%;border:2px solid #22ff80;border-radius:9px;pointer-events:none;box-shadow:0 0 0 100vmax #081c1744}
+.fish-camera-target::after{content:"";position:absolute;left:6%;right:6%;top:50%;border-top:2px solid #8fffbe;box-shadow:0 0 10px #23ff81}
+.fish-paper-modal{width:min(790px,calc(100vw - 20px))}
+.fish-paper-content{background:#eceeeb;border-radius:11px;padding:9px;overflow-x:auto;margin-bottom:12px}
+.fish-paper-sheet{width:560px;max-width:none;margin:0 auto;background:white;min-height:730px;padding:22px;border:1px solid #bbb;box-shadow:0 5px 14px #11291916;font-family:Arial,Helvetica,sans-serif;color:#333}
+.fish-paper-head{display:flex;align-items:start;justify-content:space-between;gap:12px;color:#815a62}
+.fish-paper-head strong{font-size:25px}
+.fish-paper-sheet h2{text-align:center;font-size:16px;text-decoration:underline;margin:18px 0 11px}
+.fish-paper-sheet h3{text-align:center;font-size:13px;text-decoration:underline;margin:19px 0 7px}
+.fish-table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
+.fish-table th,.fish-table td{border:1px solid #858585;padding:6px 5px;word-wrap:break-word}
+.fish-table td{height:26px}
+.fish-table th:nth-child(1){width:19%}.fish-table th:nth-child(2){width:53%}.fish-table th:nth-child(3){width:10%}.fish-table th:nth-child(4){width:18%}
+.fish-table tbody td:nth-child(3),.fish-table tbody td:nth-child(4){text-align:center}
+.fish-paper-meta{margin-top:12px;display:flex;gap:9px;flex-wrap:wrap;justify-content:space-between;font-size:11px}
+.fish-paper-sign{font-size:11px;margin-top:32px;display:grid;gap:17px}
+.fish-checkbox{display:flex!important;flex-direction:row!important;align-items:flex-start;gap:9px!important;margin:13px 0}
+.fish-checkbox input{width:19px;height:19px;flex:none}
+#fishLoggedIn[hidden],#fishScanStage[hidden],#fishEditPhotoWrap[hidden]{display:none!important}
+.fish-scanning-img{position:relative;width:min(100%,450px);margin:8px auto;border-radius:10px;overflow:hidden;background:#102c21}
+.fish-scanning-img img{display:block;width:100%;height:auto}
+.fish-scanning-line{position:absolute;left:0;right:0;height:5px;top:0;background:#2eff79;box-shadow:0 0 18px #20f576;animation:fish-sweep 2.3s linear infinite}
+.fish-scanning-label{font-size:13px;color:#3c7253;font-weight:700}
+@keyframes fish-sweep{to{top:100%}}
+@media(max-width:900px){.fish-layout{grid-template-columns:1fr;gap:18px}}
+@media(max-width:450px){.fish-modal{padding:12px}.fish-panel h2{font-size:19px}.fish-card-actions .mini{font-size:12px}.fish-primary-row>strong{font-size:19px}.fish-summary-row>strong{font-size:18px}}
+@media(prefers-reduced-motion:reduce){.fish-scanning-line{animation:none;top:50%}}
+@media print{header.site-head,.fish-layout,.fish-modal{display:none!important}}
