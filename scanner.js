@@ -116,6 +116,27 @@ function matchPrintedOCR(entry,ocr={}){
     if(field==="weight"&&num!==expected&&roundedPrice(num,reference.unit)===reference.price)continue;
     if(num!==expected)differences.push(field+" "+raw+" instead of "+fmtMoney(expected));
   }
+  // An OCR *number* alone is not trusted, but two independent printed
+  // values (weight and total) agreeing at the stored rate can expose a
+  // misdecoded barcode. Do NOT overwrite the database with OCR figures.
+  const weightReading=fixed3(ocr.weight);
+  const totalReading=fixed3(ocr.printed);
+  const rateReading=fixed3(ocr.unit);
+  const coherentPrint=weightReading!==null&&totalReading!==null&&
+    weightReading>=5&&weightReading<=10000&&weightReading%5===0&&
+    (rateReading===null||rateReading===reference.unit)&&
+    roundedPrice(weightReading,reference.unit)===totalReading;
+  const seriousMismatch=coherentPrint&&
+    (Math.abs(weightReading-reference.grams)>=100||
+     Math.abs(totalReading-reference.price)>=300);
+  if(seriousMismatch){
+    return {...base,confirmed:false,autoConfirmed:false,ocrChecked:false,ocrWarning:"",
+      ocrConflict:"Scanned barcode disagrees with the printed weight and total price. "+
+      "Printed label appears to say "+fmtKg(weightReading)+" kg and "+
+      fmtMoney(totalReading)+" BD, while barcode lookup says "+
+      fmtKg(reference.grams)+" kg and "+fmtMoney(reference.price)+
+      " BD. Recheck the sticker and use Correct scanned barcode."};
+  }
   // A possible mismatch in the product category needs review because it can
   // change the Recipe GRN code (6780 vs 6781).
   if(ocr.ocrProduct && ocr.ocrProduct!==reference.info.code)
@@ -404,7 +425,7 @@ function buildRow(entry,i){
   fix.addEventListener("click",()=>{
     const raw=prompt("Enter the 13-digit barcode printed on this sticker:",entry.barcode);
     if(raw===null)return;
-    const barcode=String(raw).replace(/\\s/g,"");
+    const barcode=String(raw).replace(/\s/g,"");
     const info=catalogFromBarcode(barcode);
     if(!info.ok){show("scanMsg",info.reason,"warn");return}
     const oldCode=decode(entry.barcode).code;
