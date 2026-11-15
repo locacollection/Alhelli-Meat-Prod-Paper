@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#183c32">
 <meta name="description" content="Meat production barcode scanner and production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=scan-mask-20">
+<link rel="stylesheet" href="scanner.css?v=live-one-label-22">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
@@ -56,10 +56,12 @@
           </div>
           <div class="manual-barcode-controls">
             <input id="manualBarcode" type="text" inputmode="numeric" pattern="[0-9]{13}" maxlength="13" autocomplete="off" spellcheck="false" placeholder="e.g. 9667800031057" required>
+            <button id="startSingleScan" class="btn btn-light live-scan-trigger" type="button"><span aria-hidden="true">▣</span> Scan 1 label</button>
             <button class="btn" type="submit">Add barcode</button>
             <button id="cancelManualBarcode" class="btn btn-outline" type="button">Cancel</button>
           </div>
           <p id="manualBarcodeError" class="manual-barcode-error" role="alert" aria-live="polite"></p>
+          <p id="singleBarcodeFeedback" class="single-barcode-feedback" role="status" aria-live="polite" hidden></p>
         </form>
       </section>
 
@@ -118,6 +120,21 @@
     </aside>
   </div>
 </main>
+<dialog id="singleBarcodeDialog" class="live-barcode-dialog noprint" aria-labelledby="singleBarcodeHeading">
+  <div class="live-barcode-header">
+    <div><h2 id="singleBarcodeHeading">Scan one label</h2><p>Position a single 13-digit barcode inside the frame</p></div>
+    <button id="closeSingleScan" type="button" class="mini" aria-label="Close camera scanner">Close</button>
+  </div>
+  <div class="live-barcode-video-wrap">
+    <video id="singleBarcodeVideo" autoplay muted playsinline aria-label="Live rear camera barcode scanner"></video>
+    <div class="live-barcode-guide" aria-hidden="true"><span></span><i></i></div>
+  </div>
+  <p id="singleBarcodeStatus" class="live-barcode-status" role="status" aria-live="polite">Starting camera…</p>
+  <div class="live-barcode-footer">
+    <button id="singleBarcodeTorch" class="mini" type="button" hidden>Turn flashlight on</button>
+    <span>Recognizes one 6777, 6780 or 6781 barcode and closes automatically</span>
+  </div>
+</dialog>
 <dialog id="cropDialog" class="crop-dialog noprint" aria-labelledby="cropHeading">
   <div class="crop-dialog-top"><h2 id="cropHeading">Scanned label</h2><button id="cropClose" type="button" aria-label="Close label photo">✕</button></div>
   <img id="cropImage" alt="Cropped label sticker">
@@ -180,7 +197,8 @@
     </tbody>
   </table>
 </section>
-<script src="scanner.js?v=scan-auto-hide-21"></script>
+<script src="scanner.js?v=live-one-label-22"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="paper-store.js?v=saved-papers-19"></script>
+<script src="live-barcode.js?v=live-one-label-22"></script>
 </body></html>
