@@ -49,7 +49,8 @@ assert.ok(["ambiguous","collecting"].includes(mixedPrefix.status));
 // A typo must be stopped, not silently learned.
 assert.equal(core.sampleCheck({...savedMeat[1],weight_grams:685},config).ok,false);
 assert.equal(core.sampleCheck({...savedMeat[1],total_price_fils:3100},config).ok,false);
-assert.equal(core.analyze([...savedMeat,{...savedMeat[1],weight_grams:695}],config).status,"ambiguous");
+assert.equal(core.analyze([...savedMeat,{...savedMeat[1],weight_grams:695}],config).status,"collecting",
+  "A mismatched printed price must block learning before considering barcode collisions.");
 // For fish 2g weights, a 5-fil price step may encode more than one weight
 // at a low rate. The learner must refuse to assert an exact weight.
 const lowPrice={item_code:"6376",product_name:"Atlantic Salmon Fish",
@@ -61,6 +62,8 @@ const fishSamples=[100,200,300,400].map(w=>{
   const b=checksumBarcode(prefix+core.priceVerifier(price)+String(price).padStart(5,"0"));
   return {barcode:b,weight_grams:w,total_price_fils:price};
 });
+assert.equal(core.analyze([...fishSamples,{...fishSamples[0],weight_grams:102}],lowPrice).status,
+  "ambiguous","Same barcode at two 2 g weights must be flagged as ambiguous.");
 const fish=core.analyze(fishSamples,lowPrice);
 assert.equal(fish.status,"validated");
 assert.equal(fish.mode,"price5_verified");
