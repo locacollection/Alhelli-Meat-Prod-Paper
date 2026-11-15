@@ -318,6 +318,7 @@ function startBlankSheet(){
   entries=[];
   photos.splice(0);
   scannedPhotoKeys.clear();
+  scanStageHide();
   try{localStorage.removeItem(STORAGE)}catch(_){}
   // Cropped sticker images were formerly saved in IndexedDB. Delete them
   // too so old sheets are not left in device storage or brought back later.
@@ -672,6 +673,94 @@ function insertManualEntry(barcode){
   }
   return {entry};
 }
+// Green scan overlay uses BarcodeDetector bounding boxes. It is visual
+// feedback only and never changes a decoded barcode, price, or weight.
+let scanStageMarks=[];
+let scanStageUrl="";
+function scanStageHide(){
+  const stage=$("scanStage");
+  if(!stage)return;
+  stage.hidden=true;
+  $("scanStageMarkers").replaceChildren();
+  scanStageMarks=[];
+  if(scanStageUrl){URL.revokeObjectURL(scanStageUrl);scanStageUrl=""}
+  $("scanStageImage").removeAttribute("src");
+}
+function beginScanStage(file,number,total){
+  const stage=$("scanStage");
+  stage.hidden=false;
+  stage.dataset.state="detecting";
+  $("scanStageFile").textContent=file.name;
+  $("scanStageProgress").textContent="Photo "+number+" / "+total;
+  $("scanStageStatus").textContent="Locating barcodes on this sheet…";
+  $("scanStageMarkers").replaceChildren();
+  scanStageMarks=[];
+  $("scanStageSweep").className="scan-stage-sweep is-sweeping";
+  if(scanStageUrl)URL.revokeObjectURL(scanStageUrl);
+  scanStageUrl=URL.createObjectURL(file);
+  $("scanStageImage").src=scanStageUrl;
+}
+function setScanStageCanvas(canvas){
+  // Normalize orientation and dimensions to match BarcodeDetector coordinates.
+  // The animation is deliberately limited to a small, local image preview.
+  const scale=Math.min(1,900/Math.max(canvas.width,canvas.height));
+  const mini=document.createElement("canvas");
+  mini.width=Math.max(1,Math.round(canvas.width*scale));
+  mini.height=Math.max(1,Math.round(canvas.height*scale));
+  mini.getContext("2d").drawImage(canvas,0,0,mini.width,mini.height);
+  const frame=$("scanStageImage");
+  if(scanStageUrl){URL.revokeObjectURL(scanStageUrl);scanStageUrl=""}
+  frame.src=mini.toDataURL("image/jpeg",.74);
+}
+function scanTargetPercent(region,canvas){
+  const pad=Math.max(5,region.w*.07);
+  const x=Math.max(0,region.x-pad),y=Math.max(0,region.y-pad);
+  const right=Math.min(canvas.width,region.x+region.w+pad);
+  const bottom=Math.min(canvas.height,region.y+region.h+pad);
+  const pct=(n,d)=>Math.max(0,Math.min(100,100*n/d));
+  return {left:pct(x,canvas.width),top:pct(y,canvas.height),
+    width:pct(right-x,canvas.width),height:pct(bottom-y,canvas.height)};
+}
+function setScanTargets(regions,canvas){
+  const layer=$("scanStageMarkers");layer.replaceChildren();
+  scanStageMarks=regions.map((region,index)=>{
+    const box=scanTargetPercent(region,canvas);
+    const outline=document.createElement("span");
+    outline.className="scan-stage-target is-waiting";
+    outline.style.left=box.left+"%";outline.style.top=box.top+"%";
+    outline.style.width=box.width+"%";outline.style.height=box.height+"%";
+    outline.dataset.index=String(index);
+    const indexTag=document.createElement("b");indexTag.className="scan-stage-label";
+    indexTag.textContent=String(index+1);outline.append(indexTag);
+    layer.append(outline);return outline;
+  });
+  $("scanStageProgress").textContent="0 / "+regions.length+" barcodes";
+  $("scanStageStatus").textContent=regions.length?
+    "Found "+regions.length+" barcode location"+(regions.length===1?"":"s")+". Checking each one…":
+    "No barcode positions found. Trying the printed numbers…";
+}
+function setScanTargetState(index,state,barcode=""){
+  const target=scanStageMarks[index];if(!target)return;
+  target.className="scan-stage-target is-"+state;
+  target.setAttribute("aria-label","Barcode "+(index+1)+" "+state);
+  const count=scanStageMarks.filter(x=>x.className.includes("is-verified")||x.className.includes("is-review")).length;
+  $("scanStageProgress").textContent=count+" / "+scanStageMarks.length+" checked";
+  $("scanStageStatus").textContent=state==="active"?
+    "Reading barcode "+(index+1)+" of "+scanStageMarks.length+"…":
+    state==="verified"?"Verified: "+barcode:
+    "Barcode "+(index+1)+" needs review"+(barcode?" · "+barcode:"");
+}
+function finishScanStage(message,wasProblem=false){
+  const stage=$("scanStage");if(stage.hidden)return;
+  $("scanStageSweep").className="scan-stage-sweep";
+  stage.dataset.state=wasProblem?"review":"complete";
+  const done=scanStageMarks.filter(x=>x.className.includes("is-verified")).length;
+  const needs=scanStageMarks.filter(x=>x.className.includes("is-review")).length;
+  $("scanStageProgress").textContent=scanStageMarks.length?
+    done+" verified"+(needs?" · "+needs+" review":""):"Scan complete";
+  $("scanStageStatus").textContent=message;
+}
+
 function imgPreview(job){
   const file=job.file;
   const item=document.createElement("div");item.className="photo-item";
@@ -890,12 +979,15 @@ async function scanPhotos(){
     for(let i=0;i<batch.length;i++){
       const {file,sheetId}=batch[i];
       const countBeforePhoto=added;
+      beginScanStage(file,i+1,batch.length);
       show("scanMsg","Scanning "+(i+1)+"/"+batch.length+"…");
       let bitmap=null;
       try{
         bitmap=await createImageBitmap(file);
         const canvas=createScaledCanvas(bitmap);bitmap.close();bitmap=null;
+        setScanStageCanvas(canvas);
         const regions=await detectAll(canvas);
+        setScanTargets(regions,canvas);
         const effectiveKind=classifyPhotoBarcodes(regions.map(r=>r.barcode));
         if(!regions.length){
           // OCR fallback is not the primary scanning path. A correctly read 13
@@ -919,7 +1011,11 @@ async function scanPhotos(){
         }else{
           for(let j=0;j<regions.length;j++){
             const region=regions[j],decoded=decode(region.barcode);
-            if(decoded.error)continue;
+            setScanTargetState(j,"active");
+            if(decoded.error){
+              setScanTargetState(j,"review",region.barcode);
+              continue;
+            }
             // PRIMARY: Add barcode and catalog-derived weight before OCR starts.
             const entry=addLabel({barcode:region.barcode,kind:effectiveKind,sheetId,photoName:file.name,source:"Barcode + 5 g catalog"});
             // Crop directly from the detected BARCODE position. Never use the
@@ -931,7 +1027,10 @@ async function scanPhotos(){
             added++;
             if(entry.confirmed)ready++;else review++;
             show("scanMsg","Scanning "+(i+1)+"/"+batch.length+" · "+(j+1)+"/"+regions.length+" labels…");
-            if(!entry.confirmed)continue;
+            if(!entry.confirmed){
+              setScanTargetState(j,"review",region.barcode);
+              continue;
+            }
             try{
               if(!worker)worker=await(await loadOCR()).createWorker("eng");
               const fields=await readFieldsForBarcode(worker,canvas,region,decoded);
@@ -944,10 +1043,18 @@ async function scanPhotos(){
               // OCR failure is not a barcode failure; leave the derived weight.
               errors++;
             }
+            setScanTargetState(j,entry.confirmed?"verified":"review",region.barcode);
           }
         }
         if(added>countBeforePhoto)scannedPhotoKeys.add(photoKey(file));
-      }catch(err){errors++;show("scanMsg","Unable to scan "+file.name+": "+err.message,"warn")}
+        finishScanStage(regions.length?
+          "Finished checking detected barcode locations. Review the label count before saving.":
+          "Barcode positions were not available. OCR fallback may have found label numbers.",false);
+      }catch(err){
+        errors++;
+        finishScanStage("Could not finish reading this sheet: "+err.message,true);
+        show("scanMsg","Unable to scan "+file.name+": "+err.message,"warn");
+      }
       finally{bitmap?.close?.()}
     }
   }finally{
@@ -1027,7 +1134,7 @@ $("cancelManualBarcode").addEventListener("click",()=>{
 });
 $("clearLabels").addEventListener("click",()=>{
   if(entries.length&&!confirm("Start a new production paper and clear all labels?"))return;
-  clearAllCrops(entries);entries=[];photos.splice(0);scannedPhotoKeys.clear();persist();render();updatePhotoQueue();
+  clearAllCrops(entries);entries=[];photos.splice(0);scannedPhotoKeys.clear();scanStageHide();persist();render();updatePhotoQueue();
   show("scanMsg","");
 });
 // Preview, saving, and optional PDF export are handled by paper-store.js.
@@ -1056,7 +1163,7 @@ function paperSnapshot(){
 }
 
 window.MeatProductionApp={paperSnapshot,preparePaper,paperState};
-window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,addPhotos};
+window.MeatProductionChecks={decode,priceVerifier,checkDigit,roundedPrice,fixed3,verify,readUniqueDecimal,ocrFields,photoRegion,fieldRegion,shouldAutoConfirm,encodeFromPrinted,fillCatalogUnit,catalogFromBarcode,fromBarcode,matchPrintedOCR,addLabel,totals,paperState,preparePaper,padPaperRows,labelCropBounds,buildRow,keepLabelCrop,productionCalculation,insertManualEntry,groupBoneSheetRows,appendBoneReviewGroup,classifyPhotoBarcodes,addPhotos,scanTargetPercent,setScanTargets,setScanTargetState,beginScanStage,finishScanStage,scanStageHide};
 const now=new Date();$("date").value=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
 startBlankSheet();render();updatePhotoQueue();
 })();
