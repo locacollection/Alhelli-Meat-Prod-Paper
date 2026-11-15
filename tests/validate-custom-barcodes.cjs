@@ -121,6 +121,7 @@ async function main(){
   assert.throws(()=>api.validateInput({...pcs,pieces:"2.5"}),/number of pieces/);
   assert.throws(()=>api.validateInput({...kg,barcode:"9667777103054"}),/protected/);
   assert.throws(()=>api.validateInput({...kg,barcode:"4006381333932"}),/correct check digit/);
+  await tick(); // Supabase session lookup is asynchronous
   assert.equal(get("customSave").disabled,true,"Cannot save to DB without account");
   // Scanning only fills the barcode field and never persists an unreviewed item.
   get("scanCustomBarcode").listeners.click();
