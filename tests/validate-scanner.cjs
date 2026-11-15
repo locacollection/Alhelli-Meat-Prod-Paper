@@ -592,6 +592,14 @@ const scanMarkup=fs.readFileSync("index.html","utf8");
 assert.ok(scanMarkup.includes('id="scanStage"'));
 assert.ok(scanMarkup.includes('id="scanStageMarkers"'));
 assert.ok(scanMarkup.includes('id="scanStageSweep"'));
+const photoScanStart=source.indexOf("async function scanPhotos(){");
+const photoScanEnd=source.indexOf("\\nfunction td(",photoScanStart);
+assert.ok(photoScanStart>=0&&photoScanEnd>photoScanStart);
+const photoScanBody=source.slice(photoScanStart,photoScanEnd);
+assert.match(photoScanBody,/scanStageHide\(\);\s*if\(photos\.length\)void scanPhotos\(\);/,
+  "Completed scan must hide the green mask before processing newly queued photos");
+console.log("Completed-scan UI test passed: overlay automatically hidden after processing.");
+
 const scanCss=fs.readFileSync("scanner.css","utf8");
 assert.match(scanCss,/@keyframes scan-barcode-sweep/);
 assert.match(scanCss,/@media\(prefers-reduced-motion:reduce\)/);
