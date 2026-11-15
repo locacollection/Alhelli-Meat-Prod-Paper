@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#183c32">
+<meta name="description" content="Private barcode manager for kg and per-piece items. Scan, save, search and edit EAN-13 labels.">
+<title>Barcode Manager | Meat Production</title>
+<link rel="stylesheet" href="scanner.css?v=custom-manager-1">
+<style>
+.catalog-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:20px;align-items:start}
+.catalog-layout .panel{margin-bottom:18px}
+.manager-intro{font-size:13px;line-height:1.6;color:#567362;margin:2px 0 16px}
+.manager-form{display:grid;gap:14px}
+.manager-form label,.catalog-auth label{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:750;color:#345b44}
+.manager-form input,.manager-form select,.manager-form textarea,.catalog-auth input{width:100%;padding:12px 13px;border:1px solid #bfcec4;border-radius:11px;font-family:inherit;font-size:15px;min-height:44px;color:#213d2e;background:#fff}
+.manager-form input:focus,.manager-form select:focus,.catalog-auth input:focus{outline:3px solid #b8dfc2;border-color:#21844f}
+.manager-form textarea{min-height:75px;resize:vertical}
+.manager-form small{font-size:11px;line-height:1.45;color:#647968;font-weight:500}
+.manager-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.manager-form .buttons{gap:9px;flex-wrap:wrap}
+.manager-form .buttons .btn{min-height:45px}
+.manager-camera-controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.manager-camera-controls button{flex:1 1 160px}
+.manager-status{font-size:13px;line-height:1.5;padding:10px 12px;border-radius:9px;background:#eef5ef;color:#315f40;margin:10px 0}
+.manager-status[hidden]{display:none}
+.manager-status.error{background:#fff1e8;color:#95452f}
+.manager-note{background:#fff9e9;border:1px solid #e8d8b0;border-radius:10px;padding:10px 12px;color:#7b6228;font-size:12px;line-height:1.5}
+.manager-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.manager-header h2{margin:0}
+.manager-form [hidden],.catalog-auth[hidden],.manager-authenticated[hidden],.manager-edit[hidden]{display:none!important}
+.catalog-auth{display:grid;gap:11px;margin-top:12px}
+.manager-authenticated{padding:9px 0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px}
+.manager-authenticated strong{overflow-wrap:anywhere}
+.manager-search{margin:13px 0;display:flex;gap:9px}
+.manager-search input{min-width:0;flex:1;padding:11px 12px;border:1px solid #c9d7cc;border-radius:10px}
+.manager-records{display:grid;gap:10px}
+.manager-record{padding:12px 13px;border:1px solid #d7e4db;background:#fafdfa;border-radius:12px;min-width:0}
+.manager-record strong{display:block;font-size:14px;color:#164c31;margin-bottom:6px;overflow-wrap:anywhere}
+.manager-record code{display:block;font-size:14px;font-weight:800;overflow-wrap:anywhere;letter-spacing:.02em;color:#244f37;margin-bottom:8px}
+.manager-record p{font-size:12px;color:#4b6a55;margin:4px 0;line-height:1.45}
+.manager-record-buttons{display:flex;gap:9px;margin-top:12px}
+.manager-record-buttons .mini{min-height:38px}
+.manager-record-buttons .is-danger{color:#9a4135}
+.manager-empty{padding:20px 12px;border:1px dashed #b8cfbe;border-radius:10px;color:#597263;font-size:13px;text-align:center}
+.manager-stats{font-size:12px;color:#4b6b55;margin:4px 0 10px}
+.manager-total{font-size:14px;font-weight:800;padding:12px;background:#ebf7ee;border-radius:10px;color:#22583a}
+.manager-footer-note{font-size:11px;color:#6f806d;line-height:1.6}
+.manager-camera{border:1px solid #a2cbb4;border-radius:15px;padding:14px;background:#fff;width:min(560px,calc(100vw - 22px));max-height:90dvh}
+.manager-camera::backdrop{background:#071e17cf}
+.manager-camera .cam-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.manager-camera h2{font-size:17px;margin:0}
+.manager-camera-frame{position:relative;background:#091d17;border-radius:10px;overflow:hidden}
+.manager-camera video{display:block;width:100%;max-height:65dvh;aspect-ratio:4/3;object-fit:cover}
+.manager-camera-guide{position:absolute;left:8%;right:8%;top:34%;height:28%;border:2px solid #25ff8b;border-radius:10px;box-shadow:0 0 0 100vmax #061c171c;pointer-events:none}
+.manager-camera-guide::after{content:"";position:absolute;left:3%;right:3%;top:50%;border-top:2px solid #31ff86;box-shadow:0 0 10px #31ff86}
+.manager-cam-status{font-size:12px;color:#4f6e5a;margin:10px 0 0;line-height:1.45}
+.manager-actions{display:flex;gap:8px;flex-wrap:wrap}
+.manager-lookup{font-size:12px;line-height:1.5;background:#ebf7ee;color:#295d3b;border-radius:8px;padding:8px 10px}
+.manager-lookup[hidden]{display:none}
+@media(max-width:870px){.catalog-layout{grid-template-columns:1fr}}
+@media(max-width:440px){.manager-row{grid-template-columns:1fr}.manager-camera video{aspect-ratio:3/4}.manager-form .buttons .btn{flex:1 1 125px}.manager-search{flex-direction:column}}
+@media print{.site-head,.catalog-layout,.manager-camera{display:none!important}}
+</style>
+</head>
+<body>
+<header class="site-head noprint"><div class="container header-row">
+<div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong></div></div>
+<nav><a href="./index.html">Production scanner</a><a href="./barcode-catalog.html">Original catalog</a></nav>
+</div></header>
+<main class="container">
+<section class="panel">
+ <div class="manager-header"><div><h1 style="font-size:24px;margin:0 0 5px">Barcode Manager</h1><p class="manager-intro">Scan and save your own kg or per-piece items. Your custom catalog stays separate from the original meat barcodes.</p></div></div>
+ <div id="managerSignedOut" class="catalog-auth">
+   <strong>Sign in to manage your catalog</strong>
+   <form id="managerLoginForm" class="catalog-auth">
+    <label>Email<input id="managerEmail" type="email" autocomplete="email" required></label>
+    <label>Password<input id="managerPassword" type="password" autocomplete="current-password" required></label>
+    <div class="manager-actions"><button class="btn" type="submit">Sign in</button><button class="btn btn-light" type="button" id="managerCreateAccount">Create account</button></div>
+   </form>
+   <p class="manager-footer-note">Use the same Supabase account as Saved Papers. A new account may require email confirmation.</p>
+ </div>
+ <div id="managerSignedIn" class="manager-authenticated" hidden>
+   <span>Signed in as <strong id="managerUsername"></strong></span><button class="mini" id="managerSignOut" type="button">Sign out</button>
+ </div>
+ <p id="managerAuthStatus" class="manager-status" role="status" aria-live="polite" hidden></p>
+</section>
+<div class="catalog-layout">
+<section class="panel" id="managerEditor">
+  <div class="manager-header"><h2 id="managerFormTitle">Add new barcode</h2><span id="managerEditFlag" class="tag" hidden>Editing</span></div>
+  <p class="manager-intro">Scan the barcode first, then enter the details printed on the label. The manager does not guess the quantity or price of an unknown item.</p>
+  <form id="customBarcodeForm" class="manager-form">
+    <label>13-digit EAN barcode
+      <input id="customBarcode" type="text" inputmode="numeric" pattern="[0-9]{13}" maxlength="13" autocomplete="off" spellcheck="false" placeholder="e.g. 9158851001002" required>
+    </label>
+    <div class="manager-camera-controls">
+      <button class="btn btn-light" type="button" id="scanCustomBarcode"><span aria-hidden="true">▣</span> Scan barcode with camera</button>
+      <button class="btn btn-outline" type="button" id="lookupCustomBarcode">Find saved barcode</button>
+    </div>
+    <p id="customBarcodeLookup" class="manager-lookup" hidden></p>
+    <div class="manager-row">
+      <label>Item code / PLU (optional)<input id="customItemCode" maxlength="32" placeholder="e.g. 6810"></label>
+      <label>Unit of measurement
+        <select id="customUnitType"><option value="kg">Per kilogram (kg)</option><option value="pcs">Per piece (PC)</option></select>
+      </label>
+    </div>
+    <label>Item name<input id="customProductName" maxlength="120" placeholder="e.g. Vegetable Leaves" required></label>
+    <div id="customKgField">
+      <label>Printed weight (kg)
+        <input id="customWeight" inputmode="decimal" type="number" min="0.005" max="100" step="0.005" placeholder="e.g. 0.505">
+        <small>Weight-based items use 0.005 kg (5 g) increments.</small>
+      </label>
+    </div>
+    <div id="customPiecesField" hidden>
+      <label>Number of pieces (PCs)
+        <input id="customPieces" inputmode="numeric" type="number" min="1" max="10000" step="1" placeholder="e.g. 3">
+      </label>
+    </div>
+    <div class="manager-row">
+      <label>Unit price (BD, optional)
+        <input id="customUnitPrice" inputmode="decimal" type="number" min="0" max="999.999" step="0.001" placeholder="e.g. 4.500">
+        <small>Price per kg or per piece, as selected above.</small>
+      </label>
+      <label>Printed total (BD, optional)
+        <input id="customTotalPrice" inputmode="decimal" type="number" min="0" max="999.999" step="0.001" placeholder="e.g. 2.275">
+        <small>Leave blank if the label has no printed total.</small>
+      </label>
+    </div>
+    <p id="customCalculatedTotal" class="manager-total" aria-live="polite">Estimated total: not available</p>
+    <label>Notes (optional)<textarea id="customNotes" rows="2" maxlength="450" placeholder="Any extra label information"></textarea></label>
+    <div class="manager-note">The barcode must already exist on the item. Saving it here records your details; it does not register it with the supermarket's POS system. 6777, 6780, and 6781 remain in the protected production catalog.</div>
+    <div class="buttons">
+      <button id="customSave" class="btn" type="submit">Save barcode to database</button>
+      <button id="customReset" class="btn btn-outline" type="button">Clear form</button>
+    </div>
+    <p id="customFormStatus" class="manager-status" role="status" aria-live="polite" hidden></p>
+  </form>
+</section>
+<section class="panel">
+ <div class="manager-header"><h2>My saved barcodes</h2><button id="customRefresh" class="mini" type="button">Refresh</button></div>
+ <div class="manager-search"><input id="customSearch" type="search" placeholder="Search item name, PLU or barcode" aria-label="Search saved barcodes"></div>
+ <div id="customStats" class="manager-stats">Sign in to view saved items.</div>
+ <div id="customRecords" class="manager-records"></div>
+ <button type="button" id="customMore" class="btn btn-light" hidden>Load more</button>
+ <p class="manager-footer-note">Saved barcodes belong to your signed-in account and remain in the database when the production page is refreshed. Updating or deleting one does not change the original barcode catalog.</p>
+</section>
+</div>
+</main>
+<dialog id="customCameraDialog" class="manager-camera" aria-labelledby="customCameraTitle">
+ <div class="cam-top"><h2 id="customCameraTitle">Scan a new barcode</h2><button id="customCloseCamera" class="mini" type="button">Close camera</button></div>
+ <div class="manager-camera-frame"><video id="customVideo" playsinline autoplay muted aria-label="Camera preview for one EAN-13 barcode"></video><div class="manager-camera-guide" aria-hidden="true"></div></div>
+ <p id="customCameraStatus" class="manager-cam-status" role="status" aria-live="polite">Starting camera…</p>
+</dialog>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="custom-barcodes.js?v=custom-manager-1"></script>
+</body>
+</html>
