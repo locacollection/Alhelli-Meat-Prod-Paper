@@ -36,6 +36,8 @@
       return {ok:false,reason:"Fish weight must be 0.002 to 100.000 kg in 0.002 kg (2 g) increments."};
     const barcode=String(input.barcode||"").trim().replace(/\s/g,"");
     if(barcode&&!validEAN(barcode))return {ok:false,reason:"Invalid 13-digit barcode or EAN-13 check digit."};
+    if(barcode&&["966777","966780","966781"].some(prefix=>barcode.startsWith(prefix)))
+      return {ok:false,reason:"This belongs to the meat barcode catalog. Use Meat Production instead."};
     const unit=input.unit_price_fils,total=input.total_price_fils;
     if(unit!==null&&unit!==undefined&&(!Number.isInteger(unit)||unit<0||unit>999999))
       return {ok:false,reason:"Invalid unit price."};
