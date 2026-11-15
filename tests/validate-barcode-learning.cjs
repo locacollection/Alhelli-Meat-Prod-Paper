@@ -49,6 +49,9 @@ assert.ok(["ambiguous","collecting"].includes(mixedPrefix.status));
 // A typo must be stopped, not silently learned.
 assert.equal(core.sampleCheck({...savedMeat[1],weight_grams:685},config).ok,false);
 assert.equal(core.sampleCheck({...savedMeat[1],total_price_fils:3100},config).ok,false);
+assert.equal(core.sampleCheck({...savedMeat[1],weight_grams:null},config).ok,false);
+assert.equal(core.sampleCheck({...savedMeat[1],total_price_fils:null},config).ok,false);
+
 assert.equal(core.analyze([...savedMeat,{...savedMeat[1],weight_grams:695}],config).status,"collecting",
   "A mismatched printed price must block learning before considering barcode collisions.");
 // For fish 2g weights, a 5-fil price step may encode more than one weight
