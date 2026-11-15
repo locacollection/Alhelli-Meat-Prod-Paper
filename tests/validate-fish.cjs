@@ -10,8 +10,9 @@ for(const file of ["fish-production.html","fish-production.css","fish-core.js","
 }
 assert.ok(main.includes('href="./fish-production.html"'));
 assert.ok(fishPage.includes('src="fish-core.js?v=fish-1"'));
-assert.ok(fishPage.includes('src="fish-production.js?v=fish-1"'));
-assert.ok(fishPage.includes('src="fish-store.js?v=fish-1"'));
+assert.ok(fishPage.includes('src="barcode-learning-core.js?v=learning-1"'));
+assert.ok(fishPage.includes('src="fish-production.js?v=fish-learn-2"'));
+assert.ok(fishPage.includes('src="fish-store.js?v=fish-learn-2"'));
 assert.ok(!fishPage.includes("Print production paper"));
 const required=["fishPhotos","fishCameraPhoto","fishLiveStart","fishAddManual",
 "fishEditForm","fishCode","fishWeight","fishBarcode","fishUnitPrice","fishTotalPrice",
