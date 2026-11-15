@@ -283,8 +283,18 @@ async function scanImages(files){
               ocrHint="Text recognition is a suggestion. Confirm against this sticker.";
             }catch(_){}
           }
+          const learned=await window.FishStoreChecks?.matchLearnedBarcode?.(region.barcode);
+          if(learned){
+            const mismatch=hint.product_code&&hint.product_code!==learned.product_code;
+            ocrHint=(mismatch?"Printed product text may disagree. ":"")+
+              "Learned pattern suggests "+core.fmtKg(learned.weight_grams)+
+              " kg and "+core.fmtBD(learned.price_fils)+" BD. Check printed label.";
+            hint={product_code:learned.product_code,weight_grams:learned.weight_grams};
+          }
           addEntry({barcode:region.barcode,photoUrl,photoName:file.name,
             product_code:hint.product_code||"",weight_grams:hint.weight_grams??null,
+            unit_price_fils:learned?.unit_price_fils??null,
+            total_price_fils:learned?.price_fils??null,
             ocrHint});
           count++;
         }
@@ -321,7 +331,27 @@ function oneBarcode(barcode){
   // Close camera first, preventing duplicate labels from the next video frame.
   closeCamera();
   const entry=addEntry({barcode,ocrHint:"Identify the fish product and confirm its printed weight."});
-  openEditor(entry);return true;
+  openEditor(entry);
+  // The camera can close immediately while the private profile lookup runs.
+  // Do not mark the label confirmed or overwrite any staff-edited fields.
+  void Promise.resolve(window.FishStoreChecks?.matchLearnedBarcode?.(barcode)).then(learned=>{
+    if(!learned||entry.confirmed||!entries.includes(entry))return;
+    entry.ocrHint="Learned pattern suggests "+core.fmtKg(learned.weight_grams)+
+      " kg. Check the printed sticker before confirming.";
+    if(!entry.product_code)entry.product_code=learned.product_code;
+    if(!Number.isInteger(entry.weight_grams))entry.weight_grams=learned.weight_grams;
+    if(!Number.isInteger(entry.unit_price_fils))entry.unit_price_fils=learned.unit_price_fils;
+    if(!Number.isInteger(entry.total_price_fils))entry.total_price_fils=learned.price_fils;
+    if(editing===entry){
+      if(!$("fishCode").value)$("fishCode").value=entry.product_code;
+      if(!$("fishWeight").value)$("fishWeight").value=core.fmtKg(entry.weight_grams);
+      if(!$("fishUnitPrice").value)$("fishUnitPrice").value=core.fmtBD(entry.unit_price_fils);
+      if(!$("fishTotalPrice").value)$("fishTotalPrice").value=core.fmtBD(entry.total_price_fils);
+      show("fishEditError",entry.ocrHint,true);
+    }
+    render();
+  }).catch(()=>{});
+  return true;
 }
 async function legacyScanner(){
   if(window.ZXing?.BrowserMultiFormatReader)return window.ZXing;
