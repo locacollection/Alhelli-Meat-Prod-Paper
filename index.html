@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#183c32">
 <meta name="description" content="Meat production barcode scanner and production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=saved-papers-19">
+<link rel="stylesheet" href="scanner.css?v=scan-mask-20">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong></div></div><nav><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a></nav></div></header>
@@ -21,6 +21,21 @@
           <label class="btn btn-light" for="cameraPhoto">Use camera<input id="cameraPhoto" type="file" accept="image/*" capture="environment" hidden></label>
         </div>
         <div id="photoQueue" class="photo-queue"></div>
+        <section id="scanStage" class="scan-stage" hidden aria-label="Barcode scan progress">
+          <div class="scan-stage-header">
+            <div><strong>Scanning sheet</strong><small id="scanStageFile">Selected photo</small></div>
+            <span id="scanStageProgress" class="scan-stage-counter">Detecting…</span>
+          </div>
+          <div id="scanStageFrame" class="scan-stage-frame">
+            <img id="scanStageImage" alt="Sheet being scanned, with barcode positions highlighted">
+            <div class="scan-stage-overlay" aria-hidden="true">
+              <div id="scanStageSweep" class="scan-stage-sweep"></div>
+              <div id="scanStageMarkers" class="scan-stage-markers"></div>
+            </div>
+          </div>
+          <p id="scanStageStatus" class="scan-stage-status" role="status" aria-live="polite">Locating barcodes…</p>
+          <p class="scan-stage-key"><span>● Checking</span><span>✓ Verified</span><span>! Needs review</span></p>
+        </section>
         <div class="buttons"><button id="scanBtn" class="btn btn-light" type="button" disabled>Scan queued</button><button id="clearPhotos" class="btn btn-outline" type="button" disabled>Clear queue</button></div>
         <div id="scanMsg" class="message" role="status" aria-live="polite"></div>
         <p class="fineprint">Refreshing this page starts a blank production sheet and clears the previous scan, including cropped label photos. Save or print your paper first.</p>
@@ -165,7 +180,7 @@
     </tbody>
   </table>
 </section>
-<script src="scanner.js?v=saved-papers-18"></script>
+<script src="scanner.js?v=scan-mask-20"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="paper-store.js?v=saved-papers-19"></script>
 </body></html>
