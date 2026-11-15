@@ -286,10 +286,16 @@ async function scanImages(files){
           const learned=await window.FishStoreChecks?.matchLearnedBarcode?.(region.barcode);
           if(learned){
             const mismatch=hint.product_code&&hint.product_code!==learned.product_code;
+            const printedMismatch=Number.isInteger(hint.weight_grams)&&
+              Number.isInteger(learned.weight_grams)&&hint.weight_grams!==learned.weight_grams;
             ocrHint=(mismatch?"Printed product text may disagree. ":"")+
-              "Learned pattern suggests "+core.fmtKg(learned.weight_grams)+
-              " kg and "+core.fmtBD(learned.price_fils)+" BD. Check printed label.";
-            hint={product_code:learned.product_code,weight_grams:learned.weight_grams};
+              (printedMismatch?"Printed weight differs from barcode estimate. ":"")+
+              (Number.isInteger(learned.weight_grams)?
+                "Barcode suggests "+core.fmtKg(learned.weight_grams)+" kg. ":
+                "Barcode price cannot identify one exact weight. ")+
+              "Encoded price "+core.fmtBD(learned.price_fils)+" BD. Check the printed sticker.";
+            hint={product_code:learned.product_code,
+              weight_grams:learned.weight_grams??hint.weight_grams??null};
           }
           addEntry({barcode:region.barcode,photoUrl,photoName:file.name,
             product_code:hint.product_code||"",weight_grams:hint.weight_grams??null,
@@ -336,15 +342,18 @@ function oneBarcode(barcode){
   // Do not mark the label confirmed or overwrite any staff-edited fields.
   void Promise.resolve(window.FishStoreChecks?.matchLearnedBarcode?.(barcode)).then(learned=>{
     if(!learned||entry.confirmed||!entries.includes(entry))return;
-    entry.ocrHint="Learned pattern suggests "+core.fmtKg(learned.weight_grams)+
-      " kg. Check the printed sticker before confirming.";
+    const hasWeight=Number.isInteger(learned.weight_grams);
+    entry.ocrHint=(hasWeight?
+      "Price barcode suggests "+core.fmtKg(learned.weight_grams)+" kg. ":
+      "Price barcode is not enough to determine an exact weight. ")+
+      "Check the printed sticker before confirming.";
     if(!entry.product_code)entry.product_code=learned.product_code;
-    if(!Number.isInteger(entry.weight_grams))entry.weight_grams=learned.weight_grams;
+    if(hasWeight&&!Number.isInteger(entry.weight_grams))entry.weight_grams=learned.weight_grams;
     if(!Number.isInteger(entry.unit_price_fils))entry.unit_price_fils=learned.unit_price_fils;
     if(!Number.isInteger(entry.total_price_fils))entry.total_price_fils=learned.price_fils;
     if(editing===entry){
       if(!$("fishCode").value)$("fishCode").value=entry.product_code;
-      if(!$("fishWeight").value)$("fishWeight").value=core.fmtKg(entry.weight_grams);
+      if(hasWeight&&!$("fishWeight").value)$("fishWeight").value=core.fmtKg(entry.weight_grams);
       if(!$("fishUnitPrice").value)$("fishUnitPrice").value=core.fmtBD(entry.unit_price_fils);
       if(!$("fishTotalPrice").value)$("fishTotalPrice").value=core.fmtBD(entry.total_price_fils);
       show("fishEditError",entry.ocrHint,true);
