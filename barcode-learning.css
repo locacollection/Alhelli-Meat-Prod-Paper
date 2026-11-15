@@ -60,3 +60,8 @@
 @media(max-width:880px){.learning-columns{grid-template-columns:1fr}}
 @media(max-width:570px){.learn-login{grid-template-columns:1fr}.learn-pair{grid-template-columns:1fr}.learner-panel h1{font-size:20px}.learn-camera-preview video{aspect-ratio:3/4}}
 @media print{header,.learning-layout,.learn-camera-dialog{display:none!important}}
+
+.learn-salmon-import{background:#f3faf4;border:1px solid #c4ddc9;border-radius:12px;padding:13px;margin:13px 0}
+.learn-salmon-import strong{font-size:14px;color:#214e34}
+.learn-salmon-import p{font-size:12px;line-height:1.45;color:#536d5a;margin:6px 0 12px}
+.learn-salmon-import .btn{min-height:42px}
