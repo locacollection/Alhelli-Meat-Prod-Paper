@@ -74,7 +74,7 @@ function previewPaper(s,fromSaved=false){
   const grn=[];
   if(s.fillet_weight_grams)grn.push(["6668","Salmon Fillet Fish (With Skin)","kg",core.fmtKg(s.fillet_weight_grams)]);
   if(s.bone_weight_grams)grn.push(["7144","Salmon Fish Bone","kg",core.fmtKg(s.bone_weight_grams)]);
-  if(s.wastage_weight_grams)grn.push(["","Wastage For Fish","kg",core.fmtKg(s.wastage_weight_grams)]);
+  grn.push(["","Wastage For Fish","kg",core.fmtKg(s.wastage_weight_grams)]);
   page.append(paperTable("Recipe GRN (Bundling)",grn,9));
   const sign=make("div","fish-paper-sign");
   sign.append(make("span","","Supervisor name: _____________________   Sig: __________"));
@@ -204,7 +204,7 @@ async function savePDF(s){
   const grn=[];
   if(s.fillet_weight_grams)grn.push(["6668","Salmon Fillet Fish (With Skin)","kg",core.fmtKg(s.fillet_weight_grams)]);
   if(s.bone_weight_grams)grn.push(["7144","Salmon Fish Bone","kg",core.fmtKg(s.bone_weight_grams)]);
-  if(s.wastage_weight_grams)grn.push(["","Wastage For Fish","kg",core.fmtKg(s.wastage_weight_grams)]);
+  grn.push(["","Wastage For Fish","kg",core.fmtKg(s.wastage_weight_grams)]);
   pdfTable(doc,177,grn,9);
   doc.setFont("helvetica","normal");doc.setFontSize(9);
   doc.text("Supervisor: __________________________    Sig: ____________",13,270);
