@@ -263,40 +263,66 @@ function enhanceNumberRegion(canvas,mode="gray"){
   ctx.putImageData(img,0,0);
   return out;
 }
-async function readNumberBoxes(worker,canvas,barcodeBox,parser,progress,already={}){
-  const got={},notes=[];
-  for(const [key,property] of [["weight","weight_grams"],["unit","unit_price_fils"],["total","total_price_fils"]]){
-    // Re-read weight independently even when general OCR found a number.
-    // General OCR can mistake the TOTAL field for WEIGHT (0.002 -> 0.020).
+async function readNumberBoxes(worker,canvas,barcodeBox,parser,progress,already={},core=null){
+  const got={},notes=[],rawCandidates={};
+  const kinds=[["weight","weight_grams"],["unit","unit_price_fils"],["total","total_price_fils"]];
+  for(const [key,property] of kinds){
+    // Even when generic OCR found weight, verify the actual green-table cell.
     if(key!=="weight"&&Number.isInteger(already[property]))continue;
-    const rect=parser.numericWindow(key,barcodeBox,canvas.width,canvas.height);
-    if(!rect)continue;
-    const source=document.createElement("canvas");
-    source.width=rect.w;source.height=rect.h;
-    source.getContext("2d").drawImage(canvas,rect.x,rect.y,rect.w,rect.h,
-      0,0,rect.w,rect.h);
-    let found=[];
+    const windows=typeof parser.numericWindows==="function"?
+      parser.numericWindows(key,barcodeBox,canvas.width,canvas.height):
+      [parser.numericWindow(key,barcodeBox,canvas.width,canvas.height)].filter(Boolean);
+    if(!windows.length)continue;
+    const seen=[];
     try{
-      // Single-line decimal digits are much easier to read than the entire
-      // sticker. Do not accept an ambiguous result with two different values.
-      await worker.setParameters({tessedit_pageseg_mode:"7",
-        tessedit_char_whitelist:"0123456789.,",
-        preserve_interword_spaces:"1"});
-      for(const mode of ["gray","threshold"]){
-        const im=enhanceNumberRegion(source,mode);
-        const result=await worker.recognize(im);
-        const candidates=parser.numericCandidates(result?.data?.text||"");
-        if(candidates.length===1){found.push(candidates[0]);break;}
+      for(let wi=0;wi<windows.length;wi++){
+        const rect=windows[wi];
+        const source=document.createElement("canvas");
+        source.width=rect.w;source.height=rect.h;
+        source.getContext("2d").drawImage(canvas,rect.x,rect.y,rect.w,rect.h,
+          0,0,rect.w,rect.h);
+        for(const mode of ["gray","threshold"]){
+          await worker.setParameters({tessedit_pageseg_mode:mode==="gray"?"7":"13",
+            tessedit_char_whitelist:"0123456789.,",
+            preserve_interword_spaces:"1"});
+          const image=enhanceNumberRegion(source,mode);
+          const result=await worker.recognize(image);
+          const candidates=parser.numericCandidates(result?.data?.text||"");
+          if(candidates.length===1)seen.push(candidates[0]);
+          // Confirmed by two independent image treatments from the strict
+          // weight field. Avoid reading arbitrary nearby sticker numbers.
+          if(seen.length>=2&&seen.at(-1)===seen.at(-2))break;
+        }
+        if(seen.length>=2&&seen.at(-1)===seen.at(-2))break;
       }
-    }catch(err){notes.push("Could not read "+key+" box: "+(err?.message||"OCR failed"))}
+    }catch(err){notes.push("Could not re-read "+key+" field: "+(err?.message||"OCR failed"))}
     finally{
       try{await worker.setParameters({tessedit_pageseg_mode:"3",
         tessedit_char_whitelist:""})}catch(_){}
     }
-    if(found.length===1)got[key]=found[0];
+    rawCandidates[key]=seen;
+    const unique=[...new Set(seen)];
+    if(unique.length===1)got[key]=unique[0];
+    else if(unique.length>1){
+      // Different guesses from the same printed field are not silently
+      // accepted. Price arithmetic may reject some guesses, but a 5-fil
+      // rounded price cannot justify inventing a printed weight.
+      if(key==="weight"&&core){
+        const total=Number.isInteger(already.total_price_fils)?
+          already.total_price_fils:got.total;
+        const unit=Number.isInteger(already.unit_price_fils)?
+          already.unit_price_fils:got.unit;
+        if(Number.isInteger(total)&&Number.isInteger(unit)){
+          const consistent=unique.filter(x=>core.roundedPrice(x,unit,5)===total);
+          if(consistent.length===1)got[key]=consistent[0];
+        }
+      }
+      if(!Number.isInteger(got[key]))
+        notes.push("Multiple readings disagree about "+key+". Check the printed sticker.");
+    }
     progress?.("Checking printed "+key+"…");
   }
-  return {values:got,notes};
+  return {values:got,notes,candidates:rawCandidates};
 }
 async function fromCanvas(canvas,core,parser,progress){
   const regions=await detectRegions(canvas,core,progress);
@@ -326,7 +352,7 @@ async function fromCanvas(canvas,core,parser,progress){
         const recognized=await worker.recognize(cropped);
         fields=parser.detectPrinted(recognized,{barcodeBox:localBox});
         if(!region.noBarcode&&localBox){
-          const targeted=await readNumberBoxes(worker,cropped,localBox,parser,progress,fields);
+          const targeted=await readNumberBoxes(worker,cropped,localBox,parser,progress,fields,core);
           fields=parser.supplementPrinted(fields,targeted.values);
           if(targeted.notes.length)note=[note,...targeted.notes].filter(Boolean).join(" ");
         }
@@ -393,7 +419,7 @@ async function readCameraFrame(video,barcode,region,core,parser,progress){
       Number(barcode.slice(7,12)));
     const recognized=await worker.recognize(crop.canvas);
     fields=parser.detectPrinted(recognized,{barcodeBox:crop.barcodeBox});
-    const targeted=await readNumberBoxes(worker,crop.canvas,crop.barcodeBox,parser,progress,fields);
+    const targeted=await readNumberBoxes(worker,crop.canvas,crop.barcodeBox,parser,progress,fields,core);
     fields=parser.supplementPrinted(fields,targeted.values);
     if(targeted.notes.length)notes=targeted.notes.join(" ");
   }catch(err){notes="Printed values need manual review: "+(err.message||"OCR unavailable")}
