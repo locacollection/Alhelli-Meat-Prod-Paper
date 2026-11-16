@@ -142,20 +142,24 @@ async function login(e){
 function showPrediction(p,grams,result){
   const total=core.roundedPrice(grams,Number(p.unit_price_fils),Number(p.rounding_fils));
   const available=!!result.ok;
+  const ambiguous=available&&result.ambiguous===true;
   const box=$("predictorResult");
   box.hidden=false;
-  box.classList.toggle("is-unavailable",!available);
+  box.classList.toggle("is-unavailable",!available||ambiguous);
   $("predictorResultTitle").textContent=p.item_code+" · "+p.product_name;
-  $("predictorResultState").textContent=available?"Unique pattern match":"Prediction not confirmed";
+  $("predictorResultState").textContent=ambiguous?
+    "Price-coded candidate · weight ambiguous":available?"Unique pattern match":"Prediction not confirmed";
   $("predictorResultWeight").textContent=formatWeight(grams);
   $("predictorResultRate").textContent=money(p.unit_price_fils);
   $("predictorResultPrice").textContent=money(total);
   $("predictorBarcodeBlock").hidden=!available;
+  $("predictorBarcodeLabel").textContent=ambiguous?
+    "Calculated EAN-13 candidate (weight not verified)":"Predicted EAN-13 barcode";
   $("predictorResultBarcode").textContent=available?result.barcode:"";
   $("predictorResultExplanation").textContent=available?
-    "This barcode was calculated from your saved profile. It is not a barcode scanned from a physical label. Compare it with an actual sticker before any use; it does not authorize checkout or production records.":
-    (result.error||"A unique barcode cannot be established.")+
-      " The calculated total is an estimate from the saved rate, not a verified label price. Use an actual printed barcode instead.";
+    (result.warning||"Calculated from your saved profile. Compare with the actual sticker. Not authorized for store checkout or production records."):
+    (result.error||"This profile cannot generate a barcode for this weight.")+
+      " The displayed total comes from the saved rate, not a verified label price.";
 }
 function predict(e){
   e.preventDefault();
@@ -171,15 +175,19 @@ function predict(e){
     return message("predictorMessage","This item's weights must be in "+
       profile.weight_step_grams+" g increments. Check your entered weight.",true);
   }
-  const result=core.suggestBarcode(grams,profile);
-  showPrediction(profile,grams,result);
+  const unique=core.suggestBarcode(grams,profile);
+  // A price-encoded format may produce one EAN for multiple possible weights.
+  // Display it as a clearly marked unverified candidate, never as a unique weight.
+  const candidate=!unique.ok&&typeof core.suggestBarcodeCandidate==="function"?
+    core.suggestBarcodeCandidate(grams,profile):null;
+  showPrediction(profile,grams,candidate?.ok?candidate:unique);
 }
 async function copyPrediction(){
   const code=$("predictorResultBarcode").textContent;
   if(!core.validBarcode(code))return;
   try{
     await navigator.clipboard.writeText(code);
-    message("predictorMessage","Predicted barcode copied. Verify it against an actual printed sticker.");
+    message("predictorMessage","Calculated barcode copied. Compare it with an actual printed sticker; this does not verify the weight.");
   }catch(_){
     message("predictorMessage","Copy unavailable. Select the displayed number and copy it manually.",true);
   }
