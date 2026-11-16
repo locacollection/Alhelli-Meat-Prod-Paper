@@ -639,12 +639,10 @@ async function rereadManuallyCroppedLabel(p){
     const found=parsed.labels.find(x=>x.barcode&&x.barcode===p.barcode)||
       parsed.labels.find(x=>!x.barcode);
     const conflicting=parsed.labels.find(x=>x.barcode&&x.barcode!==p.barcode);
-    if(!found){
-      // An unrelated barcode is never silently attached to this training item.
-      if(conflicting)throw Error("Crop includes barcode "+conflicting.barcode+
-        " instead of "+p.barcode+". Select only the intended sticker.");
-      throw Error("Could not read the selected label. Try a larger crop.");
-    }
+    // Do not combine readings from two different stickers in the same crop.
+    if(conflicting)throw Error("Crop also includes barcode "+conflicting.barcode+
+      " from another sticker. Select only the intended label.");
+    if(!found)throw Error("Could not read the selected label. Try a larger crop.");
     const cropUrl=URL.createObjectURL(input.file);
     const prior=p.photoUrl;
     p.photoUrl=cropUrl;
