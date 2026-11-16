@@ -36,3 +36,6 @@
 [hidden]{display:none!important}
 @media(max-width:620px){.predictor-login-form{grid-template-columns:1fr}.predictor-result-grid{grid-template-columns:1fr}.predictor-result-grid>div{display:flex;justify-content:space-between;align-items:center;gap:12px}.predictor-result-grid span{margin:0}}
 @media print{.site-head,.predictor-layout{display:none!important}}
+/* Display price-encoded candidates without suggesting an exact measured weight. */
+.predictor-result.is-unavailable .predictor-code-block{background:#fffaf0;border-color:#e8d4ae}
+.predictor-result.is-unavailable .predictor-code-block strong{color:#795523}
