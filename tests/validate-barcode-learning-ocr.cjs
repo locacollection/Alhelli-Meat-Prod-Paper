@@ -65,6 +65,43 @@ const bounds=parser.labelCropRegion(1000,1500,current,[previous,current]);
 assert.ok(bounds.y>=previous.y+previous.h+4);
 assert.ok(bounds.w>0&&bounds.h>0);
 assert.equal(bounds.barcodeBox.x,current.x-bounds.x);
+// The 7406 cheese example reported by the Android screenshot must be read
+// from the photo: 0.460 kg, 2.100 BD/kg, 0.965 BD total.
+const cheese=parser.detectPrinted({data:{text:
+  "CHEES BRAMIL W/PEPR\nWEIGHT 0.460\nUNIT PRICE 2.100\nTOTAL PRICE 0.965"}});
+assert.equal(cheese.weight_grams,460);
+assert.equal(cheese.unit_price_fils,2100);
+assert.equal(cheese.total_price_fils,965);
+assert.deepEqual(parser.numericCandidates(" 0.460 "),[460]);
+assert.deepEqual(parser.numericCandidates(" .965 BD "),[965]);
+assert.deepEqual(parser.numericCandidates(" 2.100 "),[2100]);
+assert.deepEqual(parser.numericCandidates(" 15/11/26 "),[]);
+const cheeseBbox={x:50,y:200,w:130,h:18};
+const numberAreas=["weight","unit","total"].map(kind=>
+  parser.numericWindow(kind,cheeseBbox,650,400));
+assert.ok(numberAreas.every(x=>x&&x.w>30&&x.h>20));
+assert.ok(numberAreas[0].y<cheeseBbox.y);
+assert.ok(numberAreas[2].y>numberAreas[0].y);
+const improved=parser.supplementPrinted({
+  weight_grams:null,unit_price_fils:null,total_price_fils:null,
+  read_from_photo:{weight:false,unit:false,total:false}
+},{weight:460,unit:2100,total:965});
+assert.equal(improved.weight_grams,460);
+assert.equal(improved.unit_price_fils,2100);
+assert.equal(improved.total_price_fils,965);
+assert.deepEqual(improved.read_from_photo,{weight:true,unit:true,total:true});
+const mismatchOCR=parser.supplementPrinted({
+  weight_grams:460,unit_price_fils:2100,total_price_fils:965,
+  read_from_photo:{weight:true,unit:true,total:true}
+},{weight:460,total:970});
+assert.equal(mismatchOCR.total_price_fils,null);
+assert.ok(mismatchOCR.ocr_conflicts.some(x=>x.includes("disagree")));
+const cheeseProfile={item_code:"7406",product_name:"Cheese Bramli W/PEPR",
+  weight_step_grams:5,unit_price_fils:2100,rounding_fils:5};
+const checkedCheese=core.sampleCheck({
+  barcode:"5874046009656",weight_grams:460,total_price_fils:965
+},cheeseProfile);
+assert.equal(checkedCheese.ok,true,JSON.stringify(checkedCheese));
 const testLabels=[
   {barcode:"9666684001750",x:200,y:260,w:180,precision:3},
   {barcode:"9666684001750",x:201,y:265,w:180,precision:2},
