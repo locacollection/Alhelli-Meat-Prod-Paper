@@ -4,7 +4,7 @@
 <meta name="theme-color" content="#143b31">
 <meta name="description" content="Learn kg barcode patterns from confirmed printed labels and test predicted weights safely.">
 <title>Barcode Learning | Meat Production</title>
-<link rel="stylesheet" href="barcode-learning.css?v=weight-ocr-9">
+<link rel="stylesheet" href="barcode-learning.css?v=saved-labels-2">
 </head><body>
 <header class="site-head"><div class="container header-row">
   <div class="brand"><div class="brandmark">BL</div><strong>Barcode Learning</strong></div>
@@ -90,8 +90,13 @@
   </form>
   </details>
   <p id="learnSampleMessage" class="learn-notice" hidden role="status"></p>
-  <h3 class="learn-subtitle">Training labels <span id="learnCount">0</span></h3>
-  <div id="learnSamples" class="learn-list"><p class="fineprint">Choose an item to start training.</p></div>
+  <div class="learn-saved-summary">
+    <div>
+      <h3 class="learn-subtitle">Saved training labels <span id="learnCount">0</span></h3>
+      <p class="fineprint">Confirmed examples are saved in your private database and used automatically for barcode learning.</p>
+    </div>
+    <button id="learnViewSamples" type="button" class="btn btn-light">View saved labels</button>
+  </div>
 </section>
 </div>
 <div class="learning-column">
@@ -132,6 +137,14 @@
 </div>
 </div>
 </main>
+<dialog id="learnSavedSamplesDialog" class="learn-saved-dialog" aria-labelledby="learnSavedSamplesTitle">
+  <div class="learn-camera-head">
+    <h2 id="learnSavedSamplesTitle">Saved training labels</h2>
+    <button id="learnSavedSamplesClose" type="button" class="mini">Close</button>
+  </div>
+  <p class="fineprint">Confirmed samples for the selected item are saved in Supabase. They continue training the pattern after this window closes. Removing one here also removes it from training.</p>
+  <div id="learnSamples" class="learn-list"><p class="fineprint">Choose an item to view saved labels.</p></div>
+</dialog>
 <dialog id="learnOriginalPhotoDialog" class="learn-original-dialog" aria-labelledby="learnOriginalTitle">
   <div class="learn-camera-head">
     <h2 id="learnOriginalTitle">Original scanned photo</h2>
@@ -152,5 +165,5 @@
 <script src="barcode-learning-labels.js?v=weight-ocr-9"></script>
 <script src="barcode-learning-scan.js?v=weight-ocr-9"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="barcode-learning.js?v=test-scan-1"></script>
+<script src="barcode-learning.js?v=saved-labels-2"></script>
 </body></html>
