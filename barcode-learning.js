@@ -438,22 +438,6 @@ function testBarcode(e){
     if(result.ambiguous)container.append(make("div","","Do not guess the weight."));
   }
 }
-function predictBarcode(e){
-  e.preventDefault();
-  const profile=model();
-  const grams=core.parseAmount($("learnPredictWeight").value);
-  const result=profile?core.suggestBarcode(grams,profile):
-    {ok:false,error:"A validated profile is required to predict a barcode."};
-  const container=$("learnPredictResult");container.hidden=false;
-  container.className="learn-test-result"+(result.ok?"":" is-error");
-  container.replaceChildren();
-  if(result.ok){
-    container.append(make("strong","",result.barcode));
-    container.append(make("div","",core.formatAmount(result.weight_grams)+" kg · "+
-      core.formatAmount(result.total_price_fils)+" BD"));
-    container.append(make("small","",result.warning));
-  }else container.textContent=result.error;
-}
 function renderPending(){
   const panel=$("learnPending");panel.replaceChildren();panel.hidden=!pendingCodes.length;
   if(!pendingCodes.length)return;
@@ -990,7 +974,6 @@ for(const id of ["learnBarcode","learnWeight","learnTotal"]){
   $(id).addEventListener("input",updateControls);
 }
 $("learnTestForm").addEventListener("submit",testBarcode);
-$("learnPredictForm").addEventListener("submit",predictBarcode);
 $("learnLiveScan").addEventListener("click",()=>void startCamera("label"));
 $("learnTestScan").addEventListener("click",()=>void startCamera("test"));
 $("learnCameraStop").addEventListener("click",stopCamera);
