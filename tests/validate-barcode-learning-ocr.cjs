@@ -153,9 +153,14 @@ assert.ok(swappedButUnknown);
 assert.equal(swappedButUnknown.suggested_weight_grams,null,
   "Unknown barcode family cannot silently provide a corrected gram weight");
 const userFacing=fs.readFileSync(path.join(__dirname,"..","barcode-learning.js"),"utf8");
-assert.ok(userFacing.includes("Weight mismatch detected"));
-assert.ok(userFacing.includes("Incorrect weight blocked:"));
-assert.ok(userFacing.includes("Use \"+core.formatAmount(conflict.suggested_weight_grams)"));
+assert.ok(userFacing.includes("OCR readings disagree"),
+  "Original OCR conflict remains visible until corrected");
+assert.ok(userFacing.includes("The original OCR readings disagree."),
+  "An uncorrected OCR mismatch cannot be saved");
+assert.ok(userFacing.includes("Use \"+core.formatAmount(conflict.suggested_weight_grams)"),
+  "Correct weight suggestion remains available for cases like salmon");
+assert.ok(userFacing.includes("OCR reading corrected · verify sticker"),
+  "A valid manually corrected TOTAL also clears the stale weight warning");
 
 const testLabels=[
   {barcode:"9666684001750",x:200,y:260,w:180,precision:3},
