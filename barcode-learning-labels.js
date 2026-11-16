@@ -114,10 +114,13 @@ function numericWindow(kind,barcodeBox,canvasWidth,canvasHeight){
   if(!barcodeBox||!Number.isFinite(barcodeBox.x)||!Number.isFinite(barcodeBox.y)||
      !(barcodeBox.w>0))return null;
   const b=barcodeBox,w=b.w;
+  // The previous windows were too tall: the weight region included the
+  // packed/use-by dates. A single-line OCR engine cannot read both rows.
+  // Ratios are relative to the EAN-13 bars, not to the whole photo.
   const areas={
-    weight:[.16,-.78,1.36,-.04],
-    unit:[1.35,-.78,2.91,-.04],
-    total:[1.31,-.09,3.04,.76]
+    weight:[.24,-.49,1.13,-.10],
+    unit:[1.30,-.49,2.49,-.10],
+    total:[1.23,-.04,2.65,.46]
   };
   const a=areas[kind];
   if(!a)return null;
@@ -161,6 +164,35 @@ function supplementPrinted(base,improved){
   result.ocr_conflicts=notes;
   return result;
 }
+/* An untrained item's price encoding can sometimes still suggest a UNIQUE
+   weight. This is a hypothesis for staff review, not an OCR reading or a
+   verified profile. Do not use it for auto-confirming/production/checkout. */
+function inferUniqueWeight(barcode,profile,core){
+  const b=String(barcode||"").trim();
+  if(!profile||!core?.validBarcode?.(b))return null;
+  const step=Number(profile.weight_step_grams);
+  const rate=Number(profile.unit_price_fils);
+  const rounding=Number(profile.rounding_fils);
+  if(![1,2,5,10].includes(step)||!Number.isInteger(rate)||rate<=0||
+      ![1,5].includes(rounding))return null;
+  if(profile.barcode_prefix && profile.barcode_prefix!==b.slice(0,6))return null;
+  const price=Number(b.slice(7,12));
+  // EAN checksum is not enough. Also require the internal price verifier.
+  if(Number(b[6])!==core.priceVerifier(price))return null;
+  const center=price*1000/rate;
+  const range=Math.ceil((rounding*1000/rate)+2*step);
+  const minimum=Math.max(step,Math.ceil((center-range)/step)*step);
+  const maximum=Math.min(100000,Math.floor((center+range)/step)*step);
+  const matches=[];
+  for(let g=minimum;g<=maximum;g+=step){
+    if(core.roundedPrice(g,rate,rounding)===price)matches.push(g);
+    if(matches.length>2)break;
+  }
+  return {barcode:b,price_fils:price,weight_grams:matches.length===1?matches[0]:null,
+    candidates:matches,unique:matches.length===1,
+    source:"Estimated using barcode price, saved rate and weight increment. Verify the printed label."};
+}
+
 function derivePriceFromBarcode(barcode,core,knownPrefix){
   const b=String(barcode||"").trim();
   if(!core?.validBarcode?.(b)||!knownPrefix||!b.startsWith(knownPrefix))return null;
@@ -243,5 +275,5 @@ function labelCropRegion(imageW,imageH,box,otherBoxes=[]){
 }
 return {nameFor,normalized,amount,detectProduct,boxesFromResult,extractLabeled,
   chooseByLocation,detectPrinted,numericWindow,numericCandidates,supplementPrinted,
-  derivePriceFromBarcode,review,labelCropRegion};
+  inferUniqueWeight,derivePriceFromBarcode,review,labelCropRegion};
 });
