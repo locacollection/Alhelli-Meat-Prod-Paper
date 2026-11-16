@@ -9,6 +9,7 @@ on:
       - "barcode-learning-labels.js"
       - "barcode-learning-scan.js"
       - "tests/validate-barcode-learning-ocr.cjs"
+      - "tests/validate-confirm-agreement.cjs"
       - "tests/validate-number-box-ocr.cjs"
       - "tests/validate-barcode-learning.cjs"
       - "fish-core.js"
@@ -40,6 +41,6 @@ jobs:
       - name: Check JavaScript syntax
         run: node --check barcode-learning-core.js && node --check barcode-learning-labels.js && node --check barcode-learning-scan.js && node --check barcode-learning.js && node --check scanner.js && node --check custom-barcodes.js && node --check live-barcode.js && node --check paper-store.js && node --check fish-core.js && node --check fish-barcode-samples.js && node --check fish-production.js && node --check fish-store.js
       - name: Test barcode and label calculations
-        run: node tests/validate-fish-samples.cjs && node tests/validate-barcode-learning-ocr.cjs && node tests/validate-number-box-ocr.cjs && node tests/validate-barcode-learning.cjs && node tests/validate-scanner.cjs && node tests/validate-live-barcode.cjs && node tests/validate-custom-barcodes.cjs && node tests/validate-fish.cjs
+        run: node tests/validate-confirm-agreement.cjs && node tests/validate-fish-samples.cjs && node tests/validate-barcode-learning-ocr.cjs && node tests/validate-number-box-ocr.cjs && node tests/validate-barcode-learning.cjs && node tests/validate-scanner.cjs && node tests/validate-live-barcode.cjs && node tests/validate-custom-barcodes.cjs && node tests/validate-fish.cjs
       - name: Test paper saving and preview
         run: node tests/validate-paper-store.cjs
