@@ -173,9 +173,11 @@
     <h2 id="learnOriginalTitle">Original scanned photo</h2>
     <button id="learnOriginalClose" type="button" class="mini">Close</button>
   </div>
-  <p class="fineprint">Check the entire label if the automatic crop misses any information.</p>
+  <p class="fineprint">If the crop misses the sticker, zoom into the original sheet and tap the printed WEIGHT for this label. You must still check the weight, barcode and total before saving.</p>
+  <button id="learnOriginalZoom" type="button" class="mini">Zoom in for small labels</button>
+  <p id="learnOriginalWeightStatus" class="fineprint" role="status" aria-live="polite">Tap the printed weight on the correct sticker.</p>
   <div class="learn-original-scroll">
-    <img id="learnOriginalImage" alt="Original sheet photograph with the scanned labels">
+    <img id="learnOriginalImage" alt="Original sheet photograph: tap the weight on the matching label">
   </div>
 </dialog>
 <dialog id="learnCameraDialog" class="learn-camera-dialog" aria-labelledby="learnCameraHeading">
@@ -188,6 +190,6 @@
 <script src="barcode-learning-labels.js?v=multi-label-crop-2"></script>
 <script src="barcode-learning-scan.js?v=multi-label-crop-2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="barcode-learning.js?v=multi-label-crop-2"></script>
+<script src="barcode-learning.js?v=multi-label-crop-3"></script>
 <script src="barcode-learning-price.js?v=price-version-1"></script>
 </body></html>
