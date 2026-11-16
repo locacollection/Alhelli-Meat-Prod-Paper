@@ -102,6 +102,29 @@ const checkedCheese=core.sampleCheck({
   barcode:"5874046009656",weight_grams:460,total_price_fils:965
 },cheeseProfile);
 assert.equal(checkedCheese.ok,true,JSON.stringify(checkedCheese));
+// The photographed cheese barcode stores 0.965 BD rather than exact grams.
+// At the saved 2.100 BD/kg rate, only 0.460 kg matches a 5 g increment.
+const inferred=parser.inferUniqueWeight("5874046009656",cheeseProfile,core);
+assert.equal(inferred.unique,true);
+assert.equal(inferred.weight_grams,460);
+assert.equal(inferred.price_fils,965);
+assert.equal(inferred.source.includes("Verify"),true);
+assert.equal(parser.inferUniqueWeight("5874046009650",cheeseProfile,core),null,
+  "Bad EAN check digit must never provide a guess");
+assert.equal(parser.inferUniqueWeight("5874046009656",
+  {...cheeseProfile,barcode_prefix:"966668"},core),null,
+  "Wrong saved prefix must never infer weight");
+const oneGramCheese=parser.inferUniqueWeight("5874046009656",
+  {...cheeseProfile,weight_step_grams:1},core);
+assert.equal(oneGramCheese.unique,false);
+assert.deepEqual(oneGramCheese.candidates,[459,460],
+  "If the price matches two weights, both must be reported instead of guessing");
+const lowRateBone=parser.inferUniqueWeight("9671449000053",{
+  item_code:"7144",product_name:"Salmon Fish Bone",
+  weight_step_grams:2,unit_price_fils:1000,rounding_fils:5
+},core);
+assert.equal(lowRateBone.unique,false,
+  "The system must not infer exact low-price bone weight if multiple weights match");
 const testLabels=[
   {barcode:"9666684001750",x:200,y:260,w:180,precision:3},
   {barcode:"9666684001750",x:201,y:265,w:180,precision:2},
