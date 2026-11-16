@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#183c32">
 <meta name="description" content="Meat production barcode scanner and production paper.">
 <title>Meat Production | Scan Label Sheets</title>
-<link rel="stylesheet" href="scanner.css?v=mixed-labels-23">
+<link rel="stylesheet" href="scanner.css?v=historical-6777-1">
 </head>
 <body>
 <header class="site-head noprint"><div class="container header-row"><div class="brand"><div class="brandmark">MP</div><div><strong>Meat Production</strong></div></div><nav><a href="./fish-production.html">Salmon Fish</a><a href="./manual-worksheet.html">Manual worksheet</a><a href="./barcode-catalog.html">Barcode catalog</a><a href="./custom-barcodes.html">Manage barcodes</a><a href="./barcode-learning.html">Barcode Learning</a><a href="./weight-price-checker.html">Weight &amp; Price Checker</a><a href="./barcode-predictor.html">Barcode Predictor</a></nav></div></header>
@@ -43,7 +43,7 @@
         </section>
         <div class="buttons"><button id="scanBtn" class="btn btn-light" type="button" disabled>Scan queued</button><button id="clearPhotos" class="btn btn-outline" type="button" disabled>Clear queue</button></div>
         <div id="scanMsg" class="message" role="status" aria-live="polite"></div>
-        <p class="fineprint">Refreshing this page starts a blank production sheet and clears the previous scan, including cropped label photos. Save or print your paper first.</p>
+        <p class="fineprint">Older and newer prices can be scanned together on the same production paper. 6777 accepts both 3.190 and 3.500 BD/kg; 6780 and 6781 remain 4.500 BD/kg. If a barcode can represent different weights or price periods, verify the three values printed on that sticker. Refreshing clears the unsaved paper and cropped photos.</p>
       </section>
 
       <section class="panel">
@@ -143,7 +143,7 @@
   <p id="singleBarcodeStatus" class="live-barcode-status" role="status" aria-live="polite">Starting camera…</p>
   <div class="live-barcode-footer">
     <button id="singleBarcodeTorch" class="mini" type="button" hidden>Turn flashlight on</button>
-    <span>Recognizes one 6777, 6780 or 6781 barcode and closes automatically</span>
+    <span>Recognizes 6777, 6780 or 6781, including old 6777 rates. Ambiguous labels require printed-value review.</span>
   </div>
 </dialog>
 <dialog id="cropDialog" class="crop-dialog noprint" aria-labelledby="cropHeading">
@@ -208,8 +208,8 @@
     </tbody>
   </table>
 </section>
-<script src="scanner.js?v=mixed-labels-23"></script>
+<script src="scanner.js?v=historical-6777-1"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="paper-store.js?v=saved-papers-19"></script>
-<script src="live-barcode.js?v=live-one-label-22"></script>
+<script src="live-barcode.js?v=historical-6777-1"></script>
 </body></html>
