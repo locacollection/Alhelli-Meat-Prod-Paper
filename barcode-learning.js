@@ -511,9 +511,15 @@ async function scanPhotos(files){
    stickers. These suggestions NEVER get saved without explicit confirmation. */
 const ocrParser=window.BarcodeLabelOCR,photoEngine=window.LearningPhotoScanner;
 function chosenProfile(p){
+  const barcode=String(p?.barcode||"");
+  // Match a saved learning prefix without waiting for OCR to read the item name.
+  const prefixMatches=profiles.filter(x=>
+    x.barcode_prefix&&barcode.startsWith(x.barcode_prefix));
+  if(prefixMatches.length===1)return prefixMatches[0];
   const fish=Object.values(window.SalmonBarcodeSamples?.PRODUCTS||{})
-    .find(x=>p.barcode.startsWith(x.barcode_prefix));
-  const code=fish?.item_code||p.fields?.product_code||"";
+    .find(x=>barcode.startsWith(x.barcode_prefix));
+  const beefCode=/^96(6777|6780|6781)/.exec(barcode)?.[1]||"";
+  const code=fish?.item_code||beefCode||p.fields?.product_code||"";
   const matches=profiles.filter(x=>code&&x.item_code===code);
   if(matches.length===1)return matches[0];
   if(active&&(!code||active.item_code===code))return active;
