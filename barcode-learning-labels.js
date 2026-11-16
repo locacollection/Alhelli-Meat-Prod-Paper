@@ -108,6 +108,59 @@ function detectPrinted(result,options={}){
     read_from_photo:{weight:weight_grams!==null,unit:unit_price_fils!==null,total:total_price_fils!==null},
     text_excerpt:text.slice(0,500)};
 }
+/* Individual numeric boxes are much more reliable than OCR of the whole
+   multilingual sticker. All coordinates are relative to its detected EAN. */
+function numericWindow(kind,barcodeBox,canvasWidth,canvasHeight){
+  if(!barcodeBox||!Number.isFinite(barcodeBox.x)||!Number.isFinite(barcodeBox.y)||
+     !(barcodeBox.w>0))return null;
+  const b=barcodeBox,w=b.w;
+  const areas={
+    weight:[.16,-.78,1.36,-.04],
+    unit:[1.35,-.78,2.91,-.04],
+    total:[1.31,-.09,3.04,.76]
+  };
+  const a=areas[kind];
+  if(!a)return null;
+  const x=Math.max(0,Math.floor(b.x+a[0]*w));
+  const y=Math.max(0,Math.floor(b.y+a[1]*w));
+  const right=Math.min(canvasWidth,Math.ceil(b.x+a[2]*w));
+  const bottom=Math.min(canvasHeight,Math.ceil(b.y+a[3]*w));
+  return right>x+10&&bottom>y+5?{x,y,w:right-x,h:bottom-y}:null;
+}
+function numericCandidates(text){
+  const t=normalized(text).replace(/(?<=\d)[oO](?=[.,\d])/g,"0")
+    .replace(/[٠-٩]/g,x=>String("٠١٢٣٤٥٦٧٨٩".indexOf(x)));
+  const values=[];
+  const regex=/(?:^|[^\d])((?:\d{1,3})?[.,]\s*\d{3})(?!\d)/g;
+  for(const match of t.matchAll(regex)){
+    const token=match[1].replace(/\s/g,"");
+    const n=amount(token.startsWith(".")||token.startsWith(",")?"0"+token:token);
+    if(n!==null)values.push(n);
+  }
+  return [...new Set(values)];
+}
+function supplementPrinted(base,improved){
+  const result={...base,
+    read_from_photo:{weight:!!base.read_from_photo?.weight,
+      unit:!!base.read_from_photo?.unit,total:!!base.read_from_photo?.total}};
+  const notes=[];
+  const kinds=[["weight_grams","weight"],["unit_price_fils","unit"],["total_price_fils","total"]];
+  for(const [property,kind] of kinds){
+    const n=improved[kind];
+    if(!Number.isInteger(n))continue;
+    if(!Number.isInteger(result[property])){
+      result[property]=n;
+      result.read_from_photo[kind]=true;
+    }else if(result[property]!==n){
+      // Two different OCR readings can never silently overwrite one another.
+      result[property]=null;
+      result.read_from_photo[kind]=false;
+      notes.push("Two photo scans disagree about "+kind+". Verify printed sticker.");
+    }
+  }
+  result.ocr_conflicts=notes;
+  return result;
+}
 function derivePriceFromBarcode(barcode,core,knownPrefix){
   const b=String(barcode||"").trim();
   if(!core?.validBarcode?.(b)||!knownPrefix||!b.startsWith(knownPrefix))return null;
@@ -189,5 +242,6 @@ function labelCropRegion(imageW,imageH,box,otherBoxes=[]){
   return {x,y,w,h,barcodeBox:{x:box.x-x,y:box.y-y,w:box.w,h:box.h}};
 }
 return {nameFor,normalized,amount,detectProduct,boxesFromResult,extractLabeled,
-  chooseByLocation,detectPrinted,derivePriceFromBarcode,review,labelCropRegion};
+  chooseByLocation,detectPrinted,numericWindow,numericCandidates,supplementPrinted,
+  derivePriceFromBarcode,review,labelCropRegion};
 });
