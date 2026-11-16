@@ -1,18 +1,15 @@
-/* Standalone, read-only barcode prediction from a selected private learning profile.
-   Uses the same conservative BarcodeLearningCore as the training screen. */
+/* Standalone barcode prediction with user-confirmed saved examples.
+   Never treats predictions as label evidence without the user's explicit confirmation. */
 (()=>{
 "use strict";
 const PROJECT_URL="https://tvaqcbzmzpyltbbelwbw.supabase.co";
 const PUBLIC_KEY="sb_publishable_yqrAl20jwQlW4J8furYn3Q_kjQFIFrr";
 const TABLE="barcode_learning_profiles";
+const EXAMPLES="barcode_learning_examples";
 const core=window.BarcodeLearningCore;
 const $=id=>document.getElementById(id);
 let client=null,user=null,profiles=[],profilesRequest=0;
-let currentPrediction=null,scannedActualBarcode=null;
-let cameraActive=false,cameraToken=0,cameraStream=null,cameraDetector=null;
-let cameraTimer=null,cameraReader=null,zxingLoader=null;
-const cameraDialog=$("predictorCameraDialog"),cameraVideo=$("predictorCameraVideo");
-
+let currentPrediction=null,savingExample=false;
 function message(id,content,isError=false){
   const node=$(id);node.textContent=content||"";
   node.hidden=!content;
@@ -32,24 +29,11 @@ function selectedProfile(){
   const id=$("predictorProfile").value;
   return profiles.find(p=>p.id===id)||null;
 }
-function clearVerificationResult(){
-  $("predictorVerificationResult").hidden=true;
-  $("predictorVerificationResult").classList.remove("is-mismatch");
-  $("predictorVerificationTitle").textContent="";
-  $("predictorVerificationDetails").textContent="";
-}
-function resetVerification(){
-  stopCamera();
-  scannedActualBarcode=null;
-  for(const id of ["predictorActualBarcode","predictorActualWeight","predictorActualTotal"])
-    $(id).value="";
-  $("predictorVerifyPanel").hidden=true;
-  clearVerificationResult();
-  message("predictorCameraFeedback","");
-}
 function clearResult(){
   currentPrediction=null;
-  resetVerification();
+  $("predictorAddLearning").disabled=false;
+  $("predictorAddLearning").textContent="Add to Barcode Learning";
+  message("predictorLearningFeedback","");
   $("predictorResult").hidden=true;
   $("predictorResult").classList.remove("is-unavailable");
   $("predictorBarcodeBlock").hidden=true;
@@ -177,7 +161,10 @@ function showPrediction(p,grams,result){
   $("predictorBarcodeLabel").textContent=ambiguous?
     "Calculated EAN-13 candidate (weight not verified)":"Predicted EAN-13 barcode";
   $("predictorResultBarcode").textContent=available?result.barcode:"";
-  currentPrediction=available?{profileId:p.id,barcode:result.barcode,grams}:null;
+  currentPrediction=available?{profileId:p.id,barcode:result.barcode,grams,total,ownerId:user?.id}:null;
+  $("predictorAddLearning").disabled=false;
+  $("predictorAddLearning").textContent="Add to Barcode Learning";
+  message("predictorLearningFeedback","");
   $("predictorResultExplanation").textContent=available?
     (result.warning||"Calculated from your saved profile. Compare with the actual sticker. Not authorized for store checkout or production records."):
     (result.error||"This profile cannot generate a barcode for this weight.")+
@@ -215,149 +202,101 @@ async function copyPrediction(){
   }
 }
 
-function openVerification(){
-  if(!user||!currentPrediction)return;
-  $("predictorVerifyPanel").hidden=false;
-  clearVerificationResult();
-  message("predictorCameraFeedback","");
-  $("predictorVerifyPanel").scrollIntoView?.({behavior:"smooth",block:"nearest"});
-}
-function verifyAgainstPrintedLabel(e){
-  e.preventDefault();
-  clearVerificationResult();
-  if(!user||!currentPrediction)
-    return message("predictorCameraFeedback","Predict a barcode first, then compare it with a real sticker.",true);
+/* User independently compares the predicted barcode, weight and price to a
+   real sticker. Only then is it stored as a confirmed learning example. */
+async function savePredictedAsExample(){
+  if(savingExample)return;
+  if(!client||!user||!currentPrediction)
+    return message("predictorLearningFeedback","Predict a barcode while signed in before saving.",true);
   const profile=selectedProfile();
-  if(!profile||profile.id!==currentPrediction.profileId)
-    return message("predictorCameraFeedback","The selected item changed. Predict again before verifying.",true);
-  const printedCode=core.cleanBarcode($("predictorActualBarcode").value);
-  const printedWeight=core.parseAmount($("predictorActualWeight").value);
-  const printedTotal=core.parseAmount($("predictorActualTotal").value);
-  if(printedWeight===null||printedTotal===null)
-    return message("predictorCameraFeedback","Enter the weight and total price exactly as printed on the sticker.",true);
-  const checked=core.verifyPredictedAgainstLabel({
-    profile,predicted_barcode:currentPrediction.barcode,
-    requested_weight_grams:currentPrediction.grams,
-    printed_barcode:printedCode,
-    printed_weight_grams:printedWeight,printed_total_fils:printedTotal
-  });
-  const fromCamera=scannedActualBarcode===printedCode;
-  const result=$("predictorVerificationResult");
-  result.hidden=false;
-  result.classList.toggle("is-mismatch",!checked.ok||!fromCamera);
-  if(!checked.ok){
-    $("predictorVerificationTitle").textContent="Does not match the prediction";
-    $("predictorVerificationDetails").textContent=checked.errors.join("\n")+
-      "\nRecheck the physical sticker and try again.";
-  }else if(fromCamera){
-    $("predictorVerificationTitle").textContent="Matches scanned barcode and entered label values";
-    $("predictorVerificationDetails").textContent="The scanned EAN-13, printed "+
-      core.formatAmount(printedWeight)+" kg, and printed "+core.formatAmount(printedTotal)+
-      " BD agree with this prediction."+(checked.ambiguous_weight?
-      " The barcode encodes a price that may correspond to other weights; the printed weight must still be checked independently.":"")+
-      " This is a label comparison only, not checkout authorization.";
-  }else{
-    $("predictorVerificationTitle").textContent="Manually entered details match";
-    $("predictorVerificationDetails").textContent="The entered barcode, weight and price agree with the prediction. This is not an independent scan or proof of a physical sticker. Use Scan real barcode for stronger comparison. It does not authorize checkout.";
-  }
-  message("predictorCameraFeedback","");
-}
-function stopCamera(){
-  cameraToken++;cameraActive=false;
-  if(cameraTimer!==null){clearTimeout(cameraTimer);cameraTimer=null}
-  if(cameraReader){try{cameraReader.reset()}catch(_){}cameraReader=null}
-  if(cameraStream){for(const track of cameraStream.getTracks())try{track.stop()}catch(_){}cameraStream=null}
-  try{cameraVideo.pause()}catch(_){}
-  cameraVideo.srcObject=null;
-  if(cameraDialog.open){
-    if(cameraDialog.close)cameraDialog.close();
-    else cameraDialog.removeAttribute("open");
-  }
-}
-function capturePrintedBarcode(raw){
-  if(!cameraActive||!currentPrediction)return false;
-  const code=core.cleanBarcode(raw);
-  if(!core.validBarcode(code)){
-    $("predictorCameraStatus").textContent="Read incomplete. Aim at the full 13-digit barcode.";
-    return false;
-  }
-  stopCamera();
-  $("predictorActualBarcode").value=code;
-  scannedActualBarcode=code;
-  clearVerificationResult();
-  message("predictorCameraFeedback","Real sticker barcode scanned. Enter the weight and total printed on that sticker before comparing.");
-  return true;
-}
-async function cameraLoop(token){
-  if(!cameraActive||token!==cameraToken)return;
+  const prediction={...currentPrediction};
+  if(!profile||profile.id!==prediction.profileId||prediction.ownerId!==user.id)
+    return message("predictorLearningFeedback","The selected profile has changed. Predict again.",true);
+  const computedStrict=core.suggestBarcode(prediction.grams,profile);
+  const computedCandidate=!computedStrict.ok?core.suggestBarcodeCandidate(prediction.grams,profile):null;
+  const calculated=computedStrict.ok?computedStrict:computedCandidate;
+  if(!calculated?.ok||calculated.barcode!==prediction.barcode||
+    calculated.total_price_fils!==prediction.total)
+    return message("predictorLearningFeedback","The prediction is no longer consistent with the saved item profile. Predict again.",true);
+  const checked=core.sampleCheck({
+    barcode:prediction.barcode,weight_grams:prediction.grams,
+    total_price_fils:prediction.total
+  },profile);
+  if(!checked.ok)
+    return message("predictorLearningFeedback","Cannot save: "+checked.reason,true);
+  const agreed=window.confirm(
+    "Have you personally checked a REAL printed sticker and confirmed ALL three details match?\n\n"+
+    "Item: "+profile.item_code+" · "+profile.product_name+"\n"+
+    "Barcode: "+prediction.barcode+"\n"+
+    "Weight: "+core.formatAmount(prediction.grams)+" kg\n"+
+    "Total: "+core.formatAmount(prediction.total)+" BD\n\n"+
+    "Only choose OK if the barcode, printed weight and printed total match. "+
+    "This will save a confirmed example in Barcode Learning, not authorize store checkout."
+  );
+  if(!agreed)return;
+  savingExample=true;
+  $("predictorAddLearning").disabled=true;
+  const owner=prediction.ownerId;
+  const stillCurrent=()=>user?.id===owner&&currentPrediction?.profileId===profile.id&&
+    currentPrediction?.barcode===prediction.barcode&&
+    currentPrediction?.grams===prediction.grams;
+  message("predictorLearningFeedback","Checking existing learning examples…");
   try{
-    if(cameraVideo.readyState>=2){
-      const results=await cameraDetector.detect(cameraVideo);
-      if(!cameraActive||token!==cameraToken)return;
-      for(const found of results)if(capturePrintedBarcode(found.rawValue))return;
+    const {data:existing,error:existingError}=await client.from(EXAMPLES)
+      .select("id,barcode,weight_grams,total_price_fils")
+      .eq("owner_id",owner).eq("profile_id",profile.id)
+      .eq("barcode",prediction.barcode).limit(5);
+    if(existingError)throw existingError;
+    if(!stillCurrent())return;
+    if(existing?.length){
+      if(existing.some(x=>x.weight_grams!==prediction.grams||
+          x.total_price_fils!==prediction.total)){
+        message("predictorLearningFeedback",
+          "This barcode is already saved with a different weight or total. Review it in Barcode Learning; it cannot be stored with conflicting values.",true);
+      }else{
+        message("predictorLearningFeedback","This exact barcode, weight and price are already saved in Barcode Learning.");
+        $("predictorAddLearning").textContent="Already in Barcode Learning";
+      }
+      return;
     }
-  }catch(_){}
-  if(cameraActive&&token===cameraToken)
-    cameraTimer=setTimeout(()=>void cameraLoop(token),170);
-}
-async function loadZxing(){
-  if(window.ZXing?.BrowserMultiFormatReader)return window.ZXing;
-  if(!zxingLoader){
-    zxingLoader=new Promise((resolve,reject)=>{
-      const script=document.createElement("script");
-      script.src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
-      script.onload=()=>window.ZXing?.BrowserMultiFormatReader?resolve(window.ZXing):
-        reject(Error("Could not initialize fallback barcode scanner."));
-      script.onerror=()=>reject(Error("Cannot download fallback barcode scanner."));
-      document.head.append(script);
-    }).catch(err=>{zxingLoader=null;throw err});
-  }
-  return zxingLoader;
-}
-async function startCamera(){
-  if(cameraActive)return;
-  if(!user||!currentPrediction)
-    return message("predictorCameraFeedback","Predict a barcode before scanning a real label.",true);
-  if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)
-    return message("predictorCameraFeedback","Live scanning needs HTTPS and camera permission. You can enter the real barcode manually.",true);
-  cameraActive=true;
-  const token=++cameraToken;
-  if(cameraDialog.showModal)cameraDialog.showModal();
-  else cameraDialog.setAttribute("open","");
-  $("predictorCameraStatus").textContent="Opening the rear camera…";
-  try{
-    const stream=await navigator.mediaDevices.getUserMedia({
-      audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}
-    });
-    if(!cameraActive||token!==cameraToken){stream.getTracks().forEach(t=>t.stop());return}
-    cameraStream=stream;cameraVideo.srcObject=stream;
-    await cameraVideo.play();
-    if(!cameraActive||token!==cameraToken)return;
-    if(typeof window.BarcodeDetector==="function"){
-      try{
-        const formats=await window.BarcodeDetector.getSupportedFormats?.();
-        if(!formats||formats.includes("ean_13")){
-          cameraDetector=new window.BarcodeDetector({formats:["ean_13"]});
-          $("predictorCameraStatus").textContent="Hold the printed barcode inside the green frame.";
-          void cameraLoop(token);return;
-        }
-      }catch(_){}
+    const record={owner_id:owner,profile_id:profile.id,barcode:prediction.barcode,
+      weight_grams:prediction.grams,total_price_fils:prediction.total,
+      verified_from_label:true};
+    const {error:insertError}=await client.from(EXAMPLES).insert(record);
+    if(insertError)throw insertError;
+    if(!stillCurrent())return;
+    message("predictorLearningFeedback","Saved as a confirmed label in Barcode Learning. Updating its learning result…");
+    $("predictorAddLearning").textContent="Added to Barcode Learning";
+    const {data:rows,error:listError}=await client.from(EXAMPLES)
+      .select("barcode,weight_grams,total_price_fils")
+      .eq("owner_id",owner).eq("profile_id",profile.id)
+      .order("created_at",{ascending:true}).limit(500);
+    if(listError)throw listError;
+    const analyzed=core.analyze(rows||[],profile);
+    const changes={barcode_prefix:analyzed.barcode_prefix||"",
+      pattern_mode:analyzed.mode||"unknown",
+      review_status:analyzed.status||"collecting",
+      sample_count:(rows||[]).length,updated_at:new Date().toISOString()};
+    const {error:updateError}=await client.from(TABLE)
+      .update(changes).eq("id",profile.id).eq("owner_id",owner);
+    if(updateError)throw updateError;
+    Object.assign(profile,changes);
+    if(stillCurrent()){
+      renderProfileSummary();
+      message("predictorLearningFeedback",
+        "Saved to Barcode Learning. "+changes.sample_count+
+        " confirmed example(s) are now included in the selected profile. You can review them under Saved Training Labels.");
     }
-    $("predictorCameraStatus").textContent="Starting compatible barcode reader…";
-    const ZXing=await loadZxing();
-    if(!cameraActive||token!==cameraToken)return;
-    const hints=new Map([[ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.EAN_13]]]);
-    cameraReader=new ZXing.BrowserMultiFormatReader(hints,180);
-    await cameraReader.decodeFromVideoElementContinuously(cameraVideo,result=>{
-      if(cameraActive&&token===cameraToken&&result)capturePrintedBarcode(result.getText());
-    });
   }catch(err){
-    if(!cameraActive||token!==cameraToken)return;
-    stopCamera();
-    message("predictorCameraFeedback",
-      "Camera unavailable: "+(err?.message||"Check browser permission and enter the barcode manually."),true);
+    message("predictorLearningFeedback",
+      "Could not finish saving or refreshing the learning result: "+(err?.message||err)+
+      ". Check Saved Training Labels before trying again, to avoid duplicate examples.",true);
+  }finally{
+    savingExample=false;
+    $("predictorAddLearning").disabled=false;
   }
 }
+
 $("predictorLoginForm").addEventListener("submit",e=>void login(e));
 $("predictorSignOut").addEventListener("click",async()=>{
   if(client)await client.auth.signOut();
@@ -367,19 +306,7 @@ $("predictorProfile").addEventListener("change",()=>{clearResult();renderProfile
 $("predictorWeight").addEventListener("input",clearResult);
 $("predictorForm").addEventListener("submit",predict);
 $("predictorCopy").addEventListener("click",()=>void copyPrediction());
-$("predictorOpenVerify").addEventListener("click",openVerification);
-$("predictorVerifyForm").addEventListener("submit",verifyAgainstPrintedLabel);
-$("predictorScanActual").addEventListener("click",()=>void startCamera());
-$("predictorCameraClose").addEventListener("click",stopCamera);
-$("predictorCameraDialog").addEventListener("cancel",e=>{e.preventDefault();stopCamera()});
-$("predictorActualBarcode").addEventListener("input",()=>{
-  scannedActualBarcode=null;
-  clearVerificationResult();
-});
-for(const id of ["predictorActualWeight","predictorActualTotal"])
-  $(id).addEventListener("input",clearVerificationResult);
-document.addEventListener?.("visibilitychange",()=>{if(document.hidden&&cameraActive)stopCamera()});
-window.addEventListener?.("pagehide",stopCamera);
+$("predictorAddLearning").addEventListener("click",()=>void savePredictedAsExample());
 renderProfiles();
 void initialize();
 })();
