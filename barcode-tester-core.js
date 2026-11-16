@@ -14,6 +14,21 @@ function evaluate(raw,{profiles=[],examples=[],custom=[],catalog=[]}={},core){
   const matching=new Set();
   const results=[],notes=[];
   const profileIndex=new Map(profiles.map(p=>[p.id,p]));
+  // The label family is encoded by the protected meat prefix, not by a
+  // manually assigned profile. Never trust a 966781 sticker as item 6780.
+  const meatCodes=new Set(["6777","6780","6781"]);
+  const barcodeMeatCode=barcode.startsWith("96")&&meatCodes.has(barcode.slice(2,6))?
+    barcode.slice(2,6):null;
+  function wronglyAssigned(itemCode){
+    return barcodeMeatCode&&meatCodes.has(String(itemCode))&&
+      String(itemCode)!==barcodeMeatCode;
+  }
+  const badAssignments=new Set();
+  function rejectWrongItem(itemCode,source){
+    if(!wronglyAssigned(itemCode))return false;
+    badAssignments.add(source+" assigned to "+itemCode);
+    return true;
+  }
   function push(data,identity){
     if(matching.has(identity))return;
     matching.add(identity);results.push(data);
@@ -43,11 +58,13 @@ function evaluate(raw,{profiles=[],examples=[],custom=[],catalog=[]}={},core){
     if(String(e.barcode)!==barcode)continue;
     const p=profileIndex.get(e.profile_id);
     if(!p){notes.push("An exact saved example has no matching accessible profile. Review saved training records.");continue}
+    if(rejectWrongItem(p.item_code,"Training example"))continue;
     const row=savedProfileResult(p,e);
     push(row,"learning:"+p.id+":"+row.weightGrams+":"+row.totalFils);
   }
   for(const row of custom){
     if(String(row.barcode)!==barcode)continue;
+    if(rejectWrongItem(row.item_code,"Saved barcode"))continue;
     const pcs=row.unit_type==="pcs"?Number(row.quantity_pieces):null;
     const grams=pcs===null?Number(row.weight_grams):null;
     const rate=Number(row.unit_price_fils);
@@ -64,6 +81,7 @@ function evaluate(raw,{profiles=[],examples=[],custom=[],catalog=[]}={},core){
   }
   for(const row of catalog){
     if(String(row.ean13)!==barcode)continue;
+    if(rejectWrongItem(row.item_code,"Catalog record"))continue;
     push({
       source:"catalog",title:row.product_name,itemCode:row.item_code,
       weightGrams:Number(row.weight_grams),unitRate:Number(row.unit_price_fils_per_kg),
@@ -75,7 +93,10 @@ function evaluate(raw,{profiles=[],examples=[],custom=[],catalog=[]}={},core){
     },"catalog:"+row.ean13+":"+row.item_code+":"+row.weight_grams+":"+row.unit_price_fils_per_kg);
   }
   const known=new Set(results.filter(r=>r.source==="learning").map(r=>r.profileId));
-  const matchingProfiles=profiles.filter(p=>String(p.barcode_prefix||"")===barcode.slice(0,6));
+  const matchingProfiles=profiles.filter(p=>{
+    if(String(p.barcode_prefix||"")!==barcode.slice(0,6))return false;
+    return !rejectWrongItem(p.item_code,"Learning profile");
+  });
   for(const p of matchingProfiles){
     if(known.has(p.id))continue;
     if(p.review_status!=="validated")continue;
@@ -99,32 +120,71 @@ function evaluate(raw,{profiles=[],examples=[],custom=[],catalog=[]}={},core){
       },"ambiguous:"+p.id);
     }
   }
-  const rawExact=results.filter(r=>r.exact);
-  if(rawExact.length>1){
-    const unique=new Set(rawExact.map(r=>[
-      r.itemCode,r.weightGrams,r.pieces,r.unitRate,r.totalFils
-    ].join(":")));
-    if(unique.size>1)notes.push(
-      "Several saved records match this barcode but disagree about item, weight or price. Check the physical sticker; do not select one automatically.");
+  // Different tables or price versions may contain the *same* item,
+  // weight, rate and total. Show one result per DISTINCT reading and keep
+  // references to additional sources; do not erase any saved database rows.
+  const sourceName=r=>{
+    if(r.source==="learning")return r.verified?
+      "Confirmed training label":"Saved training example";
+    if(r.source==="catalog")return r.verified?
+      "Verified catalog label":"Unverified catalog record";
+    if(r.source==="custom")return "Saved Barcodes record";
+    if(r.source==="pattern")return "Learned pattern";
+    return "Ambiguous learned pattern";
+  };
+  const priority=r=>{
+    if(r.source==="learning"&&r.verified)return 0;
+    if(r.source==="catalog"&&r.verified)return 1;
+    if(r.source==="custom")return 2;
+    if(r.source==="learning")return 3;
+    if(r.source==="catalog")return 4;
+    if(r.source==="pattern")return 5;
+    return 6;
+  };
+  const grouped=new Map();
+  for(const r of results){
+    const key=[r.itemCode,Number.isInteger(r.weightGrams)?r.weightGrams:"unknown",
+      Number.isInteger(r.pieces)?r.pieces:"none",
+      Number.isInteger(r.unitRate)?r.unitRate:"unknown",
+      Number.isInteger(r.totalFils)?r.totalFils:"unknown"].join(":");
+    const old=grouped.get(key);
+    if(!old){
+      grouped.set(key,{...r,otherSources:[],_sources:new Set([sourceName(r)])});
+      continue;
+    }
+    const preferred=priority(r)<priority(old)?r:old;
+    const references=old._sources;
+    references.add(sourceName(r));
+    grouped.set(key,{...preferred,
+      otherSources:[...references].filter(label=>label!==sourceName(preferred)),
+      _sources:references});
   }
-  const trained=results.filter(r=>r.source==="pattern"||r.source==="ambiguous");
-  if(trained.length>1)notes.push(
-    "This barcode also matches more than one saved price version or learned pattern. A barcode alone may not identify the original price period.");
-  if(rawExact.length&&trained.length)
-    notes.push("An exact saved record and one or more additional learned patterns match this barcode. The learned estimates may reflect other price versions. Compare the physical label rather than choosing a rate automatically.");
-  const distinctReadings=new Set(results.filter(r=>Number.isInteger(r.weightGrams)||
+  const consolidated=[...grouped.values()].map(({_sources,...r})=>r)
+    .sort((a,b)=>priority(a)-priority(b));
+  if(badAssignments.size){
+    notes.push("Some saved records have the wrong product assignment ("+
+      [...badAssignments].join("; ")+"). Barcode "+barcode.slice(0,6)+
+      " identifies item "+barcodeMeatCode+
+      ". Those records were excluded from results. Review the mistaken training examples in Barcode Learning.");
+  }
+  const verifiedReadings=new Set(consolidated.filter(r=>r.exact).map(r=>[
+    r.itemCode,r.weightGrams,r.pieces,r.unitRate,r.totalFils
+  ].join(":")));
+  if(verifiedReadings.size>1)notes.push(
+    "Several saved records match this barcode but disagree about item, weight or price. Check the printed sticker; do not select one automatically.");
+  const distinctReadings=new Set(consolidated.filter(r=>Number.isInteger(r.weightGrams)||
     Number.isInteger(r.pieces)).map(r=>[
     r.itemCode,r.weightGrams,r.pieces,r.unitRate,r.totalFils
   ].join(":")));
-  if(distinctReadings.size>1&&!notes.some(t=>t.startsWith("Several saved records")))
-    notes.push("Different item, weight or unit-price readings are possible for this barcode. Inspect the sticker to identify the correct one.");
-  if(!results.length){
+  if(distinctReadings.size>1&&!notes.some(n=>n.startsWith("Several saved records")))
+    notes.push("Different weights or unit prices are possible for this barcode. Inspect the printed sticker to identify the correct one.");
+  if(!consolidated.length){
     if(matchingProfiles.length)notes.push(
       "A saved item matches the barcode prefix, but there is no exact saved record or usable validated decoding result. Check the label or train the item.");
-    else notes.push(
+    else if(!badAssignments.size)notes.push(
       "No saved barcode or validated learning profile matches this number. Add the real label in Barcode Learning or Saved Barcodes.");
   }
-  return {barcode,invalid:false,results,notes};
+  return {barcode,invalid:false,results:consolidated,notes};
 }
 return {evaluate};
 });
