@@ -20,8 +20,7 @@ function evaluate(raw,{profiles=[],examples=[],custom=[],catalog=[]}={},core){
   const barcodeMeatCode=barcode.startsWith("96")&&meatCodes.has(barcode.slice(2,6))?
     barcode.slice(2,6):null;
   function wronglyAssigned(itemCode){
-    return barcodeMeatCode&&meatCodes.has(String(itemCode))&&
-      String(itemCode)!==barcodeMeatCode;
+    return barcodeMeatCode&&String(itemCode)!==barcodeMeatCode;
   }
   const badAssignments=new Set();
   function rejectWrongItem(itemCode,source){
