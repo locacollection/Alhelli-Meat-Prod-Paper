@@ -190,6 +190,36 @@ async function findBarcode(barcode){
     }
     throw Error("This barcode is not in the protected 6777/6780/6781 meat catalog. Check the printed label.");
   }
+
+  // An exact confirmed sticker from an earlier price version must keep its
+  // original saved rate. Never reinterpret it using today's unit price.
+  const historical=await client.from("barcode_learning_examples")
+    .select("profile_id,weight_grams,total_price_fils")
+    .eq("owner_id",owner).eq("barcode",barcode).limit(10);
+  if(historical.error)throw historical.error;
+  if(historical.data?.length>1)
+    throw Error("This barcode appears in more than one saved training example. Check the printed item and price period in Barcode Learning history.");
+  if(historical.data?.length===1){
+    const exact=historical.data[0];
+    const version=await client.from(PROFILES)
+      .select("item_code,product_name,unit_price_fils,rounding_fils,price_version,archived_at")
+      .eq("owner_id",owner).eq("id",exact.profile_id).maybeSingle();
+    if(version.error)throw version.error;
+    if(!version.data)throw Error("Saved label exists, but its price profile could not be loaded.");
+    const p=version.data;
+    const expected=core.roundedPrice(exact.weight_grams,p.unit_price_fils,p.rounding_fils);
+    const verified=expected===exact.total_price_fils;
+    return {name:p.product_name,barcode,item_code:p.item_code,
+      source:p.archived_at?"Historical confirmed label":"Confirmed learning label",
+      grams:exact.weight_grams,pieces:null,rate:p.unit_price_fils,
+      total:exact.total_price_fils,estimated:false,
+      note:"Exact label saved under price version "+(p.price_version||1)+
+        (p.archived_at?" (historical price). The item's current price may be different.":" (current price).")+
+        (verified?" Weight, rate and total agree with that saved version.":
+          " The saved values do not agree with this price version. Review the label in Barcode Learning.")+
+        " This is not checkout authorization."};
+  }
+
   const prefix=barcode.slice(0,6);
   const matches=profiles.filter(p=>p.barcode_prefix===prefix&&p.review_status==="validated"&&p.pattern_mode!=="price5_unverified");
   if(matches.length>1)throw Error("More than one validated item uses this barcode prefix. Choose a more specific pattern in Barcode Learning before decoding.");
