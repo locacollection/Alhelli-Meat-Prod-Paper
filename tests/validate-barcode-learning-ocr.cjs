@@ -45,7 +45,7 @@ const missingChecked=parser.review(missing,p,"9666684001750",core,"966668");
 assert.equal(missingChecked.weight_grams,20);
 assert.equal(missingChecked.unit_price_fils,8750);
 assert.equal(missingChecked.total_price_fils,175);
-assert.ok(missingChecked.warnings.some(x=>x.includes("profile")));
+assert.ok(missingChecked.warnings.some(x=>x.includes("saved item rate")));
 assert.ok(missingChecked.warnings.some(x=>x.includes("barcode")));
 const conflicting=parser.review({...extracted,total_price_fils:180},p,"9666684001750",core,"966668");
 assert.ok(conflicting.warnings.some(x=>/differs.*barcode/i.test(x)));
