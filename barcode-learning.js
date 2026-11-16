@@ -451,7 +451,13 @@ function labelPrefix(p,profile){
   return "";
 }
 function prefill(p,profile,keep=false){
-  p.review=ocrParser.review(p.fields,profile,p.barcode,core,labelPrefix(p,profile));
+  const prefix=labelPrefix(p,profile);
+  p.review=ocrParser.review(p.fields,profile,p.barcode,core,prefix);
+  p.weightConflict=ocrParser.weightPriceConflict(p.review,profile,p.barcode,core,prefix);
+  if(p.weightConflict){
+    p.review.complete=false;
+    p.review.warnings.push("WEIGHT MISMATCH: "+p.weightConflict.message);
+  }
   const estimate=profile?ocrParser.inferUniqueWeight(p.barcode,profile,core):null;
   if(estimate){
     const originalTotal=p.review.total_price_fils;
@@ -509,6 +515,10 @@ function editableField(label,p,key,value,placeholder){
   input.addEventListener("input",e=>{
     p[key]=key==="barcode"?core.cleanBarcode(e.target.value):e.target.value;
     input.classList.toggle("learn-missing-reading",!p[key]);
+    if(key==="weight"&&p.saveControl){
+      p.saveControl.disabled=!user||!p.profileId||busy||
+        Boolean(p.weightConflict&&core.parseAmount(p.weight)===p.weightConflict.ocr_weight_grams);
+    }
   });
   wrapper.append(input);return wrapper;
 }
@@ -524,6 +534,9 @@ async function saveScannedLabel(p){
   if(p.fields.product_code&&p.fields.product_code!==profile.item_code)
     return showError(p,"Printed product looks like "+p.fields.product_code+
       ". Check the item before saving.");
+  if(p.weightConflict&&core.parseAmount(p.weight)===p.weightConflict.ocr_weight_grams)
+    return showError(p,"Incorrect weight blocked: "+p.weightConflict.message+
+      " Use the suggested weight after verifying the sticker, or enter the correct weight yourself.");
   const unit=core.parseAmount(p.unit);
   if(unit===null||unit!==profile.unit_price_fils)
     return showError(p,"Printed unit rate must match this profile ("+
@@ -589,6 +602,25 @@ renderPending=function(){
     pair.append(editableField("Unit price (BD/kg)",p,"unit",p.unit,"Not detected"));
     card.append(pair);
     card.append(editableField("Total (BD)",p,"total",p.total,"Not detected"));
+    if(p.weightConflict){
+      const conflict=p.weightConflict;
+      const stillWrong=core.parseAmount(p.weight)===conflict.ocr_weight_grams;
+      const notice=make("div",stillWrong?"learn-review-alert":"learn-review-corrected");
+      const heading=make("strong","",stillWrong?"Weight mismatch detected":"Weight corrected · verify sticker");
+      const explanation=make("p","",conflict.message);
+      notice.append(heading,explanation);
+      if(Number.isInteger(conflict.suggested_weight_grams)){
+        const fix=make("button","mini","Use "+core.formatAmount(conflict.suggested_weight_grams)+" kg");
+        fix.type="button";
+        fix.addEventListener("click",()=>{
+          p.weight=core.formatAmount(conflict.suggested_weight_grams);
+          p.status="";
+          renderPending();
+        });
+        notice.append(fix);
+      }
+      card.append(notice);
+    }
     const sources=p.review?.read_from_photo||{};
     card.append(make("p","learn-review-source","Read from photo: "+
       (["weight","unit","total"].filter(k=>sources[k]).join(", ")||"unclear")+
@@ -602,7 +634,9 @@ renderPending=function(){
     if(p.status)card.append(make("p","learn-notice is-error",p.status));
     const actions=make("div","learn-review-actions");
     const save=make("button","btn","Confirm & save label");save.type="button";
-    save.disabled=!user||!p.profileId||busy;
+    save.disabled=!user||!p.profileId||busy||
+      Boolean(p.weightConflict&&core.parseAmount(p.weight)===p.weightConflict.ocr_weight_grams);
+    p.saveControl=save;
     save.addEventListener("click",()=>void saveScannedLabel(p));
     const remove=make("button","mini","Remove");remove.type="button";
     remove.addEventListener("click",()=>discardLabel(p));
