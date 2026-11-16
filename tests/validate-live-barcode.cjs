@@ -7,7 +7,7 @@ const deploy=fs.readFileSync(".github/workflows/deploy-pages.yml","utf8");
 assert.ok(page.includes('id="startSingleScan"'));
 assert.ok(page.includes('id="singleBarcodeDialog"'));
 assert.ok(page.includes('id="singleBarcodeVideo"'));
-assert.ok(page.includes('src="live-barcode.js?v=live-one-label-22"'));
+assert.match(page,/src="live-barcode\.js\?v=historical-6777-\d+"/);
 assert.ok(deploy.includes("live-barcode.js"),"Static site must deploy camera scanner file");
 function env({detected="9667800031057",native=true,permissionError=null,delayPermission=false}={}){
   const elements=new Map(),events=new Map(),appended=[],added=[];
@@ -40,12 +40,18 @@ function env({detected="9667800031057",native=true,permissionError=null,delayPer
   }};
   const scanner={
     catalogFromBarcode(code){
-      if(code==="9667800031057")return {ok:true,info:{code:"6780"},grams:690,price:3105};
-      if(code==="9667770031903")return {ok:true,info:{code:"6777"},grams:1000,price:3190};
-      return {ok:false,reason:"Not in saved barcode catalog"};
+      if(code==="9667800031057")return {ok:true,info:{code:"6780"},grams:690,price:3105,unit:4500};
+      if(code==="9667770031903")return {ok:true,info:{code:"6777"},grams:1000,price:3190,unit:3190};
+      return {ok:false,reason:"Ambiguous old or new rate; check printed weight"};
+    },
+    decode(code){
+      if(code==="9667800031057")return {code:"6780",price:3105};
+      if(code==="9667770031903")return {code:"6777",price:3190};
+      if(code==="9667771209851")return {code:"6777",price:20985};
+      return {error:"Not a supported EAN"};
     },
     insertManualEntry(code){
-      if(code==="9667770031903"&&get("manualSource").value==="normal")
+      if((code==="9667770031903"||code==="9667771209851")&&get("manualSource").value==="normal")
         return {error:"Choose bone-in source for 6777"};
       const entry={barcode:code};
       added.push(entry);
@@ -126,6 +132,16 @@ async function test(){
     s.get("closeSingleScan").listeners.click();
     assert.equal(s.stopped,1);
     assert.equal(s.get("singleBarcodeDialog").open,false);
+  }
+  {
+    const s=env({detected:"9667771209851"});
+    s.get("manualSource").value="bone-new";
+    s.get("startSingleScan").listeners.click();
+    await tick();await tick();
+    assert.equal(s.added.length,1,"New-rate 6777 is retained even if barcode-only weight is ambiguous");
+    assert.equal(s.added[0].barcode,"9667771209851");
+    assert.match(s.get("singleBarcodeFeedback").textContent,/printed weight and unit price/);
+    assert.equal(s.window.MeatLiveBarcodeChecks.isActive(),false);
   }
   {
     const s=env({permissionError:{name:"NotAllowedError"}});
