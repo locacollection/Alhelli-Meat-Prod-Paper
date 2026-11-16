@@ -50,3 +50,4 @@
 [hidden]{display:none!important}
 @media(max-width:620px){.tester-login{grid-template-columns:1fr}.tester-numbers{grid-template-columns:1fr}.tester-numbers div{display:flex;gap:10px;align-items:center;justify-content:space-between}.tester-numbers span{margin:0}.tester-match-head{align-items:center}.tester-actions>*{flex:1 1 100%}.tester-camera-video video{aspect-ratio:3/4}}
 @media print{.site-head,.barcode-tester-layout,.tester-camera{display:none!important}}
+.tester-match-sources{margin:8px 0 0;padding:9px 11px;background:#eef4f0;border-radius:9px;color:#4c6a55;font-size:12px;line-height:1.6}
