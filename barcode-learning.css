@@ -94,3 +94,21 @@
 .learn-review-alert strong,.learn-review-corrected strong{font-size:14px}
 .learn-review-alert p,.learn-review-corrected p{margin:0}
 .learn-review-alert .mini,.learn-review-corrected .mini{justify-self:start;border-color:currentColor}
+
+/* Confirmation is visually affirmative only when all four values agree. */
+.learn-confirm-status{margin:2px 0 0;padding:9px 11px;border-radius:10px;
+  font-size:12px;line-height:1.4;background:#f3f5f3;color:#65746a;
+  border:1px solid #e0e8e2}
+.learn-confirm-status.is-ready{background:#e5f8eb;border-color:#abd9bc;
+  color:#16633c;font-weight:800}
+.learn-confirm-status.is-mismatch{background:#fff1e9;border-color:#ebc7b6;color:#8b4930}
+.learn-confirm-button.is-not-ready,.learn-confirm-button:disabled,
+#learnAddSample:disabled{background:#d8e1db!important;color:#788d80!important;
+  border-color:#cedbd1!important;box-shadow:none!important;opacity:1;cursor:not-allowed}
+.learn-confirm-button.is-ready:not(:disabled),#learnAddSample.is-ready:not(:disabled){
+  background:#087a49!important;color:#fff!important;border:1px solid #087a49!important;
+  box-shadow:0 3px 0 #055331,0 0 0 3px #d1f2de;
+  font-weight:850;opacity:1;cursor:pointer}
+.learn-confirm-button.is-ready:not(:disabled):hover,#learnAddSample.is-ready:not(:disabled):hover{
+  background:#06653c!important}
+.learn-card-ready{border-color:#95d2ae!important;box-shadow:inset 0 0 0 1px #b4e3c2}
