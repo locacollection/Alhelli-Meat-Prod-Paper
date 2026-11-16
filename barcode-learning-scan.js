@@ -64,6 +64,18 @@ function barcodeFromZXing(result,x,y){
   }
   return {barcode:result.getText(),x,y,w:220,h:18,precision:0};
 }
+/* Reject an apparent EAN reading if it contradicts the established price-
+   verifier on the three Pakistani beef barcode families. The outer EAN checksum
+   alone can accept a false positive (e.g. 9667804093020). */
+function consistentDetectedBarcode(raw,core){
+  const barcode=core.cleanBarcode(raw);
+  if(!core.validBarcode(barcode))return false;
+  if(/^966(?:777|780|781)/.test(barcode)){
+    const total=Number(barcode.slice(7,12));
+    if(total%5!==0||Number(barcode[6])!==core.priceVerifier(total))return false;
+  }
+  return true;
+}
 async function detectRegions(canvas,core,progress){
   const candidates=[];
   const windows=[{x:0,y:0,w:canvas.width,h:canvas.height}];
@@ -100,7 +112,7 @@ async function detectRegions(canvas,core,progress){
         const found=await native.detect(tile);
         for(const f of found){
           const barcode=String(f.rawValue||"").replace(/\s/g,"");
-          if(!core.validBarcode(barcode))continue;
+          if(!consistentDetectedBarcode(barcode,core))continue;
           const b=f.boundingBox||{},bw=Number(b.width),bh=Number(b.height);
           candidates.push({barcode,
             x:w.x+(Number.isFinite(b.x)?b.x:w.w*.3),
@@ -115,7 +127,7 @@ async function detectRegions(canvas,core,progress){
         if(img.decode)await img.decode();
         const value=await reader.decodeFromImageElement(img);
         const candidate=barcodeFromZXing(value,w.x,w.y);
-        if(candidate&&core.validBarcode(candidate.barcode))candidates.push(candidate);
+        if(candidate&&consistentDetectedBarcode(candidate.barcode,core))candidates.push(candidate);
       }catch(_){}
     }
   }
@@ -136,7 +148,7 @@ async function detectRegions(canvas,core,progress){
           if(img.decode)await img.decode();
           const scanned=await fallbackReader.decodeFromImageElement(img);
           const pos=barcodeFromZXing(scanned,windowBox.x,windowBox.y);
-          if(pos&&core.validBarcode(pos.barcode))candidates.push(pos);
+          if(pos&&consistentDetectedBarcode(pos.barcode,core))candidates.push(pos);
         }catch(_){}
       }
       try{fallbackReader.reset()}catch(_){}
@@ -574,7 +586,7 @@ async function readWeightAtPoint(photoUrl,relativeX,relativeY,parser,core,contex
   return {ok:true,weight_grams:grams,source:"Focused OCR of the printed number you tapped"};
 }
 
-return {MAX_LABELS,uniquePositions,barcodeFromZXing,scaledImage,detectRegions,
+return {MAX_LABELS,consistentDetectedBarcode,uniquePositions,barcodeFromZXing,scaledImage,detectRegions,
   rotateCanvas,rotatedBox,candidateAngles,rotatedLabelCrop,labelRecognitionScore,
   chooseOrientedCrop,enhanceNumberRegion,readNumberBoxes,readWeightAtPoint,cropCanvas,fromCanvas,readFile,readCameraFrame};
 });
