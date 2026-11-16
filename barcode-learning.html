@@ -8,7 +8,7 @@
 </head><body>
 <header class="site-head"><div class="container header-row">
   <div class="brand"><div class="brandmark">BL</div><strong>Barcode Learning</strong></div>
-  <nav><a href="./index.html">Meat</a><a href="./fish-production.html">Fish</a><a href="./custom-barcodes.html">Barcode Manager</a><a href="./weight-price-checker.html">Weight &amp; Price Checker</a></nav>
+  <nav><a href="./index.html">Meat</a><a href="./fish-production.html">Fish</a><a href="./custom-barcodes.html">Barcode Manager</a><a href="./weight-price-checker.html">Weight &amp; Price Checker</a><a href="./barcode-predictor.html">Barcode Predictor</a></nav>
 </div></header>
 <main class="container learning-layout">
 <section class="panel learner-panel learn-account">
@@ -126,13 +126,9 @@
   <div id="learnTestResult" class="learn-test-result" hidden role="status"></div>
 </section>
 <section class="panel learner-panel">
-  <h2>Try a predicted barcode</h2>
-  <p class="fineprint">Optional pattern experiment. Compare with a real sticker before using it.</p>
-  <form id="learnPredictForm" class="learn-form">
-    <label class="learn-field">Weight (kg)<input id="learnPredictWeight" type="number" inputmode="decimal" min="0.001" max="100" step="0.001" placeholder="e.g. 0.505" required></label>
-    <button class="btn btn-light" type="submit">Predict from pattern</button>
-  </form>
-  <div id="learnPredictResult" class="learn-test-result" hidden role="status"></div>
+  <h2>Barcode Predictor</h2>
+  <p class="fineprint">Predict from weight in a separate tool. Choose any saved learning profile, not just the item selected on this page.</p>
+  <a class="btn btn-light" href="./barcode-predictor.html">Open Barcode Predictor</a>
 </section>
 </div>
 </div>
@@ -165,5 +161,5 @@
 <script src="barcode-learning-labels.js?v=weight-ocr-9"></script>
 <script src="barcode-learning-scan.js?v=weight-ocr-9"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="barcode-learning.js?v=saved-labels-2"></script>
+<script src="barcode-learning.js?v=standalone-predictor-1"></script>
 </body></html>
