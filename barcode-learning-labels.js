@@ -1,5 +1,5 @@
-/* Independently recognize printed weight, unit price, and total price
-   from an individual label crop. Unknown or conflicting fields remain reviewable.
+/* Independently recognize printed weight and total price
+   from an individual label crop. The saved profile is the only unit-price source. Unknown or conflicting fields remain reviewable.
    Layout fallbacks use barcode location, not arbitrary numbers on other stickers. */
 (function(root,factory){
   const api=factory();
@@ -102,10 +102,10 @@ function detectPrinted(result,options={}){
     // and associate the wrong price with the wrong heading.
     return spatial??extractLabeled(text,kind);
   };
-  const weight_grams=read("weight"),unit_price_fils=read("unit"),total_price_fils=read("total");
+  const weight_grams=read("weight"),total_price_fils=read("total");
   return {product_code:detectProduct(text),
-    weight_grams,unit_price_fils,total_price_fils,
-    read_from_photo:{weight:weight_grams!==null,unit:unit_price_fils!==null,total:total_price_fils!==null},
+    weight_grams,unit_price_fils:null,total_price_fils,
+    read_from_photo:{weight:weight_grams!==null,unit:false,total:total_price_fils!==null},
     text_excerpt:text.slice(0,500)};
 }
 /* Individual numeric boxes are much more reliable than OCR of the whole
@@ -142,7 +142,7 @@ function numericWindows(kind,barcodeBox,canvasWidth,canvasHeight){
 function numericWindow(kind,barcodeBox,canvasWidth,canvasHeight){
   return numericWindows(kind,barcodeBox,canvasWidth,canvasHeight)[0]||null;
 }
-function numericCandidates(text){
+function numericCandidates(text,options={}){
   const t=normalized(text)
     .replace(/\b[Oo](?=[.,]\s*\d{3})/g,"0")
     .replace(/(?<=\d)[oO](?=[.,\d])/g,"0")
@@ -155,6 +155,14 @@ function numericCandidates(text){
     const n=amount(token.startsWith(".")||token.startsWith(",")?"0"+token:token);
     if(n!==null)values.push(n);
   }
+  // OCR sometimes drops the dot from an isolated weight cell (0.548 -> 0548,
+  // 0.038 -> 038). Treat these as possible glyph readings ONLY from a tightly
+  // cropped weight box with a known profile rate and printed/barcode total.
+  if(!values.length&&options.allowCompactWeight){
+    const compact=t.trim().replace(/\s+/g,"");
+    if(/^0\d{3}$/.test(compact))values.push(Number(compact.slice(1)));
+    else if(/^\d{3}$/.test(compact))values.push(Number(compact));
+  }
   return [...new Set(values)];
 }
 function supplementPrinted(base,improved,options={}){
@@ -162,7 +170,7 @@ function supplementPrinted(base,improved,options={}){
     read_from_photo:{weight:!!base.read_from_photo?.weight,
       unit:!!base.read_from_photo?.unit,total:!!base.read_from_photo?.total}};
   const notes=[];
-  const kinds=[["weight_grams","weight"],["unit_price_fils","unit"],["total_price_fils","total"]];
+  const kinds=[["weight_grams","weight"],["total_price_fils","total"]];
   for(const [property,kind] of kinds){
     const n=improved[kind];
     if(!Number.isInteger(n))continue;
@@ -172,18 +180,19 @@ function supplementPrinted(base,improved,options={}){
     }else if(result[property]!==n){
       // Only the weight field has an additional arithmetic cross-check.
       // Never substitute a barcode-derived guess for an unreadable label.
-      const rate=Number.isInteger(improved.unit)?improved.unit:result.unit_price_fils;
+      const rate=Number.isInteger(options.rate)?options.rate:result.unit_price_fils;
       const total=Number.isInteger(improved.total)?improved.total:result.total_price_fils;
       const core=options.core;
+      const rounding=Number(options.rounding_fils)||5;
       const focusedValid=kind==="weight"&&core&&Number.isInteger(rate)&&
-        Number.isInteger(total)&&core.roundedPrice(n,rate,5)===total;
+        Number.isInteger(total)&&core.roundedPrice(n,rate,rounding)===total;
       const generalValid=kind==="weight"&&core&&Number.isInteger(rate)&&
-        Number.isInteger(total)&&core.roundedPrice(result[property],rate,5)===total;
-      if(focusedValid&&!generalValid){
+        Number.isInteger(total)&&core.roundedPrice(result[property],rate,rounding)===total;
+      if(focusedValid&&(!generalValid||options.strongWeightEvidence)){
         result[property]=n;
         result.read_from_photo[kind]=true;
         notes.push("General OCR and the focused weight-box scan differed. "+
-          "The focused number agrees with printed rate and total. Confirm weight on photo.");
+          "The focused reading agrees with the saved rate and total. Confirm weight on photo.");
       }else{
         result[property]=null;
         result.read_from_photo[kind]=false;
@@ -276,23 +285,19 @@ function review(fields,profile,barcode,core,knownPrefix=""){
     }
   }else data.source_total=data.read_from_photo?.total?"photo":"missing";
   if(profile){
-    if(!Number.isInteger(data.unit_price_fils)){
-      data.unit_price_fils=Number(profile.unit_price_fils);
-      data.source_unit="profile";
-      notes.push("Unit price filled from saved item rate. Check the label.");
-    }else{
-      data.source_unit="photo";
-      if(data.unit_price_fils!==Number(profile.unit_price_fils))
-        notes.push("Printed unit price differs from this item's saved rate.");
-    }
+    // The selected item profile is authoritative. OCR must NEVER overwrite
+    // its rate, even if the total (for example 0.200) is mistaken for unit price.
+    data.unit_price_fils=Number(profile.unit_price_fils);
+    data.read_from_photo={...data.read_from_photo,unit:false};
+    data.source_unit="profile";
     if(Number.isInteger(data.weight_grams)&&
       (data.weight_grams<Number(profile.weight_step_grams)||
       data.weight_grams>100000||
       data.weight_grams%Number(profile.weight_step_grams)!==0))
       notes.push("Printed weight is outside this item's weight increments.");
-  }else data.source_unit=data.read_from_photo?.unit?"photo":"missing";
+  }else{data.unit_price_fils=null;data.source_unit="missing"}
   if(!Number.isInteger(data.weight_grams))notes.push("Printed weight unreadable; enter it from the sticker.");
-  if(!Number.isInteger(data.unit_price_fils))notes.push("Unit price unreadable; enter it from the sticker.");
+  if(!Number.isInteger(data.unit_price_fils))notes.push("Select a saved item profile for its unit price.");
   if(!Number.isInteger(data.total_price_fils))notes.push("Total price unreadable; enter it from the sticker.");
   if(profile&&Number.isInteger(data.weight_grams)&&Number.isInteger(data.total_price_fils)){
     const expected=core?.roundedPrice?.(data.weight_grams,Number(profile.unit_price_fils),Number(profile.rounding_fils));
