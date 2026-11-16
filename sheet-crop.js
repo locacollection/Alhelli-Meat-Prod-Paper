@@ -1,5 +1,5 @@
-/* Reusable, on-device sheet inspector and manual cropping tool.
-   The original image remains on the device. No network requests or auto-saving. */
+/* Local full-resolution sheet inspector with rotatable crop and multi-area scanning.
+   The original image remains on the device. No uploading or automatic saving. */
 (function(root,factory){
   const api=factory();
   if(typeof module==="object"&&module.exports)module.exports=api;
@@ -9,20 +9,39 @@
 const FULL={x:0,y:0,w:1,h:1};
 const clamp=(x,min,max)=>Math.max(min,Math.min(max,Number.isFinite(Number(x))?Number(x):min));
 function normalRect(r=FULL){
-  let x=clamp(r.x,0,.995),y=clamp(r.y,0,.995);
-  let w=clamp(r.w,.01,1),h=clamp(r.h,.01,1);
+  const x=clamp(r.x,0,.995),y=clamp(r.y,0,.995);
+  const w=clamp(r.w,.01,1),h=clamp(r.h,.01,1);
   return {x,y,w:Math.min(1-x,w),h:Math.min(1-y,h)};
 }
-function mapRect(rect,base=FULL){
-  const a=normalRect(rect),b=normalRect(base);
+function mapRect(r,base=FULL){
+  const a=normalRect(r),b=normalRect(base);
   return normalRect({x:b.x+a.x*b.w,y:b.y+a.y*b.h,w:a.w*b.w,h:a.h*b.h});
+}
+function turnsOf(n){return ((Math.trunc(Number(n)||0)%4)+4)%4}
+// Clockwise quarter turns, in normalized image coordinates. Rotated images
+// have swapped pixel dimensions for 90° and 270°; normalized math handles that.
+function rotateRect(region,turns=0){
+  const r=normalRect(region),t=turnsOf(turns);
+  if(t===1)return normalRect({x:1-r.y-r.h,y:r.x,w:r.h,h:r.w});
+  if(t===2)return normalRect({x:1-r.x-r.w,y:1-r.y-r.h,w:r.w,h:r.h});
+  if(t===3)return normalRect({x:r.y,y:1-r.x-r.w,w:r.h,h:r.w});
+  return r;
+}
+function unrotateRect(region,turns=0){
+  return rotateRect(region,4-turnsOf(turns));
+}
+// A scanner reports normalized rectangles in the pixels it was given.
+// Re-map back to the ORIGINAL unrotated photo, even for a rotated manual crop.
+function mapScanRect(local,meta={}){
+  const t=turnsOf(meta.rotation||0);
+  const base=meta.rotatedRect||rotateRect(meta.rect||FULL,t);
+  return unrotateRect(mapRect(local,base),t);
 }
 function barcodeRegion(r,width,height){
   if(!r||!(width>0&&height>0))return normalRect({x:.2,y:.2,w:.6,h:.6});
   const x=Number(r.x)||0,y=Number(r.y)||0;
   const bw=Math.max(24,Number(r.w)||24),bh=Math.max(8,Number(r.h)||8);
-  const unit=Math.max(bw,bh);
-  const vertical=bh>bw*1.2;
+  const unit=Math.max(bw,bh),vertical=bh>bw*1.2;
   const box=vertical?
     {x:x-unit*.92,y:y-unit*.48,w:unit*2.8,h:unit*1.6}:
     {x:x-unit*.47,y:y-unit*1.55,w:unit*3.08,h:unit*1.80};
@@ -34,21 +53,27 @@ const element=(tag,cls,text)=>{
   if(text!==undefined)n.textContent=String(text);
   return n;
 };
+function paintOriented(ctx,image,sourceWidth,sourceHeight,turns,scale=1){
+  const t=turnsOf(turns),w=sourceWidth*scale,h=sourceHeight*scale;
+  if(t===1){ctx.translate(h,0);ctx.rotate(Math.PI/2)}
+  if(t===2){ctx.translate(w,h);ctx.rotate(Math.PI)}
+  if(t===3){ctx.translate(0,w);ctx.rotate(-Math.PI/2)}
+  ctx.drawImage(image,0,0,sourceWidth,sourceHeight,0,0,w,h);
+}
 function open({source,title="Inspect original sheet",initialRegion=null,
-   barcodeRegion:marker=null,details="",allowWhole=false,
-   cropLabel="Use crop and rescan"}={}){
+  barcodeRegion:marker=null,details="",allowWhole=false,
+  cropLabel="Use crop and rescan"}={}){
   return new Promise(async(resolve)=>{
     if(!source||typeof document==="undefined"){resolve(null);return}
     const ownUrl=typeof source!=="string";
-    const url=ownUrl?URL.createObjectURL(source):source;
+    const originalUrl=ownUrl?URL.createObjectURL(source):source;
     const dialog=element("dialog","sheet-editor-dialog");
-    const head=element("div","sheet-editor-head");
-    const heading=element("h2","",title);
+    const head=element("div","sheet-editor-head"),heading=element("h2","",title);
     const closeBtn=element("button","mini","Cancel");
     closeBtn.type="button";head.append(heading,closeBtn);
-    const text=element("p","sheet-editor-description",
-      "The green box marks the detected label. Drag anywhere to redraw it; drag inside to move it. Use the corner handle to resize. Zoom displays the ORIGINAL photo pixels.");
-    const meta=element("p","sheet-editor-meta",details||"Check the barcode, weight and price on this sheet before confirming.");
+    const instructions=element("p","sheet-editor-description",
+      "The green box selects one label OR an area containing several labels. Drag to redraw, move or resize. Rotate the photo to make sideways stickers readable. Scan the full sheet to detect all labels.");
+    const meta=element("p","sheet-editor-meta",details||"Check each barcode, weight and price before confirming.");
     const controls=element("div","sheet-editor-controls");
     const zoomLabel=element("label","","Zoom");
     const zoom=element("input");zoom.type="range";zoom.min="1";zoom.max="4";zoom.step=".25";zoom.value="1";
@@ -57,59 +82,97 @@ function open({source,title="Inspect original sheet",initialRegion=null,
     const enhanceLabel=element("label","sheet-editor-check");
     const enhance=element("input");enhance.type="checkbox";
     enhanceLabel.append(enhance,document.createTextNode("Enhance contrast"));
-    const editBtn=element("button","mini sheet-editor-mode","Adjust crop");editBtn.type="button";
-    const resetBtn=element("button","mini","Reset selection");resetBtn.type="button";
-    controls.append(zoomLabel,enhanceLabel,editBtn,resetBtn);
+    const rotateLeft=element("button","mini sheet-editor-rotate-left","↶ Rotate left");
+    const rotateRight=element("button","mini sheet-editor-rotate-right","Rotate right ↷");
+    const rotationValue=element("span","sheet-editor-rotation-value","0°");
+    rotateLeft.type="button";rotateRight.type="button";
+    const editBtn=element("button","mini sheet-editor-mode","Pan / scroll photo");
+    const resetBtn=element("button","mini","Reset selection");
+    editBtn.type="button";resetBtn.type="button";
+    controls.append(zoomLabel,enhanceLabel,rotateLeft,rotateRight,rotationValue,editBtn,resetBtn);
     const scroll=element("div","sheet-editor-scroll");
-    const stage=element("div","sheet-editor-stage");
-    const img=element("img","sheet-editor-image");
-    img.alt="Original full-resolution sheet with highlighted label";
+    const stage=element("div","sheet-editor-stage"),img=element("img","sheet-editor-image");
+    img.alt="Photo with green selected area and visible barcode detection marker";
+    const queuedLayer=element("div","sheet-editor-queued-layer");
     const regionEl=element("div","sheet-editor-region");
-    regionEl.setAttribute("aria-label","Selected label crop");
+    regionEl.setAttribute("aria-label","Selected area for scanning");
     const handle=element("div","sheet-editor-handle");handle.dataset.handle="resize";
     const markerEl=element("div","sheet-editor-barcode");
     markerEl.title="Original barcode detection position";
     regionEl.append(handle);
-    stage.append(img,regionEl,markerEl);scroll.append(stage);
-    const hint=element("p","sheet-editor-hint","Drag to select the whole sticker, including weight, barcode and total price. Avoid neighboring labels.");
-    const result=element("p","sheet-editor-error");result.hidden=true;result.setAttribute("role","status");
+    stage.append(img,queuedLayer,regionEl,markerEl);scroll.append(stage);
+    const hint=element("p","sheet-editor-hint",
+      "Select the entire sticker, including weight, barcode and total. You can also select several stickers together.");
+    const result=element("p","sheet-editor-error");result.hidden=true;
+    result.setAttribute("role","status");
     const footer=element("div","sheet-editor-actions");
-    const use=element("button","btn",cropLabel);use.type="button";
+    const use=element("button","btn",cropLabel);
+    use.type="button";
+    let addArea=null,scanAreas=null,undoArea=null,countText=null;
     if(allowWhole){
-      const full=element("button","btn btn-light","Scan full sheet");
+      const full=element("button","btn btn-light","Scan full sheet (all labels)");
       full.type="button";
-      full.addEventListener("click",()=>finish({mode:"full",file:source,rect:FULL,enhanced:false}));
+      full.addEventListener("click",()=>void completeFull());
       footer.append(full);
+      const areaTools=element("div","sheet-editor-area-tools");
+      addArea=element("button","mini","Add area for multi-scan");
+      undoArea=element("button","mini","Undo last area");
+      scanAreas=element("button","btn btn-light","Scan selected areas");
+      countText=element("span","sheet-editor-areas-count","0 areas selected");
+      addArea.type=undoArea.type=scanAreas.type="button";
+      undoArea.disabled=true;scanAreas.disabled=true;
+      addArea.addEventListener("click",queueArea);
+      undoArea.addEventListener("click",()=>{areas.pop();render()});
+      scanAreas.addEventListener("click",()=>void completeAreas());
+      areaTools.append(addArea,undoArea,countText,scanAreas);
+      footer.append(areaTools);
     }
     footer.append(use);
-    dialog.append(head,text,meta,controls,scroll,hint,result,footer);
+    dialog.append(head,instructions,meta,controls,scroll,hint,result,footer);
     document.body.append(dialog);
+
     let finished=false,editing=true,dragging=null,rect=normalRect(initialRegion||{x:.20,y:.19,w:.60,h:.55});
-    let imageWidth=0,imageHeight=0,baseWidth=0;
+    let imageWidth=0,imageHeight=0,baseWidth=0,turn=0,orientationBusy=false;
+    let previewToken=0,previewUrl="",originalImage=null;
+    const areas=[];
     function finish(value){
       if(finished)return;
-      finished=true;
+      finished=true;previewToken++;
       if(dialog.open)dialog.close();
       dialog.remove();
-      if(ownUrl)URL.revokeObjectURL(url);
+      if(previewUrl)URL.revokeObjectURL(previewUrl);
+      if(ownUrl)URL.revokeObjectURL(originalUrl);
       resolve(value);
     }
     closeBtn.addEventListener("click",()=>finish(null));
     dialog.addEventListener("cancel",event=>{event.preventDefault();finish(null)});
     img.addEventListener("dragstart",e=>e.preventDefault());
+    function setBoxStyle(el,box){
+      el.style.left=(box.x*100)+"%";
+      el.style.top=(box.y*100)+"%";
+      el.style.width=(box.w*100)+"%";
+      el.style.height=(box.h*100)+"%";
+    }
     function render(){
-      regionEl.style.left=(rect.x*100)+"%";
-      regionEl.style.top=(rect.y*100)+"%";
-      regionEl.style.width=(rect.w*100)+"%";
-      regionEl.style.height=(rect.h*100)+"%";
+      setBoxStyle(regionEl,rect);
       if(marker){
-        const m=normalRect(marker);
-        markerEl.style.left=(m.x*100)+"%";
-        markerEl.style.top=(m.y*100)+"%";
-        markerEl.style.width=(m.w*100)+"%";
-        markerEl.style.height=(m.h*100)+"%";
+        setBoxStyle(markerEl,rotateRect(marker,turn));
         markerEl.hidden=false;
       }else markerEl.hidden=true;
+      queuedLayer.replaceChildren();
+      for(const [index,area] of areas.entries()){
+        const box=element("div","sheet-editor-queued-area");
+        box.textContent=String(index+1);
+        setBoxStyle(box,rotateRect(area.rect,turn));
+        queuedLayer.append(box);
+      }
+      if(countText)countText.textContent=areas.length+
+        (areas.length===1?" area selected":" areas selected")+" (max 20)";
+      if(undoArea)undoArea.disabled=!areas.length||orientationBusy;
+      if(scanAreas)scanAreas.disabled=!areas.length||orientationBusy;
+      if(addArea)addArea.disabled=areas.length>=20||orientationBusy;
+      use.disabled=orientationBusy;
+      rotationValue.textContent=(turn*90)+"°";
     }
     function zoomStage(){
       const factor=Number(zoom.value)||1;
@@ -125,22 +188,24 @@ function open({source,title="Inspect original sheet",initialRegion=null,
       stage.style.cursor=on?"crosshair":"grab";
       editBtn.textContent=on?"Pan / scroll photo":"Adjust crop";
       hint.textContent=on?
-        "Drag on the photo to draw a new crop, inside the green box to move it, or its corner handle to resize.":
-        "Scroll or pan around the zoomed photo. Tap Adjust crop to change the green box.";
+        "Drag to select one or several labels, move the green box, or resize its corner handle.":
+        "Scroll around the zoomed photo. Tap Adjust crop to change the green box.";
     }
     zoom.addEventListener("input",zoomStage);
     enhance.addEventListener("change",preview);
     editBtn.addEventListener("click",()=>editMode(!editing));
-    resetBtn.addEventListener("click",()=>{rect=normalRect(initialRegion||{x:.20,y:.19,w:.60,h:.55});render()});
+    resetBtn.addEventListener("click",()=>{
+      rect=rotateRect(normalRect(initialRegion||{x:.20,y:.19,w:.60,h:.55}),turn);
+      render();
+    });
     function at(event){
       const bounds=img.getBoundingClientRect();
       return {x:clamp((event.clientX-bounds.left)/Math.max(1,bounds.width),0,1),
         y:clamp((event.clientY-bounds.top)/Math.max(1,bounds.height),0,1)};
     }
     stage.addEventListener("pointerdown",event=>{
-      if(!editing||!imageWidth||event.button>0)return;
-      const point=at(event);
-      const resizing=event.target.dataset?.handle==="resize";
+      if(!editing||orientationBusy||!imageWidth||event.button>0)return;
+      const point=at(event),resizing=event.target.dataset?.handle==="resize";
       const moving=event.target===regionEl||event.target.closest?.(".sheet-editor-region");
       const mode=resizing?"resize":moving?"move":"draw";
       dragging={mode,start:point,previous:{...rect},pointer:event.pointerId};
@@ -167,45 +232,154 @@ function open({source,title="Inspect original sheet",initialRegion=null,
     });
     for(const name of ["pointerup","pointercancel","lostpointercapture"])
       stage.addEventListener(name,()=>{dragging=null});
-    use.addEventListener("click",async()=>{
-      if(finished)return;
-      result.hidden=true;
-      if(rect.w*imageWidth<30||rect.h*imageHeight<25){
-        result.hidden=false;result.textContent="The crop is too small. Include the complete label.";return;
+    function error(message){result.hidden=false;result.textContent=message}
+    function checkArea(area){
+      const r=area.rect;
+      if(r.w*imageWidth<30||r.h*imageHeight<25)
+        throw Error("The selected area is too small. Include the complete label.");
+    }
+    function selection(){
+      const r=normalRect(rect);
+      const originalRect=unrotateRect(r,turn);
+      const value={rect:originalRect,rotatedRect:r,rotation:turn};
+      checkArea(value);
+      return value;
+    }
+    // Crops ALWAYS use pixels from the untouched original photo. The rotated
+    // preview is for editing only and never limits OCR resolution.
+    async function imageFile(area,label){
+      const original=normalRect(area.rect);
+      const t=turnsOf(area.rotation);
+      const sx=Math.floor(original.x*imageWidth),sy=Math.floor(original.y*imageHeight);
+      const sw=Math.max(1,Math.min(imageWidth-sx,Math.ceil(original.w*imageWidth)));
+      const sh=Math.max(1,Math.min(imageHeight-sy,Math.ceil(original.h*imageHeight)));
+      const scale=Math.min(1,3600/Math.max(sw,sh));
+      const outWidth=Math.max(1,Math.round(sw*scale));
+      const outHeight=Math.max(1,Math.round(sh*scale));
+      const canvas=document.createElement("canvas");
+      canvas.width=t%2?outHeight:outWidth;
+      canvas.height=t%2?outWidth:outHeight;
+      const ctx=canvas.getContext("2d");
+      if(!ctx)throw Error("Canvas is unavailable on this device.");
+      ctx.imageSmoothingQuality="high";
+      if(enhance.checked)ctx.filter="contrast(1.28) brightness(1.06)";
+      ctx.save();
+      if(t===1){ctx.translate(canvas.width,0);ctx.rotate(Math.PI/2)}
+      if(t===2){ctx.translate(canvas.width,canvas.height);ctx.rotate(Math.PI)}
+      if(t===3){ctx.translate(0,canvas.height);ctx.rotate(-Math.PI/2)}
+      ctx.drawImage(originalImage,sx,sy,sw,sh,0,0,outWidth,outHeight);
+      ctx.restore();
+      const blob=await new Promise(yes=>canvas.toBlob(yes,"image/png"));
+      canvas.width=canvas.height=1;
+      if(!blob)throw Error("Could not produce the rotated crop.");
+      const base=typeof source==="string"?"original-photo":(source.name||"sheet");
+      const name=base.replace(/\.[^.]+$/,"")+"-"+label+"-rot"+(t*90)+".png";
+      return new File([blob],name,{type:"image/png"});
+    }
+    async function completeArea(area){
+      const file=await imageFile(area,"manual-crop");
+      return {...area,file};
+    }
+    async function completeFull(){
+      if(finished||orientationBusy)return;
+      if(turn===0){
+        finish({mode:"full",file:source,rect:{...FULL},rotatedRect:{...FULL},rotation:0});
+        return;
       }
-      use.disabled=true;use.textContent="Preparing original-resolution crop…";
+      use.disabled=true;result.hidden=true;
       try{
-        const sx=Math.floor(rect.x*imageWidth),sy=Math.floor(rect.y*imageHeight);
-        const sw=Math.max(1,Math.min(imageWidth-sx,Math.ceil(rect.w*imageWidth)));
-        const sh=Math.max(1,Math.min(imageHeight-sy,Math.ceil(rect.h*imageHeight)));
-        // Preserve original photo detail, but cap huge canvases for mobile memory.
-        const scale=Math.min(1,3600/Math.max(sw,sh));
-        const canvas=document.createElement("canvas");
-        canvas.width=Math.max(1,Math.round(sw*scale));
-        canvas.height=Math.max(1,Math.round(sh*scale));
-        const ctx=canvas.getContext("2d");
-        ctx.imageSmoothingQuality="high";
-        if(enhance.checked)ctx.filter="contrast(1.28) brightness(1.06)";
-        ctx.drawImage(img,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
-        ctx.filter="none";
-        const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
-        if(!blob)throw Error("Could not create the cropped image.");
-        const base=typeof source==="string"?"label.png":(source.name||"label.png");
-        const file=new File([blob],base.replace(/\.[^.]+$/,"")+"-manual-crop.png",{type:"image/png"});
-        finish({mode:"crop",file,rect:{...rect},enhanced:enhance.checked,
-          originalWidth:imageWidth,originalHeight:imageHeight});
-      }catch(err){
-        result.textContent="Cropping failed: "+(err?.message||err);
-        result.hidden=false;use.disabled=false;use.textContent=cropLabel;
-      }
+        const file=await imageFile({rect:FULL,rotatedRect:FULL,rotation:turn},"full-sheet");
+        if(finished)return;
+        finish({mode:"full",file,rect:{...FULL},rotatedRect:{...FULL},rotation:turn});
+      }catch(e){error("Could not rotate full sheet: "+e.message);render()}
+    }
+    async function completeAreas(){
+      if(finished||orientationBusy||!areas.length)return;
+      if(scanAreas)scanAreas.disabled=true;
+      use.disabled=true;result.hidden=true;
+      try{
+        const crops=[];
+        for(let index=0;index<areas.length;index++){
+          const area=areas[index];
+          const file=await imageFile(area,"selected-"+(index+1));
+          crops.push({...area,file});
+        }
+        if(finished)return;
+        finish({mode:"multi",crops});
+      }catch(e){error("Could not prepare selected areas: "+e.message);render()}
+    }
+    function queueArea(){
+      if(finished||orientationBusy||areas.length>=20)return;
+      try{
+        const {rect:originalRect,rotation}=selection();
+        areas.push({rect:originalRect,rotatedRect:rotateRect(originalRect,rotation),rotation});
+        result.hidden=true;render();
+      }catch(e){error(e.message)}
+    }
+    use.addEventListener("click",async()=>{
+      if(finished||orientationBusy)return;
+      let area;
+      try{area=selection()}catch(e){error(e.message);return}
+      result.hidden=true;
+      use.disabled=true;use.textContent="Preparing original-resolution crop…";
+      try{const value=await completeArea(area);if(!finished)finish({mode:"crop",...value,enhanced:enhance.checked,
+        originalWidth:imageWidth,originalHeight:imageHeight})}
+      catch(e){error("Cropping failed: "+e.message);use.textContent=cropLabel;render()}
     });
+    async function drawPreview(t){
+      if(t===0){img.src=originalUrl;await img.decode();return}
+      const factor=Math.min(1,2400/Math.max(imageWidth,imageHeight));
+      const w=Math.max(1,Math.round(imageWidth*factor)),h=Math.max(1,Math.round(imageHeight*factor));
+      const c=document.createElement("canvas");
+      c.width=t%2?h:w;c.height=t%2?w:h;
+      const ctx=c.getContext("2d");
+      ctx.imageSmoothingQuality="high";
+      paintOriented(ctx,originalImage,imageWidth,imageHeight,t,factor);
+      const blob=await new Promise(yes=>c.toBlob(yes,"image/jpeg",.92));
+      c.width=c.height=1;
+      if(!blob)throw Error("Unable to preview rotated photo.");
+      const previous=previewUrl;
+      previewUrl=URL.createObjectURL(blob);
+      img.src=previewUrl;await img.decode();
+      if(previous)URL.revokeObjectURL(previous);
+    }
+    async function rotateBy(delta){
+      if(finished||orientationBusy||!imageWidth)return;
+      const previous=turn,next=turnsOf(turn+delta);
+      orientationBusy=true;dragging=null;
+      rotateLeft.disabled=rotateRight.disabled=true;render();
+      try{
+        await drawPreview(next);
+        if(finished)return;
+        rect=rotateRect(rect,delta);
+        turn=next;
+        scroll.scrollTop=0;scroll.scrollLeft=0;
+        zoomStage();preview();
+        result.hidden=true;
+      }catch(err){
+        error("Rotation failed: "+err.message);
+        // Restore the original preview rather than leaving selection misaligned.
+        try{await drawPreview(previous)}catch(_){}
+      }finally{
+        orientationBusy=false;
+        rotateLeft.disabled=rotateRight.disabled=false;
+        if(!finished)render();
+      }
+    }
+    rotateLeft.addEventListener("click",()=>void rotateBy(-1));
+    rotateRight.addEventListener("click",()=>void rotateBy(1));
     try{
-      img.src=url;
-      if(img.decode)await img.decode();
-      else await new Promise((yes,no)=>{img.onload=yes;img.onerror=no});
+      originalImage=document.createElement("img");
+      originalImage.src=originalUrl;
+      if(originalImage.decode)await originalImage.decode();
+      else await new Promise((yes,no)=>{originalImage.onload=yes;originalImage.onerror=no});
       if(finished)return;
-      imageWidth=img.naturalWidth||img.width;imageHeight=img.naturalHeight||img.height;
-      if(!imageWidth||!imageHeight)throw Error("The original image has no readable pixels.");
+      imageWidth=originalImage.naturalWidth||originalImage.width;
+      imageHeight=originalImage.naturalHeight||originalImage.height;
+      if(!imageWidth||!imageHeight)throw Error("The source photo has no readable pixels.");
+      img.src=originalUrl;
+      if(img.decode)await img.decode();
+      if(finished)return;
       if(dialog.showModal)dialog.showModal();else dialog.setAttribute("open","");
       baseWidth=Math.min(900,Math.max(260,scroll.clientWidth-4));
       zoomStage();preview();editMode(true);render();
@@ -214,5 +388,5 @@ function open({source,title="Inspect original sheet",initialRegion=null,
     }
   });
 }
-return {open,normalRect,mapRect,barcodeRegion};
+return {open,normalRect,mapRect,barcodeRegion,rotateRect,unrotateRect,mapScanRect};
 });
