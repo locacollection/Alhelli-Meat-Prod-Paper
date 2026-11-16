@@ -11,7 +11,6 @@ let client=null,user=null,profiles=[],active=null,samples=[],analysis=null,busy=
 let profileToken=0,sampleToken=0,pendingCodes=[],pendingLabels=[],readingPhotos=false,pendingId=0;
 let linkedPriceProfile=String(window.location?.search||"").match(/[?&]profile=([a-f0-9-]{36})(?:&|$)/i)?.[1]||"";
 let camStream=null,camReader=null,camDetector=null,camToken=0,camTimer=null,camActive=false,ZXingLoader=null;
-let camMode="label";
 function msg(id,text,error=false){
   const node=$(id);node.textContent=text||"";node.hidden=!text;
   node.classList.toggle("is-error",error);
@@ -443,23 +442,6 @@ function model(){
     return null;
   return {...active,barcode_prefix:analysis.barcode_prefix,pattern_mode:analysis.mode,
     review_status:analysis.status};
-}
-function testBarcode(e){
-  e.preventDefault();
-  const profile=model();
-  const result=profile?core.decodeLearned($("learnTestBarcode").value,profile):
-    {ok:false,error:"Save at least 4 varied examples to validate one pattern first."};
-  const container=$("learnTestResult");container.hidden=false;
-  container.className="learn-test-result"+(result.ok?"":" is-error");
-  container.replaceChildren();
-  if(result.ok){
-    container.append(make("strong","",core.formatAmount(result.weight_grams)+" kg"));
-    container.append(make("div","",result.product_name+" · "+core.formatAmount(result.price_fils)+" BD"));
-    container.append(make("small","","Learned pattern only. Verify the printed sticker."));
-  }else{
-    container.textContent=result.error;
-    if(result.ambiguous)container.append(make("div","","Do not guess the weight."));
-  }
 }
 function renderPending(){
   const panel=$("learnPending");panel.replaceChildren();panel.hidden=!pendingCodes.length;
@@ -1008,13 +990,6 @@ function capturedBarcode(raw,box=null){
   if(!camActive)return false;
   const barcode=core.cleanBarcode(raw);
   if(!core.validBarcode(barcode))return false;
-  if(camMode==="test"){
-    stopCamera();
-    $("learnTestBarcode").value=barcode;
-    msg("learnTestScanMessage","Scanned "+barcode+". Result shown below.");
-    testBarcode({preventDefault(){}});
-    return true;
-  }
   const reading=photoEngine?.readCameraFrame?.(video,barcode,box,core,ocrParser,
     undefined,scanProfileForBarcode);
   stopCamera();
@@ -1054,19 +1029,13 @@ async function nativeLoop(token){
   }catch(_){}
   if(camActive&&camToken===token)camTimer=setTimeout(()=>void nativeLoop(token),170);
 }
-async function startCamera(mode="label"){
+async function startCamera(){
   if(camActive)return;
-  camMode=mode==="test"?"test":"label";
-  const messageId=camMode==="test"?"learnTestScanMessage":"learnSampleMessage";
-  if(camMode==="test"){
-    msg(messageId,"");
-    $("learnTestResult").hidden=true;
-  }
   if(!navigator.mediaDevices?.getUserMedia||!window.isSecureContext){
-    msg(messageId,"Camera scanning requires HTTPS and camera permission.",true);return;
+    msg("learnSampleMessage","Camera scanning requires HTTPS and camera permission.",true);return;
   }
   camActive=true;const token=++camToken;
-  $("learnCameraHeading").textContent=camMode==="test"?"Scan barcode to test":"Scan a full label";
+  $("learnCameraHeading").textContent="Scan a full label";
   if(dialog.showModal)dialog.showModal();else dialog.setAttribute("open","");
   $("learnCameraMessage").textContent="Opening rear camera…";
   try{
@@ -1097,9 +1066,8 @@ async function startCamera(mode="label"){
     });
   }catch(err){
     if(!camActive||token!==camToken)return;
-    const messageId=camMode==="test"?"learnTestScanMessage":"learnSampleMessage";
     stopCamera();
-    msg(messageId,"Camera unavailable: "+(err?.message||"Use manual entry."),true);
+    msg("learnSampleMessage","Camera unavailable: "+(err?.message||"Use manual entry."),true);
   }
 }
 $("learnLoginForm").addEventListener("submit",e=>void login(e));
@@ -1117,9 +1085,7 @@ $("learnSavedSamplesDialog").addEventListener("cancel",e=>{e.preventDefault();cl
 for(const id of ["learnBarcode","learnWeight","learnTotal"]){
   $(id).addEventListener("input",updateControls);
 }
-$("learnTestForm").addEventListener("submit",testBarcode);
-$("learnLiveScan").addEventListener("click",()=>void startCamera("label"));
-$("learnTestScan").addEventListener("click",()=>void startCamera("test"));
+$("learnLiveScan").addEventListener("click",()=>void startCamera());
 $("learnCameraStop").addEventListener("click",stopCamera);
 $("learnOriginalClose").addEventListener("click",closeOriginalPhoto);
 $("learnOriginalZoom").addEventListener("click",()=>{
