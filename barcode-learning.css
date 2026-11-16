@@ -144,3 +144,21 @@
 .learn-saved-dialog .learn-sample>div{min-width:0}
 @media(max-width:570px){.learn-saved-summary{align-items:stretch}.learn-saved-summary button{width:100%}}
 @media print{.learn-saved-dialog{display:none!important}}
+
+/* Price changes create a separate learning version; earlier labels stay read-only. */
+.learn-price-status{margin:10px 0 0;padding:10px 12px;background:#f4faf5;border:1px solid #d1e4d5;border-radius:10px;color:#365f46;font-size:12px}
+.learn-price-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:10px}
+.learn-price-actions>*{flex:1 1 135px;min-height:43px}
+.learn-price-warning{padding:12px 14px;border:1px solid #e4d0a7;background:#fff8e8;color:#705830;border-radius:11px;font-size:12px;line-height:1.6;margin-top:12px}
+.learn-price-dialog{width:min(620px,calc(100vw - 18px))}
+.learn-price-dialog .learn-form button{min-height:44px}
+.learn-price-history-list{display:grid;gap:10px;margin:14px 0}
+.learn-price-history-row{display:flex;gap:9px;justify-content:space-between;align-items:start;flex-wrap:wrap;padding:12px;border:1px solid #d4e2d7;border-radius:11px;background:#f8fbf8}
+.learn-price-history-row strong{display:block;font-size:14px;color:#28593d}
+.learn-price-history-row small{font-size:12px;color:#5b7461;display:block;margin-top:5px;line-height:1.6}
+.learn-price-history-row button{font-size:12px}
+.learn-price-history-samples{border-top:1px solid #d9e4dc;margin-top:14px;padding-top:14px}
+.learn-price-history-samples h3{font-size:15px;margin:0 0 11px}
+.learn-price-history-samples .learn-sample{display:block}
+.learn-price-history-samples .learn-sample strong{word-break:break-all}
+@media(max-width:570px){.learn-price-actions{flex-direction:column}.learn-price-actions>*{width:100%}}
