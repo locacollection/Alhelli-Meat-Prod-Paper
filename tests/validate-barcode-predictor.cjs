@@ -125,7 +125,7 @@ async function flush(){for(let i=0;i<20;i++)await Promise.resolve()}
   nodes.predictorForm.emit("submit");
   assert.equal(nodes.predictorBarcodeBlock.hidden,true,
     "Untrained profile must not generate barcode");
-  assert.match(nodes.predictorResultExplanation.textContent,/validated/i);
+  assert.match(nodes.predictorResultExplanation.textContent,/train and validate/i);
 
   nodes.predictorProfile.value="a";
   nodes.predictorProfile.emit("change");
