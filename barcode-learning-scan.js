@@ -184,7 +184,9 @@ function enhanceNumberRegion(canvas,mode="gray"){
 async function readNumberBoxes(worker,canvas,barcodeBox,parser,progress,already={}){
   const got={},notes=[];
   for(const [key,property] of [["weight","weight_grams"],["unit","unit_price_fils"],["total","total_price_fils"]]){
-    if(Number.isInteger(already[property]))continue;
+    // Re-read weight independently even when general OCR found a number.
+    // General OCR can mistake the TOTAL field for WEIGHT (0.002 -> 0.020).
+    if(key!=="weight"&&Number.isInteger(already[property]))continue;
     const rect=parser.numericWindow(key,barcodeBox,canvas.width,canvas.height);
     if(!rect)continue;
     const source=document.createElement("canvas");
