@@ -124,3 +124,10 @@
 .learn-original-scroll{width:100%;max-height:77dvh;overflow:auto;
   border:1px solid #cedfd2;border-radius:10px;background:#eaf1eb}
 .learn-original-scroll img{display:block;width:100%;height:auto;object-fit:contain}
+
+.learn-read-weight{justify-self:start;min-height:40px;background:#eef7ef;
+  border:1px solid #a5d0b2;color:#1b663e;font-size:12px;font-weight:750}
+.learn-review-photo.is-picking-weight{cursor:crosshair;
+  outline:3px solid #17a659;outline-offset:2px;touch-action:manipulation}
+.learn-weight-read-note{font-size:12px;padding:8px 10px;margin:0;color:#246747;
+  border:1px solid #bedfc8;background:#eef8f0;border-radius:9px;line-height:1.5}
