@@ -37,10 +37,10 @@ function scannedAgreement(p){
     printed_product_code:p.fields?.product_code||"",
     verified_price_prefix:labelPrefix(p,profile)
   });
-  if(result.ok&&p.weightConflict&&
-    core.parseAmount(p.weight)===p.weightConflict.ocr_weight_grams)
+  const priorOcr=ocrParser.manualConflictStatus(p,core);
+  if(result.ok&&priorOcr.unresolved)
     return {ok:false,state:"mismatch",message:
-      "OCR weight conflicts with the printed total. Correct the weight after checking the sticker."};
+      "The original photo readings disagree. Check the physical label and correct the weight OR total before confirming."};
   return result;
 }
 function syncConfirmation(p){
@@ -58,10 +58,12 @@ function syncConfirmation(p){
   }
   if(p.cardNode)p.cardNode.classList.toggle("learn-card-ready",enabled);
   if(p.conflictNode&&p.weightConflict){
-    const incorrect=core.parseAmount(p.weight)===p.weightConflict.ocr_weight_grams;
-    p.conflictNode.className=incorrect?"learn-review-alert":"learn-review-corrected";
-    if(p.conflictHeading)p.conflictHeading.textContent=incorrect?
-      "Weight mismatch detected":"Weight corrected · verify sticker";
+    const conflict=ocrParser.manualConflictStatus(p,core);
+    const resolved=conflict.corrected&&result.ok;
+    p.conflictNode.className=resolved?"learn-review-corrected":"learn-review-alert";
+    if(p.conflictHeading)p.conflictHeading.textContent=resolved?
+      "OCR reading corrected · verify sticker":"OCR readings disagree";
+    if(p.conflictDescription)p.conflictDescription.textContent=conflict.explanation;
   }
   return result;
 }
@@ -546,6 +548,7 @@ function scanProfileForBarcode(barcode){
   };
 }
 function prefill(p,profile,keep=false){
+  if(!keep)p.manualCorrections={};
   const prefix=labelPrefix(p,profile);
   p.review=ocrParser.review(p.fields,profile,p.barcode,core,prefix);
   p.weightConflict=ocrParser.weightPriceConflict(p.review,profile,p.barcode,core,prefix);
@@ -591,7 +594,7 @@ function queueLabel(raw){
   const p={...raw,id:++pendingId,barcode:core.cleanBarcode(raw.barcode||""),
     fields:raw.fields||{},photoUrl:raw.photoUrl||"",
     sheetPhotoUrl:raw.sheetPhotoUrl||"",
-    status:"",weight:"",unit:"",total:"",profileId:""};
+    status:"",weight:"",unit:"",total:"",profileId:"",manualCorrections:{}};
   const profile=chosenProfile(p);
   p.profileId=profile?.id||"";
   prefill(p,profile);
@@ -761,6 +764,9 @@ function editableField(label,p,key,value,placeholder){
   else{input.type="number";input.inputMode="decimal";input.min="0";input.step=".001"}
   input.addEventListener("input",e=>{
     p[key]=key==="barcode"?core.cleanBarcode(e.target.value):e.target.value;
+    if(key==="weight"||key==="total")
+      p.manualCorrections={...p.manualCorrections,[key]:true};
+    if(key==="barcode")p.manualCorrections={};
     input.classList.toggle("learn-missing-reading",!p[key]);
     p.status="";
     if(p.errorNode){p.errorNode.hidden=true;p.errorNode.textContent=""}
@@ -781,9 +787,8 @@ async function saveScannedLabel(p){
   if(p.fields.product_code&&p.fields.product_code!==profile.item_code)
     return showError(p,"Printed product looks like "+p.fields.product_code+
       ". Check the item before saving.");
-  if(p.weightConflict&&core.parseAmount(p.weight)===p.weightConflict.ocr_weight_grams)
-    return showError(p,"Incorrect weight blocked: "+p.weightConflict.message+
-      " Use the suggested weight after verifying the sticker, or enter the correct weight yourself.");
+  if(ocrParser.manualConflictStatus(p,core).unresolved)
+    return showError(p,"The original OCR readings disagree. Recheck the sticker and correct its weight or total before saving.");
   const unit=Number(profile.unit_price_fils);
   if(!Number.isInteger(unit)||unit<=0)
     return showError(p,"Select an item profile with a valid saved unit price.");
@@ -862,6 +867,7 @@ renderPending=function(){
     }
     select.value=p.profileId;select.addEventListener("change",()=>{
       p.profileId=select.value;
+      p.manualCorrections={};
       prefill(p,profiles.find(x=>x.id===p.profileId)||null,true);renderPending();
     });
     profileLabel.append(select);card.append(profileLabel);
@@ -879,12 +885,14 @@ renderPending=function(){
     card.append(editableField("Total (BD)",p,"total",p.total,"Not detected"));
     if(p.weightConflict){
       const conflict=p.weightConflict;
-      const stillWrong=core.parseAmount(p.weight)===conflict.ocr_weight_grams;
-      const notice=make("div",stillWrong?"learn-review-alert":"learn-review-corrected");
-      const heading=make("strong","",stillWrong?"Weight mismatch detected":"Weight corrected · verify sticker");
-      const explanation=make("p","",conflict.message);
+      const reviewState=ocrParser.manualConflictStatus(p,core);
+      const readyAfterCorrection=reviewState.corrected&&scannedAgreement(p).ok;
+      const notice=make("div",readyAfterCorrection?"learn-review-corrected":"learn-review-alert");
+      const heading=make("strong","",readyAfterCorrection?
+        "OCR reading corrected · verify sticker":"OCR readings disagree");
+      const explanation=make("p","",reviewState.explanation);
       notice.append(heading,explanation);
-      p.conflictNode=notice;p.conflictHeading=heading;
+      p.conflictNode=notice;p.conflictHeading=heading;p.conflictDescription=explanation;
       if(Number.isInteger(conflict.suggested_weight_grams)){
         const fix=make("button","mini","Use "+core.formatAmount(conflict.suggested_weight_grams)+" kg");
         fix.type="button";
@@ -904,7 +912,13 @@ renderPending=function(){
       (p.review?.source_total==="barcode"?" · Total from trained barcode":"")+
       (p.review?.source_total==="barcode_estimate"?" · Total estimated from barcode":"")+
       (p.review?.source_unit==="profile"?" · Rate from profile (fixed)":"")));
-    const notes=[...p.review?.warnings||[]];
+    let notes=[...p.review?.warnings||[]];
+    if(p.weightConflict&&ocrParser.manualConflictStatus(p,core).corrected&&
+       scannedAgreement(p).ok){
+      // These refer to the ORIGINAL OCR values, not the corrected user fields.
+      notes=notes.filter(n=>!/WEIGHT MISMATCH|Printed total differs from barcode-encoded price|Weight × item rate differs from printed\/encoded total|saved rate and encoded price disagree/i.test(n));
+      notes.unshift("The photo OCR originally disagreed, but the manually corrected weight and total now agree with the barcode and saved unit price. Confirm against the actual printed sticker.");
+    }
     if(p.notes)notes.push(p.notes);
     if(notes.length)card.append(make("p","learn-review-warning",notes.join(" ")));
     const error=make("p","learn-notice is-error",p.status||"");
