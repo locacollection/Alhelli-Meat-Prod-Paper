@@ -440,7 +440,15 @@ async function fromCanvas(canvas,core,parser,progress,profileForBarcode){
       note=[note,"Crop text was not confidently detected. Use View original sheet to check this sticker."]
         .filter(Boolean).join(" ");
     const blob=await makeBlob(cropped);
-    results.push({barcode:region.barcode,fields,
+    const barcodeBox={x:Math.max(0,region.x)/canvas.width,
+      y:Math.max(0,region.y)/canvas.height,
+      w:Math.max(1,region.w)/canvas.width,h:Math.max(1,region.h)/canvas.height};
+    const sheetBox=window.SheetCropEditor?.barcodeRegion?.(region,canvas.width,canvas.height)||
+      {x:Math.max(0,region.x-region.w*.5)/canvas.width,
+       y:Math.max(0,region.y-region.w*1.5)/canvas.height,
+       w:Math.min(1,Math.max(1,region.w*3)/canvas.width),
+       h:Math.min(1,Math.max(1,region.w*1.8)/canvas.height)};
+    results.push({barcode:region.barcode,fields,sheetBox,barcodeBox,
       photoUrl:blob?URL.createObjectURL(blob):"",
       sheetPhotoUrl,rotation:(candidate?.turns||0)*90,
       cropScore:candidate?.score??0,
@@ -514,7 +522,11 @@ async function readCameraFrame(video,barcode,region,core,parser,progress,profile
   const blob=await makeBlob(crop.canvas);
   const full=await makeBlob(frame);
   return {barcode,photoUrl:blob?URL.createObjectURL(blob):"",
-    sheetPhotoUrl:full?URL.createObjectURL(full):"",rotation:crop.turns*90,
+    sheetPhotoUrl:full?URL.createObjectURL(full):"",
+    sheetBox:window.SheetCropEditor?.barcodeRegion?.(target,frame.width,frame.height)||null,
+    barcodeBox:{x:target.x/frame.width,y:target.y/frame.height,
+      w:target.w/frame.width,h:target.h/frame.height},
+    rotation:crop.turns*90,
     fields,notes};
 }
 
