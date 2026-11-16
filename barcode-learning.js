@@ -28,7 +28,7 @@ function scannedAgreement(p){
     .find(x=>barcode.startsWith(x.barcode_prefix));
   const result=core.labelAgreement({
     barcode,weight_grams:core.parseAmount(p.weight),
-    unit_price_fils:core.parseAmount(p.unit),
+    unit_price_fils:profile?.unit_price_fils??null,
     total_price_fils:core.parseAmount(p.total)
   },profile,{
     expected_product_code:fish?.item_code||"",
@@ -520,6 +520,16 @@ function labelPrefix(p,profile){
     return profile.barcode_prefix;
   return "";
 }
+function scanProfileForBarcode(barcode){
+  const profile=chosenProfile({barcode,fields:{}});
+  if(!profile)return null;
+  return {
+    unit_price_fils:Number(profile.unit_price_fils),
+    rounding_fils:Number(profile.rounding_fils),
+    weight_step_grams:Number(profile.weight_step_grams),
+    verified_price_prefix:labelPrefix({barcode},profile)
+  };
+}
 function prefill(p,profile,keep=false){
   const prefix=labelPrefix(p,profile);
   p.review=ocrParser.review(p.fields,profile,p.barcode,core,prefix);
@@ -557,7 +567,9 @@ function prefill(p,profile,keep=false){
   }
   for(const [key,value] of [["weight",p.review.weight_grams],
     ["unit",p.review.unit_price_fils],["total",p.review.total_price_fils]]){
-    if(!keep||!p[key])p[key]=Number.isInteger(value)?core.formatAmount(value):"";
+    // Never preserve an old OCR / previous-profile unit price.
+    if(key==="unit"||!keep||!p[key])
+      p[key]=Number.isInteger(value)?core.formatAmount(value):"";
   }
 }
 function queueLabel(raw){
@@ -619,7 +631,7 @@ async function readTappedWeight(p,img,event){
   try{
     const profile=profiles.find(x=>x.id===p.profileId)||null;
     const context={step:Number(profile?.weight_step_grams)||1,
-      unit_price_fils:core.parseAmount(p.unit),
+      unit_price_fils:profile?.unit_price_fils??null,
       total_price_fils:core.parseAmount(p.total),
       rounding_fils:Number(profile?.rounding_fils)||5};
     const found=await photoEngine.readWeightAtPoint(
@@ -672,10 +684,9 @@ async function saveScannedLabel(p){
   if(p.weightConflict&&core.parseAmount(p.weight)===p.weightConflict.ocr_weight_grams)
     return showError(p,"Incorrect weight blocked: "+p.weightConflict.message+
       " Use the suggested weight after verifying the sticker, or enter the correct weight yourself.");
-  const unit=core.parseAmount(p.unit);
-  if(unit===null||unit!==profile.unit_price_fils)
-    return showError(p,"Printed unit rate must match this profile ("+
-      core.formatAmount(profile.unit_price_fils)+" BD/kg).");
+  const unit=Number(profile.unit_price_fils);
+  if(!Number.isInteger(unit)||unit<=0)
+    return showError(p,"Select an item profile with a valid saved unit price.");
   const check=core.sampleCheck({
     barcode:p.barcode,weight_grams:core.parseAmount(p.weight),
     total_price_fils:core.parseAmount(p.total)
@@ -754,7 +765,13 @@ renderPending=function(){
     card.append(editableField("13-digit barcode",p,"barcode",p.barcode,"Scan or type EAN-13"));
     const pair=make("div","learn-review-pair");
     pair.append(editableField("Weight (kg)",p,"weight",p.weight,"Not detected"));
-    pair.append(editableField("Unit price (BD/kg)",p,"unit",p.unit,"Not detected"));
+    const unitLabel=make("label","learn-field","Unit price (BD/kg) · From saved profile");
+    const unitInput=make("input");
+    unitInput.type="text";
+    unitInput.value=p.unit||"Select an item profile";
+    unitInput.readOnly=true;unitInput.disabled=true;
+    unitInput.setAttribute("aria-label","Saved item unit price, not editable");
+    unitLabel.append(unitInput);pair.append(unitLabel);
     card.append(pair);
     card.append(editableField("Total (BD)",p,"total",p.total,"Not detected"));
     if(p.weightConflict){
@@ -779,11 +796,11 @@ renderPending=function(){
     }
     const sources=p.review?.read_from_photo||{};
     card.append(make("p","learn-review-source","Read from photo: "+
-      (["weight","unit","total"].filter(k=>sources[k]).join(", ")||"unclear")+
+      (["weight","total"].filter(k=>sources[k]).join(", ")||"unclear")+
       (p.review?.source_weight==="barcode_estimate"?" · Weight estimated from barcode + rate":"")+
       (p.review?.source_total==="barcode"?" · Total from trained barcode":"")+
       (p.review?.source_total==="barcode_estimate"?" · Total estimated from barcode":"")+
-      (p.review?.source_unit==="profile"?" · Rate from profile":"")));
+      (p.review?.source_unit==="profile"?" · Rate from profile (fixed)":"")));
     const notes=[...p.review?.warnings||[]];
     if(p.notes)notes.push(p.notes);
     if(notes.length)card.append(make("p","learn-review-warning",notes.join(" ")));
@@ -814,7 +831,8 @@ scanPhotos=async function(files){
       if(pendingLabels.length>=50)break;
       try{
         const parsed=await photoEngine.readFile(images[i],core,ocrParser,
-          t=>msg("learnScanProgress","Photo "+(i+1)+"/"+images.length+" · "+t));
+          t=>msg("learnScanProgress","Photo "+(i+1)+"/"+images.length+" · "+t),
+          scanProfileForBarcode);
         for(const label of parsed.labels.slice(0,50-pendingLabels.length)){
           queueLabel(label);added++;if(!label.barcode)missing++;
         }
@@ -824,7 +842,7 @@ scanPhotos=async function(files){
     readingPhotos=false;$("learnLiveScan").disabled=false;
     msg("learnScanProgress","");
     msg("learnSampleMessage",added?
-      added+" label(s) ready. Review each cropped photo and confirm the weight and prices."+
+      added+" label(s) ready. Review each printed weight and total; unit rate comes from the saved profile."+
       (missing?" "+missing+" barcode(s) need manual entry.":""):
       "No readable labels. Try a closer image.",!added);
   }
@@ -844,7 +862,8 @@ function capturedBarcode(raw,box=null){
   if(!camActive)return false;
   const barcode=core.cleanBarcode(raw);
   if(!core.validBarcode(barcode))return false;
-  const reading=photoEngine?.readCameraFrame?.(video,barcode,box,core,ocrParser);
+  const reading=photoEngine?.readCameraFrame?.(video,barcode,box,core,ocrParser,
+    undefined,scanProfileForBarcode);
   stopCamera();
   msg("learnScanProgress","Reading the captured sticker…");
   void Promise.resolve(reading).then(data=>{
