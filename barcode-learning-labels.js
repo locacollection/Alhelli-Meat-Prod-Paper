@@ -169,7 +169,7 @@ function derivePriceFromBarcode(barcode,core,knownPrefix){
   return encoded;
 }
 function review(fields,profile,barcode,core,knownPrefix=""){
-  const notes=[];
+  const notes=[...(fields.ocr_conflicts||[])];
   const data={...fields};
   const b=String(barcode||"");
   const barcodePrice=derivePriceFromBarcode(b,core,knownPrefix);
@@ -211,7 +211,7 @@ function review(fields,profile,barcode,core,knownPrefix=""){
   data.warnings=notes;
   data.complete=Number.isInteger(data.weight_grams)&&Number.isInteger(data.unit_price_fils)&&
     Number.isInteger(data.total_price_fils)&&notes.every(s=>
-      !/differs|outside|unreadable|recheck sticker/.test(s.toLowerCase()));
+      !/differs|outside|unreadable|recheck sticker|disagree/.test(s.toLowerCase()));
   data.barcode_price_fils=barcodePrice;
   return data;
 }
