@@ -110,6 +110,14 @@ function evaluate(raw,{profiles=[],examples=[],custom=[],catalog=[]}={},core){
   const trained=results.filter(r=>r.source==="pattern"||r.source==="ambiguous");
   if(trained.length>1)notes.push(
     "This barcode also matches more than one saved price version or learned pattern. A barcode alone may not identify the original price period.");
+  if(rawExact.length&&trained.length)
+    notes.push("An exact saved record and one or more additional learned patterns match this barcode. The learned estimates may reflect other price versions. Compare the physical label rather than choosing a rate automatically.");
+  const distinctReadings=new Set(results.filter(r=>Number.isInteger(r.weightGrams)||
+    Number.isInteger(r.pieces)).map(r=>[
+    r.itemCode,r.weightGrams,r.pieces,r.unitRate,r.totalFils
+  ].join(":")));
+  if(distinctReadings.size>1&&!notes.some(t=>t.startsWith("Several saved records")))
+    notes.push("Different item, weight or unit-price readings are possible for this barcode. Inspect the sticker to identify the correct one.");
   if(!results.length){
     if(matchingProfiles.length)notes.push(
       "A saved item matches the barcode prefix, but there is no exact saved record or usable validated decoding result. Check the label or train the item.");
