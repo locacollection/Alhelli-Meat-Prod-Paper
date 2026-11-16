@@ -157,7 +157,7 @@ function numericCandidates(text){
   }
   return [...new Set(values)];
 }
-function supplementPrinted(base,improved){
+function supplementPrinted(base,improved,options={}){
   const result={...base,
     read_from_photo:{weight:!!base.read_from_photo?.weight,
       unit:!!base.read_from_photo?.unit,total:!!base.read_from_photo?.total}};
@@ -170,10 +170,25 @@ function supplementPrinted(base,improved){
       result[property]=n;
       result.read_from_photo[kind]=true;
     }else if(result[property]!==n){
-      // Two different OCR readings can never silently overwrite one another.
-      result[property]=null;
-      result.read_from_photo[kind]=false;
-      notes.push("Two photo scans disagree about "+kind+". Verify printed sticker.");
+      // Only the weight field has an additional arithmetic cross-check.
+      // Never substitute a barcode-derived guess for an unreadable label.
+      const rate=Number.isInteger(improved.unit)?improved.unit:result.unit_price_fils;
+      const total=Number.isInteger(improved.total)?improved.total:result.total_price_fils;
+      const core=options.core;
+      const focusedValid=kind==="weight"&&core&&Number.isInteger(rate)&&
+        Number.isInteger(total)&&core.roundedPrice(n,rate,5)===total;
+      const generalValid=kind==="weight"&&core&&Number.isInteger(rate)&&
+        Number.isInteger(total)&&core.roundedPrice(result[property],rate,5)===total;
+      if(focusedValid&&!generalValid){
+        result[property]=n;
+        result.read_from_photo[kind]=true;
+        notes.push("General OCR and the focused weight-box scan differed. "+
+          "The focused number agrees with printed rate and total. Confirm weight on photo.");
+      }else{
+        result[property]=null;
+        result.read_from_photo[kind]=false;
+        notes.push("Two photo scans disagree about "+kind+". Verify printed sticker.");
+      }
     }
   }
   result.ocr_conflicts=notes;
