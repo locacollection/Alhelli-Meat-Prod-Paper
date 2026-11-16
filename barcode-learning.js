@@ -614,9 +614,13 @@ async function prepareLearningPhotos(list){
       details:file.name+" · Select the entire sticker if scanning just one label"
     });
     if(!result)continue;
-    const incoming=result.mode==="full"?file:result.file;
-    photoSourceMeta.set(incoming,{original:file,rect:result.rect});
-    ready.push(incoming);
+    const selections=result.mode==="multi"?result.crops:[result];
+    for(const choice of selections){
+      const incoming=choice.file||file;
+      photoSourceMeta.set(incoming,{original:file,rect:choice.rect,
+        rotatedRect:choice.rotatedRect||choice.rect,rotation:choice.rotation||0});
+      ready.push(incoming);
+    }
   }
   if(ready.length)await scanPhotos(ready);
 }
@@ -648,8 +652,8 @@ async function rereadManuallyCroppedLabel(p){
     p.photoUrl=cropUrl;
     p.sheetBox=input.rect;
     p.barcodeBox=found.barcodeBox?
-      window.SheetCropEditor.mapRect(found.barcodeBox,input.rect):null;
-    p.rotation=0;
+      window.SheetCropEditor.mapScanRect(found.barcodeBox,input):null;
+    p.rotation=input.rotation||0;
     p.fields=found.fields||{};
     p.notes="Manually selected high-resolution crop. Confirm printed weight and total before saving.";
     p.picking=false;
@@ -930,7 +934,8 @@ scanPhotos=async function(files){
       if(pendingLabels.length>=50)break;
       try{
         const selected=images[i],meta=photoSourceMeta.get(selected)||
-          {original:selected,rect:{x:0,y:0,w:1,h:1}};
+          {original:selected,rect:{x:0,y:0,w:1,h:1},
+            rotatedRect:{x:0,y:0,w:1,h:1},rotation:0};
         const parsed=await photoEngine.readFile(selected,core,ocrParser,
           t=>msg("learnScanProgress","Photo "+(i+1)+"/"+images.length+" · "+t),
           scanProfileForBarcode);
@@ -940,9 +945,9 @@ scanPhotos=async function(files){
         const temporaryUrl=parsed.labels[0]?.sheetPhotoUrl||"";
         let used=0;
         for(const label of parsed.labels.slice(0,50-pendingLabels.length)){
-          if(window.SheetCropEditor?.mapRect){
-            if(label.sheetBox)label.sheetBox=window.SheetCropEditor.mapRect(label.sheetBox,meta.rect);
-            if(label.barcodeBox)label.barcodeBox=window.SheetCropEditor.mapRect(label.barcodeBox,meta.rect);
+          if(window.SheetCropEditor?.mapScanRect){
+            if(label.sheetBox)label.sheetBox=window.SheetCropEditor.mapScanRect(label.sheetBox,meta);
+            if(label.barcodeBox)label.barcodeBox=window.SheetCropEditor.mapScanRect(label.barcodeBox,meta);
           }
           label.sheetPhotoUrl=fullUrl;
           queueLabel(label);added++;used++;if(!label.barcode)missing++;
