@@ -43,6 +43,17 @@ function scannedAgreement(p){
       "The original photo readings disagree. Check the physical label and correct the weight OR total before confirming."};
   return result;
 }
+function displayedScanWarnings(p,agreement){
+  let notes=[...p.review?.warnings||[]];
+  if(p.weightConflict&&ocrParser.manualConflictStatus(p,core).corrected&&
+     agreement?.ok){
+    // The OCR warning refers to values BEFORE the operator's correction.
+    notes=notes.filter(n=>!/WEIGHT MISMATCH|Printed total differs from barcode-encoded price|Weight × item rate differs from printed\/encoded total|saved rate and encoded price disagree/i.test(n));
+    notes.unshift("Original OCR reading was corrected manually. The entered weight, total, saved unit price and encoded barcode now agree. Verify the sticker before confirming.");
+  }
+  if(p.notes)notes.push(p.notes);
+  return notes.join(" ");
+}
 function syncConfirmation(p){
   const result=scannedAgreement(p);
   const enabled=!!user&&!busy&&result.ok;
@@ -57,6 +68,11 @@ function syncConfirmation(p){
       result.state==="mismatch"?" is-mismatch":" is-incomplete");
   }
   if(p.cardNode)p.cardNode.classList.toggle("learn-card-ready",enabled);
+  if(p.warningNode){
+    const warning=displayedScanWarnings(p,result);
+    p.warningNode.textContent=warning;
+    p.warningNode.hidden=!warning;
+  }
   if(p.conflictNode&&p.weightConflict){
     const conflict=ocrParser.manualConflictStatus(p,core);
     const resolved=conflict.corrected&&result.ok;
@@ -912,15 +928,9 @@ renderPending=function(){
       (p.review?.source_total==="barcode"?" · Total from trained barcode":"")+
       (p.review?.source_total==="barcode_estimate"?" · Total estimated from barcode":"")+
       (p.review?.source_unit==="profile"?" · Rate from profile (fixed)":"")));
-    let notes=[...p.review?.warnings||[]];
-    if(p.weightConflict&&ocrParser.manualConflictStatus(p,core).corrected&&
-       scannedAgreement(p).ok){
-      // These refer to the ORIGINAL OCR values, not the corrected user fields.
-      notes=notes.filter(n=>!/WEIGHT MISMATCH|Printed total differs from barcode-encoded price|Weight × item rate differs from printed\/encoded total|saved rate and encoded price disagree/i.test(n));
-      notes.unshift("The photo OCR originally disagreed, but the manually corrected weight and total now agree with the barcode and saved unit price. Confirm against the actual printed sticker.");
-    }
-    if(p.notes)notes.push(p.notes);
-    if(notes.length)card.append(make("p","learn-review-warning",notes.join(" ")));
+    const warning=make("p","learn-review-warning",displayedScanWarnings(p,scannedAgreement(p)));
+    warning.hidden=!warning.textContent;
+    p.warningNode=warning;card.append(warning);
     const error=make("p","learn-notice is-error",p.status||"");
     error.hidden=!p.status;p.errorNode=error;card.append(error);
     const readiness=make("p","learn-confirm-status");
