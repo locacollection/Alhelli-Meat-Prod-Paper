@@ -34,9 +34,13 @@ function uniquePositions(list){
   const out=[];
   for(const item of list){
     if(!item.barcode)continue;
-    const other=out.find(q=>q.barcode===item.barcode&&
-      Math.abs(q.x-item.x)<Math.max(q.w,item.w)*.75&&
-      Math.abs(q.y-item.y)<Math.max(q.w,item.w)*.65);
+    const other=out.find(q=>{
+      if(q.barcode!==item.barcode)return false;
+      const cxq=q.x+q.w/2,cyq=q.y+q.h/2;
+      const cxi=item.x+item.w/2,cyi=item.y+item.h/2;
+      return Math.abs(cxq-cxi)<Math.max(q.w,item.w)*.40&&
+        Math.abs(cyq-cyi)<Math.max(q.h,item.h)*.40;
+    });
     if(!other)out.push(item);
     else if(item.precision>other.precision){
       Object.assign(other,item);
