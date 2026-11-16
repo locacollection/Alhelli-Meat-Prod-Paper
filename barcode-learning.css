@@ -84,3 +84,6 @@
 #learnManualEntry{margin-top:15px}
 #learnManualEntry[open]>summary{margin-bottom:12px}
 @media(max-width:450px){.learn-review-pair{grid-template-columns:1fr}.learn-review-photo{max-height:205px}}
+
+.learn-review-card .learn-field input.learn-missing-reading{border-color:#dfc6a5;background:#fffcf6}
+.learn-review-card .learn-field input.learn-missing-reading::placeholder{color:#a16b38;opacity:1;font-style:italic}
