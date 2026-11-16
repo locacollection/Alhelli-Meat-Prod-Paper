@@ -261,6 +261,31 @@ function weightPriceConflict(fields,profile,barcode,core,knownPrefix=""){
         core.formatAmount(suggested)+" kg.":" Check the printed weight.")};
 }
 
+/* OCR can misread the TOTAL even when the weight is correct.
+   Only block the uncorrected conflicting OCR pair, not a staff-edited value
+   that passes the ordinary barcode, saved-rate and total checks.
+   Manual corrections do not by themselves establish a true printed label. */
+function manualConflictStatus(label,core){
+  const conflict=label?.weightConflict;
+  if(!conflict)return {unresolved:false,corrected:false};
+  const enteredWeight=core.parseAmount(label.weight);
+  const enteredTotal=core.parseAmount(label.total);
+  const oldWeight=conflict.ocr_weight_grams,oldTotal=conflict.total_price_fils;
+  const weightChanged=!!label.manualCorrections?.weight&&
+    Number.isInteger(enteredWeight)&&enteredWeight!==oldWeight;
+  const totalChanged=!!label.manualCorrections?.total&&
+    Number.isInteger(enteredTotal)&&enteredTotal!==oldTotal;
+  const corrected=weightChanged||totalChanged;
+  const explanation=corrected?
+    "Original OCR: "+core.formatAmount(oldWeight)+" kg and "+
+      core.formatAmount(oldTotal)+" BD. Entered values: "+
+      (enteredWeight===null?"missing":core.formatAmount(enteredWeight)+" kg")+
+      " and "+(enteredTotal===null?"missing":core.formatAmount(enteredTotal)+" BD")+
+      ". The corrected numbers must match the barcode and saved price. Check the physical sticker before saving.":
+    conflict.message;
+  return {unresolved:!corrected,corrected,weightChanged,totalChanged,
+    explanation,oldWeight,oldTotal,enteredWeight,enteredTotal};
+}
 function derivePriceFromBarcode(barcode,core,knownPrefix){
   const b=String(barcode||"").trim();
   if(!core?.validBarcode?.(b)||!knownPrefix||!b.startsWith(knownPrefix))return null;
@@ -391,5 +416,5 @@ function labelCropRegion(imageW,imageH,box,otherBoxes=[]){
 
 return {nameFor,normalized,amount,detectProduct,boxesFromResult,extractLabeled,
   chooseByLocation,detectPrinted,numericWindow,numericWindows,numericCandidates,supplementPrinted,
-  inferUniqueWeight,weightPriceConflict,derivePriceFromBarcode,review,labelCropRegion};
+  inferUniqueWeight,weightPriceConflict,manualConflictStatus,derivePriceFromBarcode,review,labelCropRegion};
 });
