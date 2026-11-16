@@ -9,7 +9,7 @@
 </head><body>
 <header class="site-head"><div class="container header-row">
   <div class="brand"><div class="brandmark">BL</div><strong>Barcode Learning</strong></div>
-  <nav><a href="./index.html">Meat</a><a href="./fish-production.html">Fish</a><a href="./custom-barcodes.html">Barcode Manager</a><a href="./weight-price-checker.html">Weight &amp; Price Checker</a><a href="./barcode-predictor.html">Barcode Predictor</a></nav>
+  <nav><a href="./index.html">Meat</a><a href="./fish-production.html">Fish</a><a href="./custom-barcodes.html">Barcode Manager</a><a href="./weight-price-checker.html">Weight &amp; Price Checker</a><a href="./barcode-tester.html">Barcode Tester</a><a href="./barcode-predictor.html">Barcode Predictor</a></nav>
 </div></header>
 <main class="container learning-layout">
 <section class="panel learner-panel learn-account">
@@ -119,17 +119,9 @@
   <p class="learn-warn">Patterns are hypotheses based on your samples. They do not authorize barcodes for store checkout or update the production catalogs.</p>
 </section>
 <section class="panel learner-panel">
-  <h2>4. Test a new barcode</h2>
-  <p class="fineprint">After validation, type a barcode or scan it with your camera to check the learned weight and price. Scanned barcodes are tested without being saved as training examples.</p>
-  <form id="learnTestForm" class="learn-form">
-    <label class="learn-field">Barcode to decode<input id="learnTestBarcode" type="text" inputmode="numeric" pattern="[0-9]{13}" maxlength="13" placeholder="13-digit barcode" required></label>
-    <div class="learn-buttons">
-      <button id="learnTestScan" type="button" class="btn btn-light">Scan barcode</button>
-      <button type="submit" class="btn">Check weight</button>
-    </div>
-  </form>
-  <p id="learnTestScanMessage" class="learn-notice" hidden role="status" aria-live="polite"></p>
-  <div id="learnTestResult" class="learn-test-result" hidden role="status"></div>
+  <h2>4. Barcode Tester</h2>
+  <p class="fineprint">Testing is now independent of the item selected here. Scan or enter any saved EAN-13 barcode, and automatically check all saved training profiles, previous price versions and exact labels.</p>
+  <a class="btn btn-light" href="./barcode-tester.html">Open Barcode Tester</a>
 </section>
 <section class="panel learner-panel">
   <h2>Barcode Predictor</h2>
@@ -192,6 +184,6 @@
 <script src="sheet-crop.js?v=rotate-multi-2"></script>
 <script src="barcode-learning-scan.js?v=manual-sheet-crop-1"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="barcode-learning.js?v=ocr-manual-fix-2"></script>
+<script src="barcode-learning.js?v=standalone-tester-1"></script>
 <script src="barcode-learning-price.js?v=price-version-1"></script>
 </body></html>
