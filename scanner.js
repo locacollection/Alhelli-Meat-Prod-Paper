@@ -12,6 +12,16 @@ const PREFIX={ "966777":"6777", "966780":"6780", "966781":"6781" };
 const STORAGE="alhelli-label-scanner-v2";
 const photos=[];
 const scannedPhotoKeys=new Set();
+// Original files are retained for this production-paper session only.
+// IndexedDB continues to hold just the small label crops, not whole sheets.
+const sourceSheets=new Map();
+const photoSelectionMeta=new WeakMap();
+function clearSourceSheets(){
+  for(const source of sourceSheets.values()){
+    if(source.url)try{URL.revokeObjectURL(source.url)}catch(_){}
+  }
+  sourceSheets.clear();
+}
 const CROPS_DB="meat-production-label-crops-v1";
 let cropDbPromise=null;
 let initialCropCleanup=null;
@@ -382,6 +392,7 @@ function startBlankSheet(){
   entries=[];
   photos.splice(0);
   scannedPhotoKeys.clear();
+  clearSourceSheets();
   scanStageHide();
   try{localStorage.removeItem(STORAGE)}catch(_){}
   // Cropped sticker images were formerly saved in IndexedDB. Delete them
@@ -519,6 +530,15 @@ function buildRow(entry,i){
 
   const actions=document.createElement("div");actions.className="label-actions read-only-actions";
   actions.append(preview);
+  const original=sourceSheets.get(entry.sheetId);
+  if(original?.url&&window.SheetCropEditor?.open){
+    const locate=document.createElement("button");locate.type="button";
+    locate.className="mini label-locate-sheet";
+    locate.textContent="Locate label & recrop on original";
+    locate.setAttribute("aria-label","Find barcode "+entry.barcode+" on the full sheet and correct its crop");
+    locate.addEventListener("click",()=>void recropProductionLabel(entry));
+    actions.append(locate);
+  }
   const fix=document.createElement("button");fix.type="button";fix.className="mini";
   fix.textContent="Correct scanned barcode";
   fix.addEventListener("click",()=>{
@@ -984,11 +1004,33 @@ function acceptReverseBonePair(){
   return true;
 }
 
+async function chooseProductionSheetCrop(list){
+  const selected=[...(list||[])].filter(f=>f.type.startsWith("image/"));
+  const prepared=[];
+  for(const file of selected){
+    if(!window.SheetCropEditor?.open){
+      prepared.push(file);continue;
+    }
+    const choice=await window.SheetCropEditor.open({
+      source:file,title:"Choose full sheet or crop before Production Paper scan",
+      details:file.name+" · Scan all labels or focus on one selected label",
+      allowWhole:true,cropLabel:"Crop selected label & scan"
+    });
+    if(!choice)continue;
+    const scanFile=choice.mode==="full"?file:choice.file;
+    photoSelectionMeta.set(scanFile,{original:file,rect:choice.rect});
+    prepared.push(scanFile);
+  }
+  if(prepared.length)addPhotos(prepared);
+}
 function addPhotos(files){
   let count=0;
   for(const file of files){
     if(file.type.startsWith("image/")&&photos.length<30&&!scannedPhotoKeys.has(photoKey(file))){
-      photos.push({file,sheetId:newSheetId(file)});
+      const meta=photoSelectionMeta.get(file)||{
+        original:file,rect:{x:0,y:0,w:1,h:1}};
+      photos.push({file,sheetId:newSheetId(file),
+        originalFile:meta.original,baseRect:meta.rect});
       count++;
     }
   }
@@ -1142,6 +1184,31 @@ async function loadOCR(){
   });
   return loadOCRPromise;
 }
+async function recropProductionLabel(entry){
+  const original=sourceSheets.get(entry.sheetId);
+  if(!original?.url||!window.SheetCropEditor?.open){
+    show("scanMsg","Original sheet is unavailable in this session. Attach a new close-up photo instead.","warn");
+    return;
+  }
+  const result=await window.SheetCropEditor.open({
+    source:original.url,
+    title:"Locate barcode "+entry.barcode+" on the sheet",
+    initialRegion:entry.sheetBox||null,
+    barcodeRegion:entry.barcodeBox||null,
+    details:"Detected: "+entry.barcode+" · Weight "+(entry.weight||"not detected")+
+      " kg · Unit "+(entry.unit||"not detected")+
+      " BD/kg · Total "+(entry.printed||"not detected")+" BD",
+    cropLabel:"Use this crop & reread values"
+  });
+  if(!result||!entries.includes(entry))return;
+  const wasRead=await readLabelCloseup(result.file,entry);
+  if(wasRead&&entries.includes(entry)){
+    entry.sheetBox=result.rect;
+    persist();render();
+    show("scanMsg","Selected crop applied to barcode "+entry.barcode+
+      ". Recheck the printed weight, unit price and total before saving the paper.");
+  }
+}
 async function readLabelCloseup(file,entry){
   const known=decode(entry.barcode);
   if(known.error){show("scanMsg","Invalid barcode.","warn");return}
@@ -1154,7 +1221,7 @@ async function readLabelCloseup(file,entry){
         const found=await(new BarcodeDetector({formats:["ean_13"]})).detect(bitmap);bitmap.close();
         const visible=found.map(x=>String(x.rawValue).replace(/\s/g,"")).filter(x=>!decode(x).error);
         if(visible.length>1||visible.length===1&&visible[0]!==entry.barcode){
-          show("scanMsg","Photo contains a different barcode or multiple stickers.","warn");return;
+          show("scanMsg","Crop contains a different barcode or multiple stickers. Select this sticker only.","warn");return false;
         }
       }catch(_){}
     }
@@ -1166,7 +1233,8 @@ async function readLabelCloseup(file,entry){
     entry.photoName=file.name;
     persist();render();
     show("scanMsg",entry.ocrConflict?"Photo/barcode mismatch.":"",entry.ocrConflict?"warn":"");
-  }catch(err){show("scanMsg","Photo reading failed: "+err.message,"warn")}
+    return true;
+  }catch(err){show("scanMsg","Photo reading failed: "+err.message,"warn");return false}
   finally{if(worker)try{await worker.terminate()}catch(_){}}
 }
 
@@ -1183,7 +1251,11 @@ async function scanPhotos(){
   let added=0,ready=0,review=0,ocrChecks=0,worker=null,errors=0,orderingWarning=false;
   try{
     for(let i=0;i<batch.length;i++){
-      const {file,sheetId}=batch[i];
+      const {file,sheetId,originalFile=file,baseRect={x:0,y:0,w:1,h:1}}=batch[i];
+      if(!sourceSheets.has(sheetId)){
+        sourceSheets.set(sheetId,{url:URL.createObjectURL(originalFile),
+          baseRect,name:originalFile.name});
+      }
       const countBeforePhoto=added;
       beginScanStage(file,i+1,batch.length);
       show("scanMsg","Scanning "+(i+1)+"/"+batch.length+"…");
@@ -1225,6 +1297,14 @@ async function scanPhotos(){
             }
             // PRIMARY: Add barcode and catalog-derived weight before OCR starts.
             const entry=addLabel({barcode:region.barcode,kind:perLabelKinds[j],sheetId,photoName:file.name,source:"Barcode + 5 g catalog"});
+            if(window.SheetCropEditor?.mapRect){
+              const editor=window.SheetCropEditor;
+              entry.sheetBox=editor.mapRect(editor.barcodeRegion(region,canvas.width,canvas.height),baseRect);
+              entry.barcodeBox=editor.mapRect({
+                x:region.x/canvas.width,y:region.y/canvas.height,
+                w:region.w/canvas.width,h:region.h/canvas.height
+              },baseRect);
+            }
             // Crop directly from the detected BARCODE position. Never use the
             // barcode digits as an image key because different stickers repeat.
             try{
@@ -1317,8 +1397,14 @@ function exportCsv(){
 }
 $("cropClose").addEventListener("click",closeEntryPreview);
 $("cropDialog").addEventListener("click",e=>{if(e.target===$("cropDialog"))closeEntryPreview()});
-$("sheetPhotos").addEventListener("change",e=>{addPhotos(e.target.files);e.target.value=""});
-$("cameraPhoto").addEventListener("change",e=>{addPhotos(e.target.files);e.target.value=""});
+$("sheetPhotos").addEventListener("change",e=>{
+  const files=[...e.target.files];e.target.value="";
+  void chooseProductionSheetCrop(files);
+});
+$("cameraPhoto").addEventListener("change",e=>{
+  const files=[...e.target.files];e.target.value="";
+  void chooseProductionSheetCrop(files);
+});
 $("scanBtn").addEventListener("click",scanPhotos);
 $("clearPhotos").addEventListener("click",()=>{photos.splice(0);updatePhotoQueue();show("scanMsg","")});
 $("addLabel").addEventListener("click",()=>{
@@ -1347,7 +1433,8 @@ $("cancelManualBarcode").addEventListener("click",()=>{
 });
 $("clearLabels").addEventListener("click",()=>{
   if(entries.length&&!confirm("Start a new production paper and clear all labels?"))return;
-  clearAllCrops(entries);entries=[];photos.splice(0);scannedPhotoKeys.clear();scanStageHide();persist();render();updatePhotoQueue();
+  clearAllCrops(entries);entries=[];photos.splice(0);scannedPhotoKeys.clear();
+  clearSourceSheets();scanStageHide();persist();render();updatePhotoQueue();
   show("scanMsg","");
 });
 // Preview, saving, and optional PDF export are handled by paper-store.js.
