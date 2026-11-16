@@ -212,21 +212,41 @@ function labelRecognitionScore(result,parser,expectedPrice=null){
   return {score,fields:printed};
 }
 async function chooseOrientedCrop(source,box,others,parser,worker,cache,expectedPrice=null){
-  const angles=candidateAngles(box);
+  const angles=candidateAngles(box),attempted=new Set();
   let chosen=null;
-  for(const turns of angles){
+  const inspect=async turns=>{
+    attempted.add(turns);
     const crop=rotatedLabelCrop(source,box,others,parser,turns,cache);
+    const ratio=crop.canvas.width/Math.max(1,crop.canvas.height);
+    const width=crop.barcodeBox?.w||1;
+    const plausible=crop.canvas.width>=width*1.65&&ratio>.72&&ratio<4.8;
     if(!worker){
-      if(!chosen)chosen={...crop,fields:null,score:0};
-      continue;
+      if(!chosen||(plausible&&!chosen.plausible))
+        chosen={...crop,fields:null,score:0,plausible};
+      return 0;
     }
     let result=null;
     try{result=await worker.recognize(crop.canvas)}catch(_){}
     const scored=labelRecognitionScore(result,parser,expectedPrice);
-    if(!chosen||scored.score>chosen.score)
-      chosen={...crop,fields:scored.fields,score:scored.score};
-    // A confident upright OCR read eliminates the cost of another pass.
-    if(scored.score>=16)break;
+    // Prefer a complete-looking label over a thin or upside-down strip if
+    // OCR found equally little text in both.
+    if(!chosen||scored.score>chosen.score||
+       (scored.score===chosen.score&&plausible&&!chosen.plausible))
+      chosen={...crop,fields:scored.fields,score:scored.score,plausible};
+    return scored.score;
+  };
+  for(const turns of angles){
+    const score=await inspect(turns);
+    if(score>=16&&chosen?.plausible)break;
+  }
+  // A detector can incorrectly report a barcode's vertical orientation.
+  // Only do the two extra OCR passes when no useful sticker text was found.
+  if(worker&&chosen?.score<3){
+    for(const turns of [0,1,2,3]){
+      if(attempted.has(turns))continue;
+      const score=await inspect(turns);
+      if(score>=16&&chosen?.plausible)break;
+    }
   }
   return chosen;
 }
@@ -236,7 +256,7 @@ function cropCanvas(canvas,region,regions,parser){
   const cropped=document.createElement("canvas");
   cropped.width=box.w;cropped.height=box.h;
   cropped.getContext("2d").drawImage(canvas,box.x,box.y,box.w,box.h,0,0,box.w,box.h);
-  return {canvas:cropped,barcodeBox:box.barcodeBox};
+  return {canvas:cropped,barcodeBox:box.barcodeBox,cropRecovered:!!box.recovered};
 }
 function makeBlob(canvas){
   return new Promise(resolve=>{
@@ -401,8 +421,11 @@ async function fromCanvas(canvas,core,parser,progress,profileForBarcode){
         }
       }catch(err){note=err.message||"Could not read printed values";}
     }
+    if(candidate?.cropRecovered)
+      note=[note,"Nearby barcode detections overlapped; the crop was expanded to keep the full sticker visible. Verify the printed values."]
+        .filter(Boolean).join(" ");
     if(candidate?.score<3&&region.barcode)
-      note=[note,"Crop may be incomplete. Use View original sheet to check the sticker."]
+      note=[note,"Crop text was not confidently detected. Use View original sheet to check this sticker."]
         .filter(Boolean).join(" ");
     const blob=await makeBlob(cropped);
     results.push({barcode:region.barcode,fields,
