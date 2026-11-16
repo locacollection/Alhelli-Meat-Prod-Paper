@@ -162,6 +162,58 @@ function makeBlob(canvas){
     else resolve(null);
   });
 }
+function enhanceNumberRegion(canvas,mode="gray"){
+  const scale=Math.max(2,Math.min(4,Math.ceil(380/Math.max(1,canvas.width))));
+  const out=document.createElement("canvas");
+  out.width=Math.max(1,Math.round(canvas.width*scale));
+  out.height=Math.max(1,Math.round(canvas.height*scale));
+  const ctx=out.getContext("2d",{willReadFrequently:true});
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(canvas,0,0,out.width,out.height);
+  const img=ctx.getImageData(0,0,out.width,out.height);
+  for(let i=0;i<img.data.length;i+=4){
+    const r=img.data[i],g=img.data[i+1],b=img.data[i+2];
+    const light=Math.round(.299*r+.587*g+.114*b);
+    let value=mode==="threshold"?(light>133?255:0):
+      Math.max(0,Math.min(255,(light-128)*1.65+150));
+    img.data[i]=img.data[i+1]=img.data[i+2]=value;
+  }
+  ctx.putImageData(img,0,0);
+  return out;
+}
+async function readNumberBoxes(worker,canvas,barcodeBox,parser,progress,already={}){
+  const got={},notes=[];
+  for(const [key,property] of [["weight","weight_grams"],["unit","unit_price_fils"],["total","total_price_fils"]]){
+    if(Number.isInteger(already[property]))continue;
+    const rect=parser.numericWindow(key,barcodeBox,canvas.width,canvas.height);
+    if(!rect)continue;
+    const source=document.createElement("canvas");
+    source.width=rect.w;source.height=rect.h;
+    source.getContext("2d").drawImage(canvas,rect.x,rect.y,rect.w,rect.h,
+      0,0,rect.w,rect.h);
+    let found=[];
+    try{
+      // Single-line decimal digits are much easier to read than the entire
+      // sticker. Do not accept an ambiguous result with two different values.
+      await worker.setParameters({tessedit_pageseg_mode:"7",
+        tessedit_char_whitelist:"0123456789.,",
+        preserve_interword_spaces:"1"});
+      for(const mode of ["gray","threshold"]){
+        const im=enhanceNumberRegion(source,mode);
+        const result=await worker.recognize(im);
+        const candidates=parser.numericCandidates(result?.data?.text||"");
+        if(candidates.length===1){found.push(candidates[0]);break;}
+      }
+    }catch(err){notes.push("Could not read "+key+" box: "+(err?.message||"OCR failed"))}
+    finally{
+      try{await worker.setParameters({tessedit_pageseg_mode:"3",
+        tessedit_char_whitelist:""})}catch(_){}
+    }
+    if(found.length===1)got[key]=found[0];
+    progress?.("Checking printed "+key+"…");
+  }
+  return {values:got,notes};
+}
 async function fromCanvas(canvas,core,parser,progress){
   const regions=await detectRegions(canvas,core,progress);
   let worker=null,ocrError="";
@@ -184,6 +236,11 @@ async function fromCanvas(canvas,core,parser,progress){
       try{
         const recognized=await worker.recognize(cropped);
         fields=parser.detectPrinted(recognized,{barcodeBox:localBox});
+        if(!region.noBarcode&&localBox){
+          const targeted=await readNumberBoxes(worker,cropped,localBox,parser,progress,fields);
+          fields=parser.supplementPrinted(fields,targeted.values);
+          if(targeted.notes.length)note=[note,...targeted.notes].filter(Boolean).join(" ");
+        }
       }catch(err){note=err.message||"Could not read printed values";}
     }
     const blob=await makeBlob(cropped);
@@ -241,6 +298,9 @@ async function readCameraFrame(video,barcode,region,core,parser,progress){
     worker=await(await ocrLibrary()).createWorker("eng");
     const recognized=await worker.recognize(crop.canvas);
     fields=parser.detectPrinted(recognized,{barcodeBox:crop.barcodeBox});
+    const targeted=await readNumberBoxes(worker,crop.canvas,crop.barcodeBox,parser,progress,fields);
+    fields=parser.supplementPrinted(fields,targeted.values);
+    if(targeted.notes.length)notes=targeted.notes.join(" ");
   }catch(err){notes="Printed values need manual review: "+(err.message||"OCR unavailable")}
   finally{try{await worker?.terminate()}catch(_){}}
   const blob=await makeBlob(crop.canvas);
@@ -248,5 +308,5 @@ async function readCameraFrame(video,barcode,region,core,parser,progress){
 }
 
 return {MAX_LABELS,uniquePositions,barcodeFromZXing,scaledImage,detectRegions,
-  cropCanvas,fromCanvas,readFile,readCameraFrame};
+  enhanceNumberRegion,readNumberBoxes,cropCanvas,fromCanvas,readFile,readCameraFrame};
 });
