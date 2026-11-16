@@ -58,6 +58,9 @@ function renderMatch(item){
       "Possible weights (examples, not a verified reading): "+
       item.possibleWeights.map(v=>weight(v)).join(", ")));
   card.append(node("p","tester-match-note",item.note||"Check the printed sticker."));
+  if(item.otherSources?.length)
+    card.append(node("p","tester-match-sources",
+      "Also found in: "+item.otherSources.join(", ")+". Matching readings are grouped together."));
   return card;
 }
 function renderResults(result){
