@@ -56,7 +56,11 @@ function renderItems(){
     left.append(make("p","",money(p.unit_price_fils)+"/kg · "+p.weight_step_grams+" g increments · "+(p.sample_count||0)+" example(s)"));
     const ready=p.review_status==="validated"&&!!p.barcode_prefix&&p.pattern_mode!=="price5_unverified";
     const status=make("small",ready?"":"is-pending",ready?"Pattern validated":"Training needed");
-    card.append(left,status);list.append(card);
+    const actions=make("div","checker-item-actions");
+    const change=make("a","mini","Change price");
+    change.href="./barcode-learning.html?profile="+encodeURIComponent(p.id)+"&change-price=1";
+    actions.append(status,change);
+    card.append(left,actions);list.append(card);
   }
 }
 async function loadProfiles(){
