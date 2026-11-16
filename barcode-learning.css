@@ -131,3 +131,16 @@
   outline:3px solid #17a659;outline-offset:2px;touch-action:manipulation}
 .learn-weight-read-note{font-size:12px;padding:8px 10px;margin:0;color:#246747;
   border:1px solid #bedfc8;background:#eef8f0;border-radius:9px;line-height:1.5}
+
+/* Keep confirmed examples off the working screen; review them in a separate dialog. */
+.learn-saved-summary{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:15px;padding:13px;border:1px solid #d5e5d9;border-radius:12px;background:#f8fcf9}
+.learn-saved-summary .learn-subtitle{margin:0 0 5px;justify-content:flex-start;gap:12px}
+.learn-saved-summary .fineprint{margin:0;font-size:12px;max-width:450px}
+.learn-saved-summary button{min-height:42px;flex:0 0 auto}
+.learn-saved-dialog{width:min(610px,calc(100vw - 20px));max-height:90dvh;overflow:auto;padding:17px;background:white;border:1px solid #c5dacc;border-radius:15px;color:#244c38}
+.learn-saved-dialog::backdrop{background:#061c13c9}
+.learn-saved-dialog .learn-list{margin-top:15px}
+.learn-saved-dialog .learn-sample{min-width:0}
+.learn-saved-dialog .learn-sample>div{min-width:0}
+@media(max-width:570px){.learn-saved-summary{align-items:stretch}.learn-saved-summary button{width:100%}}
+@media print{.learn-saved-dialog{display:none!important}}
