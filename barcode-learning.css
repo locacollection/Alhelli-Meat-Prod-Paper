@@ -87,3 +87,10 @@
 
 .learn-review-card .learn-field input.learn-missing-reading{border-color:#dfc6a5;background:#fffcf6}
 .learn-review-card .learn-field input.learn-missing-reading::placeholder{color:#a16b38;opacity:1;font-style:italic}
+
+.learn-review-alert,.learn-review-corrected{padding:12px;border-radius:11px;font-size:12px;line-height:1.55;margin:1px 0;display:grid;gap:8px}
+.learn-review-alert{background:#fff0ed;border:2px solid #d36a56;color:#813223}
+.learn-review-corrected{background:#f0f9f0;border:1px solid #95c5a4;color:#28583b}
+.learn-review-alert strong,.learn-review-corrected strong{font-size:14px}
+.learn-review-alert p,.learn-review-corrected p{margin:0}
+.learn-review-alert .mini,.learn-review-corrected .mini{justify-self:start;border-color:currentColor}
