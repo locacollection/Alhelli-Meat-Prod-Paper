@@ -509,7 +509,7 @@ async function readWeightAtPoint(photoUrl,relativeX,relativeY,parser,core,contex
   let worker=null,reads=[];
   try{
     worker=await(await ocrLibrary()).createWorker("eng");
-    for(const mode of ["gray","threshold"]){
+    for(const mode of ["gray","threshold","bright"]){
       await worker.setParameters({tessedit_pageseg_mode:mode==="gray"?"7":"13",
         tessedit_char_whitelist:"0123456789.,",
         preserve_interword_spaces:"1"});
@@ -519,6 +519,13 @@ async function readWeightAtPoint(photoUrl,relativeX,relativeY,parser,core,contex
           Number.isInteger(context.total_price_fils)
       });
       if(candidates.length===1)reads.push(candidates[0]);
+      if(reads.length>=2&&reads.at(-1)===reads.at(-2)){
+        const grams=reads.at(-1);
+        if(!core||!Number.isInteger(context.unit_price_fils)||
+           !Number.isInteger(context.total_price_fils)||
+           core.roundedPrice(grams,context.unit_price_fils,context.rounding_fils||5)===
+             context.total_price_fils)break;
+      }
     }
   }finally{try{await worker?.terminate()}catch(_){}}
   let candidates=[...new Set(reads)];
