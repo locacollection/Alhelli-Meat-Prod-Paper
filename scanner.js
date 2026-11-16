@@ -1,7 +1,12 @@
 (()=>{
 "use strict";
 const $=id=>document.getElementById(id);
-const RATE={ "6777":3190, "6780":4500, "6781":4500 };
+// Prices belong to individual stickers, not an entire production paper.
+// Both archived and current 6777 rates remain recognizable. Later rates can
+// be reviewed against all three printed fields without overwriting these.
+const RATE={ "6777":3500, "6780":4500, "6781":4500 };
+const PRICE_HISTORY={ "6777":[3190,3500], "6780":[4500], "6781":[4500] };
+function supportedRates(code){return [...new Set(PRICE_HISTORY[code]||[RATE[code]].filter(Number.isInteger))]}
 const PRODUCT={ "6777":"Pakistani Beef With Bone", "6780":"Pakistani Beef Minced", "6781":"Pakistani Beef Without Bone" };
 const PREFIX={ "966777":"6777", "966780":"6780", "966781":"6781" };
 const STORAGE="alhelli-label-scanner-v2";
@@ -68,44 +73,89 @@ function encodeFromPrinted(item,grams,unitFils){
   const first12=prefix+String(priceVerifier(price))+String(price).padStart(5,"0");
   return first12+String(checkDigit(first12));
 }
-// Recover a missed printed unit price only when barcode, weight, and printed total agree.
+// Determine unit price from independently printed weight and total price.
+// If several rates fit, never pick one based only on today's configured rate.
 function fillCatalogUnit(decoded,fields){
-  if(!decoded || decoded.error || fields.unit)return {...fields};
-  const unit=RATE[decoded.code],grams=fixed3(fields.weight),total=fixed3(fields.printed);
-  if(!unit || grams===null || grams<1 || grams>10000 || total===null)return {...fields};
-  if(total!==decoded.price || roundedPrice(grams,unit)!==total ||
-     encodeFromPrinted(decoded.code,grams,unit)!==decoded.barcode)return {...fields};
-  return {...fields,unit:fmtMoney(unit),unitSource:"catalog"};
+  if(!decoded||decoded.error||fields.unit)return {...fields};
+  const grams=fixed3(fields.weight),total=fixed3(fields.printed);
+  if(grams===null||grams<5||grams>10000||grams%5!==0||total!==decoded.price)return {...fields};
+  const rates=supportedRates(decoded.code).filter(rate=>
+    roundedPrice(grams,rate)===total&&
+    encodeFromPrinted(decoded.code,grams,rate)===decoded.barcode);
+  if(rates.length!==1)return {...fields};
+  return {...fields,unit:fmtMoney(rates[0]),unitSource:"price history"};
 }
-// Barcodes encode price. The following resolves the unique 5 g catalog
-// weight at the configured rate; it is not an exact measured weight.
-function catalogFromBarcode(barcode){
+// EAN13 here encodes total price, not weight. Enumerate distinct possible
+// weight/rate pairs across every known price period for this item.
+function catalogFromBarcode(barcode,fields={}){
   const info=decode(barcode);
   if(info.error)return {ok:false,reason:info.error};
-  const unit=RATE[info.code];
-  if(!unit)return {ok:false,reason:"The saved price for this product is not configured."};
-  let match=null;
-  for(let grams=5;grams<=10000;grams+=5){
-    if(roundedPrice(grams,unit)!==info.price)continue;
-    if(encodeFromPrinted(info.code,grams,unit)!==info.barcode)continue;
-    if(match!==null)return {ok:false,reason:"Multiple catalog weights share this barcode; check the printed weight."};
-    match=grams;
+  const rates=supportedRates(info.code);
+  if(!rates.length)return {ok:false,reason:"No unit price is configured for this item."};
+  const candidates=[];
+  for(const unit of rates){
+    for(let grams=5;grams<=10000;grams+=5){
+      if(roundedPrice(grams,unit)!==info.price)continue;
+      if(encodeFromPrinted(info.code,grams,unit)!==info.barcode)continue;
+      candidates.push({grams,unit});
+    }
   }
-  if(match===null)return {ok:false,reason:"This valid barcode has no match in the 5 g catalog. The store price may have changed."};
-  return {ok:true,info,grams:match,unit,price:info.price};
+  const printedWeight=fixed3(fields.weight);
+  const printedUnit=fixed3(fields.unit);
+  const filtered=candidates.filter(c=>
+    (printedWeight===null||c.grams===printedWeight)&&
+    (printedUnit===null||c.unit===printedUnit));
+  const options=printedWeight===null&&printedUnit===null?candidates:filtered;
+  if(options.length===1)return {ok:true,info,...options[0],price:info.price,candidates};
+  if(options.length>1)return {ok:false,info,price:info.price,candidates,
+    reason:"More than one weight or historical price matches this barcode. Check the printed weight and unit price on THIS label."};
+  if(candidates.length>0)return {ok:false,info,price:info.price,candidates,
+    reason:"Printed weight or unit price does not match this barcode at any saved rate. Recheck this label."};
+  return {ok:false,info,price:info.price,candidates:[],
+    reason:"This barcode price does not match a known historical rate. Enter the weight and unit price printed on the label to verify it."};
 }
 function fromBarcode(barcode,original={}){
-  const result=catalogFromBarcode(barcode);
-  if(!result.ok)return {...original,barcode,confirmed:false,ocrConflict:result.reason};
-  // The stored barcode catalog is authoritative. Older manual/OCR weights
-  // must not override its 5 g entries when reconstructing a scanned record.
+  const result=catalogFromBarcode(barcode,{weight:original.weight,unit:original.unit});
+  if(!result.ok){
+    return {...original,barcode,
+      printed:original.printed||(!result.info?.error?fmtMoney(result.info?.price):""),
+      printedSource:original.printedSource||"barcode",
+      confirmed:false,autoConfirmed:false,
+      ocrConflict:result.reason||"Check the printed label before confirming."};
+  }
   return {...original,barcode,weight:fmtKg(result.grams),unit:fmtMoney(result.unit),
-    printed:fmtMoney(result.price),weightSource:"catalog",unitSource:"catalog",
-    printedSource:"barcode",ocrProduct:null,ocrChecked:false,ocrConflict:"",ocrWarning:"",confirmed:true,autoConfirmed:true};
+    printed:fmtMoney(result.price),weightSource:"catalog",unitSource:"historical rate",
+    printedSource:"barcode",ocrProduct:null,ocrChecked:false,ocrConflict:"",ocrWarning:"",
+    confirmed:true,autoConfirmed:true};
 }
 function matchPrintedOCR(entry,ocr={}){
+  const info=decode(entry.barcode);
+  if(info.error)return {...entry,confirmed:false,autoConfirmed:false,ocrConflict:info.error};
+  const rawWeight=fixed3(ocr.weight),rawUnit=fixed3(ocr.unit),rawTotal=fixed3(ocr.printed);
+  const cleanPrint=rawWeight!==null&&rawWeight>=5&&rawWeight<=10000&&rawWeight%5===0&&
+    rawUnit!==null&&rawUnit>0&&rawTotal===info.price&&
+    roundedPrice(rawWeight,rawUnit)===info.price&&
+    encodeFromPrinted(info.code,rawWeight,rawUnit)===entry.barcode;
+  // The printed label may use a new rate that has not yet been saved.
+  // Three matching values from one cropped label establish an internally
+  // consistent candidate; barcode alone cannot certify the printed weight.
   const reference=catalogFromBarcode(entry.barcode);
-  if(!reference.ok)return {...entry,confirmed:false,ocrConflict:reference.reason};
+  if(!reference.ok){
+    if(cleanPrint){
+      const data={...entry,weight:fmtKg(rawWeight),unit:fmtMoney(rawUnit),
+        printed:fmtMoney(info.price),weightSource:"label",unitSource:"label",
+        printedSource:"barcode",ocrConflict:"",ocrWarning:"",confirmed:true,
+        autoConfirmed:true,ocrChecked:true,source:"Printed label + barcode"};
+      if(ocr.ocrProduct&&ocr.ocrProduct!==info.code)
+        return {...data,confirmed:false,autoConfirmed:false,
+          ocrConflict:"Printed product name differs from the barcode item. Recheck the sticker."};
+      return data;
+    }
+    return {...entry,confirmed:false,autoConfirmed:false,
+      printed:entry.printed||fmtMoney(info.price),
+      ocrConflict:reference.reason,
+      ocrWarning:"Check the printed weight and unit price. A 6777 barcode may have been printed at 3.190 or 3.500 BD/kg."};
+  }
   const base=fromBarcode(entry.barcode,entry);
   const differences=[],reads=[];
   for(const [field,expected] of [["weight",reference.grams],["unit",reference.unit],["printed",reference.price]]){
@@ -116,77 +166,68 @@ function matchPrintedOCR(entry,ocr={}){
     if(field==="weight"&&num!==expected&&roundedPrice(num,reference.unit)===reference.price)continue;
     if(num!==expected)differences.push(field+" "+raw+" instead of "+fmtMoney(expected));
   }
-  // An OCR *number* alone is not trusted, but two independent printed
-  // values (weight and total) agreeing at the stored rate can expose a
-  // misdecoded barcode. Do NOT overwrite the database with OCR figures.
-  const weightReading=fixed3(ocr.weight);
-  const totalReading=fixed3(ocr.printed);
-  const rateReading=fixed3(ocr.unit);
-  const coherentPrint=weightReading!==null&&totalReading!==null&&
-    weightReading>=5&&weightReading<=10000&&weightReading%5===0&&
-    (rateReading===null||rateReading===reference.unit)&&
-    roundedPrice(weightReading,reference.unit)===totalReading;
+  const coherentPrint=rawWeight!==null&&rawTotal!==null&&
+    rawWeight>=5&&rawWeight<=10000&&rawWeight%5===0&&
+    (rawUnit===null||rawUnit===reference.unit)&&
+    roundedPrice(rawWeight,reference.unit)===rawTotal;
   const seriousMismatch=coherentPrint&&
-    (Math.abs(weightReading-reference.grams)>=100||
-     Math.abs(totalReading-reference.price)>=300);
-  if(seriousMismatch){
-    return {...base,confirmed:false,autoConfirmed:false,ocrChecked:false,ocrWarning:"",
-      ocrConflict:"Scanned barcode disagrees with the printed weight and total price. "+
-      "Printed label appears to say "+fmtKg(weightReading)+" kg and "+
-      fmtMoney(totalReading)+" BD, while barcode lookup says "+
+    (Math.abs(rawWeight-reference.grams)>=100||
+     Math.abs(rawTotal-reference.price)>=300);
+  if(seriousMismatch)return {...base,confirmed:false,autoConfirmed:false,ocrChecked:false,ocrWarning:"",
+    ocrConflict:"Scanned barcode disagrees with the printed weight and total price. "+
+      "Printed label appears to say "+fmtKg(rawWeight)+" kg and "+
+      fmtMoney(rawTotal)+" BD, while barcode lookup says "+
       fmtKg(reference.grams)+" kg and "+fmtMoney(reference.price)+
       " BD. Recheck the sticker and use Correct scanned barcode."};
-  }
-  // A possible mismatch in the product category needs review because it can
-  // change the Recipe GRN code (6780 vs 6781).
-  if(ocr.ocrProduct && ocr.ocrProduct!==reference.info.code)
+  if(ocr.ocrProduct&&ocr.ocrProduct!==reference.info.code)
     return {...base,confirmed:false,autoConfirmed:false,ocrChecked:false,ocrWarning:"",
       ocrConflict:"Product category differs: barcode identifies "+PRODUCT[reference.info.code]+
       ", but photo text looks like "+PRODUCT[ocr.ocrProduct]+". Check the barcode."};
-  // The barcode is authoritative for price. OCR may read 3.105 as 3.108.
-  const result={...base,confirmed:true,autoConfirmed:true,ocrConflict:"",
+  // The barcode resolves a unique saved weight/rate; OCR is a second opinion.
+  return {...base,confirmed:true,autoConfirmed:true,ocrConflict:"",
     ocrChecked:reads.length>0&&differences.length===0,
     ocrWarning:differences.length?"Possible photo-reading mistake: "+differences.join("; ")+". Barcode values kept.":"",
     source:differences.length?"Barcode used; OCR warning":"Barcode-derived"};
-  // OCR is strictly a second opinion. Never replace catalog weight/price
-  // with photo text, even if a 1 g weight rounds to the same barcode price.
-  return result;
 }
 function verify(entry){
   if(entry.ocrConflict)return {ok:false,reason:entry.ocrConflict};
   const info=decode(entry.barcode);
   if(info.error)return {ok:false,reason:info.error};
-  const catalog=catalogFromBarcode(entry.barcode);
-  if(!catalog.ok)return {ok:false,reason:catalog.reason};
   const grams=fixed3(entry.weight);
   if(grams===null||grams<1||grams>10000){
     const missing=!String(entry.weight??"").trim();
     if(missing){
-      const pricePerKg=fixed3(entry.unit);
-      const estimate=pricePerKg!==null&&pricePerKg>0?(info.price/pricePerKg).toFixed(3):null;
-      return {ok:false,reason:"Printed weight missing. "+(estimate?"Barcode price suggests approximately "+estimate+" kg, but rounding means it cannot confirm exact weight. ":"")+"Type the exact weight written on this label. Gray example text is not entered data."};
+      const rate=fixed3(entry.unit);
+      const estimate=rate!==null&&rate>0?(info.price/rate).toFixed(3):null;
+      return {ok:false,reason:"Printed weight missing. "+(estimate?
+        "Barcode price suggests approximately "+estimate+" kg, but rounding cannot confirm exact weight. ":"")+
+        "Type the weight written on THIS label."};
     }
-    return {ok:false,reason:"The printed weight is invalid. Enter the exact number from the label, between 0.001 and 10.000 kg."};
+    return {ok:false,reason:"Printed weight must be between 0.001 and 10.000 kg."};
   }
-  if(grams%5!==0){
-    return {ok:false,reason:"Only 0.005 kg increments are valid in this barcode catalog. Use the scanned barcode's catalog weight, not an OCR weight."};
-  }
-  if(grams!==catalog.grams){
-    return {ok:false,reason:"Weight differs from the stored barcode catalog: "+fmtKg(catalog.grams)+" kg. Recheck the label."};
-  }
+  if(grams%5!==0)return {ok:false,reason:"Only 0.005 kg increments are valid in the production barcode format."};
   const unit=fixed3(entry.unit);
-  if(unit===null||unit<=0)return {ok:false,reason:"Unit price missing."};
-  if(unit!==catalog.unit)return {ok:false,reason:"Unit price differs from the saved catalog rate ("+fmtMoney(catalog.unit)+" BD/kg)."};
+  if(unit===null||unit<=0)return {ok:false,reason:"Unit price missing. Enter the rate printed on this sticker (old and new rates are both allowed)."};
   const printed=fixed3(entry.printed);
-  if(printed===null||printed<0)return {ok:false,reason:"Total price missing."};
-  if(printed!==info.price)return {ok:false,reason:"Printed total "+fmtMoney(printed)+" BD does not match this barcode\u0027s "+fmtMoney(info.price)+" BD. This number may belong to another sticker. Recheck the total printed on THIS label."};
+  if(printed===null||printed<0)return {ok:false,reason:"Total price missing. Enter the amount printed on the label."};
+  if(printed!==info.price)return {ok:false,reason:"Printed total "+fmtMoney(printed)+
+    " BD does not match this barcode's "+fmtMoney(info.price)+" BD."};
   const expected=roundedPrice(grams,unit);
-  if(expected!==info.price)return {ok:false,reason:"Weight "+fmtKg(grams)+" kg × "+fmtMoney(unit)+" BD/kg rounds to "+fmtMoney(expected)+" BD, but the barcode encodes "+fmtMoney(info.price)+" BD. Check that the weight is from the SAME label."};
-  const reconstructed=encodeFromPrinted(info.code,grams,unit);
-  if(reconstructed!==info.barcode){
-    return {ok:false,reason:"13-digit barcode sequence mismatch: the printed weight and unit price generate "+(reconstructed||"no valid barcode")+", not "+info.barcode+". Recheck this sticker."};
+  if(expected!==info.price)return {ok:false,reason:"Weight "+fmtKg(grams)+" kg × "+
+    fmtMoney(unit)+" BD/kg rounds to "+fmtMoney(expected)+
+    " BD, not the "+fmtMoney(info.price)+" BD encoded in the barcode."};
+  if(encodeFromPrinted(info.code,grams,unit)!==info.barcode)
+    return {ok:false,reason:"Barcode does not reconstruct from this sticker's weight and rate. Recheck all three printed values."};
+  // Only use the catalog to ensure a unique automated interpretation when
+  // fields were never reviewed by the user.
+  if(entry.autoConfirmed&&entry.weightSource!=="label"&&entry.weightSource!=="manual-checked"){
+    const reference=catalogFromBarcode(entry.barcode);
+    if(!reference.ok)return {ok:false,reason:reference.reason};
+    if(grams!==reference.grams||unit!==reference.unit)
+      return {ok:false,reason:"This label differs from the automatically resolved historical rate. Review its printed details."};
   }
-  if(entry.ocrProduct&&entry.ocrProduct!==info.code)return {ok:false,reason:"Printed product name seems to disagree with the barcode. Review the label."};
+  if(entry.ocrProduct&&entry.ocrProduct!==info.code)
+    return {ok:false,reason:"Printed product name differs from the barcode. Review the label."};
   return {ok:true,info,grams,unit,printed};
 }
 // Each sticker image is keyed by a unique scan-record key, never by barcode.
