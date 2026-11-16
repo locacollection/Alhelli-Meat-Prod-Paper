@@ -36,10 +36,12 @@ function uniquePositions(list){
     if(!item.barcode)continue;
     const other=out.find(q=>{
       if(q.barcode!==item.barcode)return false;
-      const cxq=q.x+q.w/2,cyq=q.y+q.h/2;
-      const cxi=item.x+item.w/2,cyi=item.y+item.h/2;
+      const hq=Number.isFinite(q.h)&&q.h>0?q.h:Math.max(12,q.w*.12);
+      const hi=Number.isFinite(item.h)&&item.h>0?item.h:Math.max(12,item.w*.12);
+      const cxq=q.x+q.w/2,cyq=q.y+hq/2;
+      const cxi=item.x+item.w/2,cyi=item.y+hi/2;
       return Math.abs(cxq-cxi)<Math.max(q.w,item.w)*.40&&
-        Math.abs(cyq-cyi)<Math.max(q.h,item.h)*.40;
+        Math.abs(cyq-cyi)<Math.max(hq,hi)*.40;
     });
     if(!other)out.push(item);
     else if(item.precision>other.precision){
