@@ -1,0 +1,49 @@
+.checker-page{padding:22px 0 60px;display:grid;gap:18px}
+.checker-page .panel{margin:0;min-width:0}
+.checker-page h1{font-size:clamp(23px,4vw,29px);margin:0 0 10px;color:#193c2f}
+.checker-page h2{font-size:19px;margin:0 0 12px}
+.checker-page p{line-height:1.6}
+.checker-intro>p{max-width:760px;color:#526d5b;margin:0 0 12px}
+.checker-shortcuts,.checker-actions{display:flex;flex-wrap:wrap;gap:10px}
+.checker-shortcuts .btn,.checker-actions .btn{display:inline-flex;justify-content:center;align-items:center;text-decoration:none;flex:1 1 145px;min-height:46px}
+.checker-form{display:grid;gap:13px;margin-top:15px}
+.checker-form label{display:flex;flex-direction:column;gap:6px;color:#315a43;font-size:13px;font-weight:750;min-width:0}
+.checker-form input,.checker-form select{width:100%;min-width:0;min-height:46px;border:1px solid #bfcec4;border-radius:10px;background:#fff;padding:11px 13px;color:#203e2d;font:inherit;font-size:15px}
+.checker-form input:focus,.checker-form select:focus{outline:2px solid #9dd7b2;outline-offset:1px}
+.checker-field-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.checker-login{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end}
+.checker-login .btn{min-height:46px}
+.checker-message{margin:13px 0 0;padding:11px 13px;border-radius:10px;background:#eaf7ee;border:1px solid #bcdcc3;color:#245e3d;font-size:13px}
+.checker-message.is-error{background:#fff4ea;border-color:#ead0b4;color:#874e2c}
+.checker-signed-in{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:#315e46}
+.checker-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px;align-items:start}
+.checker-result{margin-top:16px;border:1px solid #b7d9c2;background:#f4faf5;border-radius:14px;padding:16px}
+.checker-result-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.checker-result h3{font-size:18px;margin:0;color:#1e5338;overflow-wrap:anywhere}
+.checker-tag{font-size:11px;border-radius:99px;background:#dcefe1;color:#276141;padding:6px 10px;font-weight:800}
+.checker-code{font-size:15px;font-weight:800;letter-spacing:1px;color:#244d38;overflow-wrap:anywhere;margin:10px 0 13px}
+.checker-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.checker-values>div{padding:11px;background:#fff;border:1px solid #d5e8d9;border-radius:11px;min-width:0}
+.checker-values span{display:block;font-size:12px;color:#52745e;margin-bottom:6px}
+.checker-values strong{display:block;font-size:clamp(14px,2.7vw,20px);color:#1b5338;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.checker-result-note{font-size:12px;color:#755b2e;background:#fff8e7;border:1px solid #eadcb6;border-radius:9px;padding:10px;margin:13px 0 0}
+.checker-list-heading{display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap}
+.checker-list-heading p{margin:0 0 12px}
+.checker-items{display:grid;gap:9px}
+.checker-item{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#f8fbf8;border:1px solid #d7e4da;padding:12px;border-radius:11px}
+.checker-item h3{font-size:14px;margin:0 0 4px;color:#20533b}
+.checker-item p{margin:0;font-size:12px;color:#5a7464}
+.checker-item small{display:inline-block;font-weight:750;border-radius:20px;padding:5px 9px;background:#e5f4e9;color:#256747;font-size:11px}
+.checker-item small.is-pending{background:#fff1de;color:#85602e}
+.checker-disclaimer{font-size:12px;color:#866333;border:1px solid #ead7ac;background:#fff7e5;border-radius:11px;padding:12px;margin:0}
+.checker-camera{width:min(560px,calc(100vw - 20px));max-height:94dvh;border:1px solid #b4d4c0;border-radius:15px;background:#fff;padding:14px;color:#244e38}
+.checker-camera::backdrop{background:#031a11bc}
+.checker-camera-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.checker-camera h2{margin:0;font-size:18px}
+.checker-video{position:relative;background:#0c2519;border-radius:12px;overflow:hidden}
+.checker-video video{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+.checker-guide{position:absolute;left:8%;right:8%;top:39%;height:22%;border:3px solid #34e48b;border-radius:8px;pointer-events:none;box-shadow:0 0 0 100vmax #07171030}
+#checkerCameraStatus{margin:9px 0 2px;font-size:13px;color:#42634e}
+[hidden]{display:none!important}
+@media(max-width:840px){.checker-grid{grid-template-columns:1fr}}
+@media(max-width:650px){.checker-login{grid-template-columns:1fr}.checker-values{grid-template-columns:1fr}.checker-values>div{display:flex;align-items:center;justify-content:space-between}.checker-values span{margin-bottom:0}.checker-field-pair{grid-template-columns:1fr}.checker-camera video{aspect-ratio:3/4}}
