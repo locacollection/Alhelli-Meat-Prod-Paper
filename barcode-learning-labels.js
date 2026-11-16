@@ -311,32 +311,84 @@ function review(fields,profile,barcode,core,knownPrefix=""){
   data.barcode_price_fils=barcodePrice;
   return data;
 }
+/* Full-label crop around a located EAN. Multi-label photo detectors can
+   report duplicate / overlapping bounding boxes or a sliver of a barcode.
+   A neighbour must NEVER reduce the crop to a narrow vertical strip. */
 function labelCropRegion(imageW,imageH,box,otherBoxes=[]){
   if(!box||!Number.isFinite(box.x)||!Number.isFinite(box.y)||
       !(box.w>0)||!(box.h>0))return {x:0,y:0,w:imageW,h:imageH,barcodeBox:null};
-  const width=box.w;
-  let x=Math.max(0,Math.floor(box.x-.33*width));
-  let y=Math.max(0,Math.floor(box.y-1.60*width));
-  let x2=Math.min(imageW,Math.ceil(box.x+2.65*width));
-  let y2=Math.min(imageH,Math.ceil(box.y+Math.max(box.h,0.42*width)));
-  // Earlier sticker bottoms are not part of the current label. This avoids
-  // reading a nearby label's price/weight when sheets have vertical rows.
+  const b={...box};
+  const clamp=(value,low,high)=>Math.min(high,Math.max(low,value));
+  const realWidth=Math.max(1,Number(b.w));
+  // A detection from a tiled/small phone photo may include only a few bars.
+  // The sheet-width floor is intentionally conservative: it supplies an
+  // adequate neighbourhood without pretending the detected EAN is wider.
+  const width=Math.max(realWidth,Math.min(imageW*.075,imageH*.11));
+  const raw={
+    x:clamp(Math.floor(b.x-.38*width),0,imageW),
+    y:clamp(Math.floor(b.y-1.68*width),0,imageH),
+    right:clamp(Math.ceil(b.x+2.73*width),0,imageW),
+    bottom:clamp(Math.ceil(b.y+Math.max(b.h,.46*width)),0,imageH)
+  };
+  let {x,y,right,bottom}=raw;
+  let constrained=false;
+  const centerX=b.x+realWidth/2;
+  const centerY=b.y+b.h/2;
   for(const other of otherBoxes){
-    if(other===box)continue;
-    if(Math.abs(other.x-box.x)<Math.max(other.w,box.w)*1.4){
-      if(other.y+other.h<=box.y&&other.y+other.h>y)
-        y=Math.max(y,Math.ceil(other.y+other.h+4));
-      if(other.y>box.y&&other.y<y2)y2=Math.min(y2,Math.floor(other.y-4));
+    if(other===box||!other||!(other.w>0)||!(other.h>0)||
+       !Number.isFinite(other.x)||!Number.isFinite(other.y))continue;
+    const ow=Number(other.w),oh=Number(other.h);
+    const ocx=other.x+ow/2,ocy=other.y+oh/2;
+    const deltaX=ocx-centerX,deltaY=ocy-centerY;
+    // Ignore same-position/overlapping detections: they may be two readings
+    // of the SAME sticker rather than another label on the sheet.
+    if(Math.abs(deltaX)<Math.max(realWidth,ow)*.62 &&
+       Math.abs(deltaY)<Math.max(width,ow)*.55)continue;
+    // Stacked labels: do not OCR the previous label's barcode or total.
+    // Skip near-coincident boxes, which are frequently duplicate reads.
+    if(Math.abs(deltaX)<Math.max(realWidth,ow)*.92){
+      if(other.y+oh<b.y-Math.max(6,b.h*.75)){
+        const top=clamp(Math.ceil(other.y+oh+4),0,imageH);
+        if(top>y){y=top;constrained=true}
+      }
+      if(other.y>b.y+Math.max(6,b.h*.75)){
+        const edge=clamp(Math.floor(other.y-4),0,imageH);
+        if(edge<bottom){bottom=edge;constrained=true}
+      }
     }
-    if(Math.abs(other.y-box.y)<Math.max(other.h,box.h)*2){
-      if(other.x+other.w<=box.x&&other.x+other.w>x)
-        x=Math.max(x,Math.ceil(other.x+other.w+4));
-      if(other.x>box.x&&other.x<x2)x2=Math.min(x2,Math.floor(other.x-4));
+    // Side-by-side sheets: split only when two distinct barcode centres
+    // are sufficiently separated. Overlapping boxes must not cause a crop
+    // only a few pixels wide.
+    const sameRow=Math.abs(deltaY)<Math.max(width*.6,b.h*3,oh*3);
+    const separateColumns=Math.abs(deltaX)>Math.max(realWidth,ow)*1.30;
+    if(sameRow&&separateColumns){
+      const edge=(centerX+ocx)/2;
+      if(deltaX<0&&edge>x){x=clamp(Math.ceil(edge+4),0,imageW);constrained=true}
+      else if(deltaX>0&&edge<right){right=clamp(Math.floor(edge-4),0,imageW);constrained=true}
     }
   }
-  const w=Math.max(1,x2-x),h=Math.max(1,y2-y);
-  return {x,y,w,h,barcodeBox:{x:box.x-x,y:box.y-y,w:box.w,h:box.h}};
+  const baseW=Math.max(1,raw.right-raw.x);
+  const baseH=Math.max(1,raw.bottom-raw.y);
+  // A 13-digit code must be surrounded by enough image to show the whole
+  // sticker. If neighbours make it narrower/shorter, discard that cut.
+  // This fixes the ultra-thin preview seen in stacked multi-label sheets.
+  let recovered=false;
+  if(right-x<Math.min(baseW,Math.max(realWidth*1.85,width*1.55))){
+    x=raw.x;right=raw.right;recovered=true;
+  }
+  if(bottom-y<Math.min(baseH,Math.max(width*.93,b.h*2.5))){
+    y=raw.y;bottom=raw.bottom;recovered=true;
+  }
+  // Ensure even incorrect boxes cannot produce a one-pixel canvas.
+  if(right<=x+1){x=raw.x;right=raw.right;recovered=true}
+  if(bottom<=y+1){y=raw.y;bottom=raw.bottom;recovered=true}
+  x=clamp(x,0,Math.max(0,imageW-1));y=clamp(y,0,Math.max(0,imageH-1));
+  right=clamp(right,x+1,imageW);bottom=clamp(bottom,y+1,imageH);
+  return {x,y,w:right-x,h:bottom-y,
+    barcodeBox:{x:b.x-x,y:b.y-y,w:realWidth,h:b.h},
+    recovered,constrained};
 }
+
 return {nameFor,normalized,amount,detectProduct,boxesFromResult,extractLabeled,
   chooseByLocation,detectPrinted,numericWindow,numericWindows,numericCandidates,supplementPrinted,
   inferUniqueWeight,weightPriceConflict,derivePriceFromBarcode,review,labelCropRegion};
