@@ -598,6 +598,47 @@ function closeOriginalPhoto(){
   }
   $("learnOriginalImage").removeAttribute("src");
 }
+function imageTapPoint(event,img){
+  const rect=img.getBoundingClientRect();
+  const iw=img.naturalWidth,ih=img.naturalHeight;
+  if(!iw||!ih||rect.width<=0||rect.height<=0)return null;
+  const scale=Math.min(rect.width/iw,rect.height/ih);
+  const displayedW=iw*scale,displayedH=ih*scale;
+  const x=(event.clientX-rect.left-(rect.width-displayedW)/2)/displayedW;
+  const y=(event.clientY-rect.top-(rect.height-displayedH)/2)/displayedH;
+  if(x<0||x>1||y<0||y>1)return null;
+  return {x,y};
+}
+async function readTappedWeight(p,img,event){
+  const point=imageTapPoint(event,img);
+  if(!point)return;
+  p.picking=false;
+  p.status="";
+  p.weightReadNote="Reading the number you tapped…";
+  renderPending();
+  try{
+    const profile=profiles.find(x=>x.id===p.profileId)||null;
+    const context={step:Number(profile?.weight_step_grams)||1,
+      unit_price_fils:core.parseAmount(p.unit),
+      total_price_fils:core.parseAmount(p.total),
+      rounding_fils:Number(profile?.rounding_fils)||5};
+    const found=await photoEngine.readWeightAtPoint(
+      p.photoUrl,point.x,point.y,ocrParser,core,context);
+    if(!pendingLabels.includes(p))return;
+    if(!found.ok)throw new Error(found.error);
+    p.fields={...p.fields,weight_grams:found.weight_grams,
+      read_from_photo:{...p.fields?.read_from_photo,weight:true}};
+    p.weight=core.formatAmount(found.weight_grams);
+    prefill(p,profile,true);
+    p.status="";
+    p.weightReadNote="Weight read as "+p.weight+" kg. Verify the printed sticker.";
+  }catch(err){
+    p.status="Weight read unsuccessful: "+(err?.message||"Try tapping the center of the number.");
+    p.weightReadNote="";
+  }
+  renderPending();
+}
+
 function editableField(label,p,key,value,placeholder){
   const wrapper=make("label","learn-field",label);
   const input=make("input");
@@ -674,9 +715,22 @@ renderPending=function(){
     const title=make("strong","", "Label "+(idx+1)+" · "+(p.barcode||"Barcode unreadable"));
     card.append(title);
     if(p.photoUrl){
-      const img=make("img","learn-review-photo");
+      const img=make("img","learn-review-photo"+(p.picking?" is-picking-weight":""));
       img.src=p.photoUrl;img.alt="Cropped sticker for label "+(idx+1);
-      img.loading="lazy";card.append(img);
+      img.loading="lazy";
+      if(p.picking)img.addEventListener("click",event=>void readTappedWeight(p,img,event));
+      card.append(img);
+      const pick=make("button","mini learn-read-weight",
+        p.picking?"Tap the weight number in the photo":"Tap photo to read weight");
+      pick.type="button";
+      pick.addEventListener("click",()=>{
+        p.picking=!p.picking;
+        p.weightReadNote=p.picking?"Tap the center of the weight printed in the green box.":"";
+        renderPending();
+      });
+      card.append(pick);
+      if(p.weightReadNote)
+        card.append(make("p","learn-weight-read-note",p.weightReadNote));
     }
     if(p.sheetPhotoUrl){
       const full=make("button","mini learn-view-original","View original sheet");
