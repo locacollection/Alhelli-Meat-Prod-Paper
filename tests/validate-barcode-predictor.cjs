@@ -58,8 +58,8 @@ const entries=[
   {id:"a",owner_id:owner,item_code:"6376",product_name:"Salmon",
     weight_step_grams:2,unit_price_fils:4500,rounding_fils:5,
     barcode_prefix:"963376",pattern_mode:"weight6",review_status:"validated",sample_count:6},
-  {id:"b",owner_id:owner,item_code:"7406",product_name:"Cheese",
-    weight_step_grams:1,unit_price_fils:1000,rounding_fils:5,
+  {id:"b",owner_id:owner,item_code:"6793",product_name:"Carrot China",
+    weight_step_grams:5,unit_price_fils:725,rounding_fils:5,
     barcode_prefix:"916793",pattern_mode:"price5_verified",review_status:"validated",sample_count:5},
   {id:"c",owner_id:owner,item_code:"8100",product_name:"New Item",
     weight_step_grams:5,unit_price_fils:3750,rounding_fils:5,
@@ -114,10 +114,18 @@ async function flush(){for(let i=0;i<20;i++)await Promise.resolve()}
   nodes.predictorWeight.value="0.150";
   nodes.predictorForm.emit("submit");
   assert.equal(nodes.predictorResult.hidden,false);
-  assert.equal(nodes.predictorBarcodeBlock.hidden,true,
-    "Ambiguous price barcodes must not be displayed");
-  assert.equal(nodes.predictorResultBarcode.textContent,"");
-  assert.match(nodes.predictorResultExplanation.textContent,/not unique/i);
+  assert.equal(nodes.predictorBarcodeBlock.hidden,false,
+    "Validated price patterns should show calculable candidate barcodes even when the weight is ambiguous");
+  assert.equal(nodes.predictorResultBarcode.textContent,"9167930001109");
+  assert.equal(nodes.predictorResultPrice.textContent,"0.110 BD");
+  assert.match(nodes.predictorResultState.textContent,/ambiguous/i);
+  assert.match(nodes.predictorResultExplanation.textContent,/does NOT verify/i);
+  const decodedCarrot=core.decodeLearned(nodes.predictorResultBarcode.textContent,entries[1]);
+  assert.equal(decodedCarrot.ok,false);
+  assert.equal(decodedCarrot.ambiguous,true,
+    "The candidate barcode must remain invalid for uniquely decoding a weight");
+  assert.equal(core.suggestBarcode(150,entries[1]).ok,false,
+    "The original strict decoder still must reject ambiguous weights");
 
   nodes.predictorProfile.value="c";
   nodes.predictorProfile.emit("change");
@@ -135,5 +143,5 @@ async function flush(){for(let i=0;i<20;i++)await Promise.resolve()}
   assert.match(nodes.predictorMessage.textContent,/2 g increments/);
 
   assert.deepEqual(operations.map(o=>o.table),["barcode_learning_profiles"]);
-  console.log("Barcode Predictor passed: saved profile selection, unique EAN generation, ambiguous/untrained blocking, step validation and read-only Supabase access.");
+  console.log("Barcode Predictor passed: saved profile selection, strict unique EAN checks, clearly labelled price-only candidates, untrained blocking, step validation and read-only Supabase access.");
 })().catch(err=>{console.error(err);process.exitCode=1});
