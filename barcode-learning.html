@@ -67,12 +67,17 @@
 </section>
 <section class="panel learner-panel">
   <h2>2. Add label examples</h2>
-  <p class="fineprint">Use at least four different labels with different weights. Read weight and total price from each printed sticker.</p>
+  <p class="fineprint">Take a photo of each label or the full sheet. The scanner reads barcodes, weights and prices and lets you check them before saving.</p>
   <div class="learn-buttons">
-    <button id="learnLiveScan" type="button" class="btn btn-light">Scan 1 barcode</button>
+    <label class="btn btn-light learn-file-button" for="learnSinglePhoto">Photograph 1 label<input id="learnSinglePhoto" type="file" accept="image/*" capture="environment" hidden></label>
     <label class="btn btn-light learn-file-button" for="learnPhoto">Scan sheet photo<input id="learnPhoto" type="file" accept="image/*" multiple hidden></label>
+    <button id="learnLiveScan" type="button" class="btn btn-outline">Live scan</button>
   </div>
+  <p id="learnScanProgress" class="learn-notice" role="status" aria-live="polite" hidden></p>
   <div id="learnPending" class="learn-pending" hidden></div>
+  <p class="fineprint">Each detected sticker has its own preview and editable readings. Nothing is saved until you confirm its details.</p>
+  <details class="learn-details" id="learnManualEntry">
+  <summary>Enter a label manually</summary>
   <form id="learnSampleForm" class="learn-form">
     <label class="learn-field">13-digit barcode
       <input id="learnBarcode" type="text" inputmode="numeric" pattern="[0-9]{13}" maxlength="13" spellcheck="false" placeholder="Scan or type a barcode" required>
@@ -83,6 +88,7 @@
     </div>
     <button id="learnAddSample" type="submit" class="btn">Confirm & save example</button>
   </form>
+  </details>
   <p id="learnSampleMessage" class="learn-notice" hidden role="status"></p>
   <h3 class="learn-subtitle">Training labels <span id="learnCount">0</span></h3>
   <div id="learnSamples" class="learn-list"><p class="fineprint">Choose an item to start training.</p></div>
@@ -123,12 +129,14 @@
 </div>
 </main>
 <dialog id="learnCameraDialog" class="learn-camera-dialog" aria-labelledby="learnCameraHeading">
-  <div class="learn-camera-head"><h2 id="learnCameraHeading">Scan barcode</h2><button id="learnCameraStop" type="button" class="mini">Close</button></div>
+  <div class="learn-camera-head"><h2 id="learnCameraHeading">Scan a full label</h2><button id="learnCameraStop" type="button" class="mini">Close</button></div>
   <div class="learn-camera-preview"><video id="learnVideo" autoplay muted playsinline aria-label="Rear camera barcode scanner"></video><div class="learn-camera-target" aria-hidden="true"></div></div>
-  <p id="learnCameraMessage" role="status" class="fineprint">Starting camera…</p>
+  <p id="learnCameraMessage" role="status" class="fineprint">Keep the full label visible so the camera can read the printed weight and prices.</p>
 </dialog>
 <script src="barcode-learning-core.js?v=learning-1"></script>
 <script src="fish-barcode-samples.js?v=fish-samples-1"></script>
+<script src="barcode-learning-labels.js?v=ocr-labels-1"></script>
+<script src="barcode-learning-scan.js?v=ocr-labels-1"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="barcode-learning.js?v=salmon-import-2"></script>
+<script src="barcode-learning.js?v=ocr-learning-1"></script>
 </body></html>
