@@ -1,0 +1,146 @@
+{
+  "title": "Verified Pakistani beef barcode learning examples recovered from earlier barcode work",
+  "recorded_on": "2026-11-16",
+  "caveat": "Reference copy of historically confirmed barcode/weight/total pairs. Do not treat predicted barcodes as real sticker measurements or use as checkout authorization.",
+  "weight_step_grams": 5,
+  "rounding_fils": 5,
+  "profiles": [
+    {
+      "item_code": "6777",
+      "product_name": "Pakistani Beef With Bone",
+      "unit_price_fils": 3190,
+      "barcode_prefix": "966777",
+      "reference": "Prior Barcode Pattern Summary confirmations and verified-label meat catalog",
+      "examples": [
+        [
+          "9667778000154",
+          5,
+          15
+        ],
+        [
+          "9667771003206",
+          100,
+          320
+        ],
+        [
+          "9667775009556",
+          300,
+          955
+        ],
+        [
+          "9667777012752",
+          400,
+          1275
+        ],
+        [
+          "9667776015952",
+          500,
+          1595
+        ],
+        [
+          "9667778016100",
+          505,
+          1610
+        ],
+        [
+          "9667770031903",
+          1000,
+          3190
+        ],
+        [
+          "9667772045007",
+          1410,
+          4500
+        ],
+        [
+          "9667779063806",
+          2000,
+          6380
+        ],
+        [
+          "9667777088504",
+          2775,
+          8850
+        ],
+        [
+          "9667774159504",
+          5000,
+          15950
+        ],
+        [
+          "9667770184401",
+          5780,
+          18440
+        ]
+      ]
+    },
+    {
+      "item_code": "6780",
+      "product_name": "Pakistani Beef Minced",
+      "unit_price_fils": 4500,
+      "barcode_prefix": "966780",
+      "reference": "Prior Barcode Pattern Summary confirmed sticker discussion and verified-label meat catalog",
+      "examples": [
+        [
+          "9667807018006",
+          400,
+          1800
+        ],
+        [
+          "9667800022758",
+          505,
+          2275
+        ],
+        [
+          "9667800031057",
+          690,
+          3105
+        ],
+        [
+          "9667808036450",
+          810,
+          3645
+        ],
+        [
+          "9667802045007",
+          1000,
+          4500
+        ]
+      ]
+    },
+    {
+      "item_code": "6781",
+      "product_name": "Pakistani Beef Without Bone",
+      "unit_price_fils": 4500,
+      "barcode_prefix": "966781",
+      "reference": "Prior Barcode Pattern Summary sticker examples and the provided photographed 1.175 kg and 1.190 kg stickers",
+      "examples": [
+        [
+          "9667818036457",
+          810,
+          3645
+        ],
+        [
+          "9667812045004",
+          1000,
+          4500
+        ],
+        [
+          "9667815052900",
+          1175,
+          5290
+        ],
+        [
+          "9667819053552",
+          1190,
+          5355
+        ]
+      ]
+    }
+  ],
+  "columns": [
+    "barcode",
+    "weight_grams",
+    "total_price_fils"
+  ]
+}
