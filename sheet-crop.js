@@ -327,7 +327,13 @@ function open({source,title="Inspect original sheet",initialRegion=null,
       catch(e){error("Cropping failed: "+e.message);use.textContent=cropLabel;render()}
     });
     async function drawPreview(t){
-      if(t===0){img.src=originalUrl;await img.decode();return}
+      if(t===0){
+        const prior=previewUrl;
+        img.src=originalUrl;await img.decode();
+        if(prior)URL.revokeObjectURL(prior);
+        previewUrl="";
+        return;
+      }
       const factor=Math.min(1,2400/Math.max(imageWidth,imageHeight));
       const w=Math.max(1,Math.round(imageWidth*factor)),h=Math.max(1,Math.round(imageHeight*factor));
       const c=document.createElement("canvas");
