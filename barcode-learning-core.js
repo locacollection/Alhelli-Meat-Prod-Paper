@@ -66,6 +66,14 @@ function profileConfig(config){
 function sampleCheck(sample,config){
   const barcode=cleanBarcode(sample.barcode);
   if(!validBarcode(barcode))return {ok:false,reason:"Invalid barcode or EAN-13 check digit."};
+  // A valid EAN/checksum and matching price cannot make a 6781 label a
+  // 6780 training example. Guard the protected meat item prefixes.
+  const expectedMeatPrefix="96"+String(config?.item_code??"");
+  if(KNOWN_MEAT_PREFIXES.has(expectedMeatPrefix)&&
+     barcode.slice(0,6)!==expectedMeatPrefix)
+    return {ok:false,reason:"Barcode prefix "+barcode.slice(0,6)+
+      " is not the "+expectedMeatPrefix+" prefix for item "+config.item_code+
+      ". Select the correct meat item profile before saving."};
   if(sample.weight_grams===null||sample.weight_grams===undefined||
      sample.total_price_fils===null||sample.total_price_fils===undefined)
     return {ok:false,reason:"Printed weight and total price are both required."};
@@ -90,6 +98,10 @@ function labelAgreement(fields,profile,options={}){
   const b=cleanBarcode(fields?.barcode);
   if(!b)return missing("Scan or enter the 13-digit barcode.");
   if(!validBarcode(b))return invalid("Check the 13-digit barcode and check digit.");
+  const expectedMeatPrefix="96"+String(profile.item_code);
+  if(KNOWN_MEAT_PREFIXES.has(expectedMeatPrefix)&&b.slice(0,6)!==expectedMeatPrefix)
+    return invalid("Barcode prefix "+b.slice(0,6)+" belongs to a different meat item. "+
+      "Select "+profile.item_code+" only for "+expectedMeatPrefix+" labels.");
   if(options.expected_product_code&&String(options.expected_product_code)!==String(profile.item_code))
     return invalid("This barcode belongs to item "+options.expected_product_code+". Select that product.");
   if(options.printed_product_code&&String(options.printed_product_code)!==String(profile.item_code))
