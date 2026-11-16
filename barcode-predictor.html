@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#183c32">
+  <meta name="description" content="Check a predicted EAN-13 barcode from a selected saved learning profile and weight.">
+  <title>Barcode Predictor | Meat Production</title>
+  <link rel="stylesheet" href="scanner.css?v=barcode-predictor-1">
+  <link rel="stylesheet" href="barcode-predictor.css?v=barcode-predictor-1">
+</head>
+<body>
+<header class="site-head noprint">
+  <div class="container header-row">
+    <div class="brand"><div class="brandmark">BP</div><div><strong>Barcode Predictor</strong></div></div>
+    <nav>
+      <a href="./barcode-learning.html">Barcode Learning</a>
+      <a href="./weight-price-checker.html">Weight &amp; Price Checker</a>
+      <a href="./index.html">Production Paper</a>
+    </nav>
+  </div>
+</header>
+<main class="container predictor-layout">
+  <section class="panel">
+    <h1>Predict a barcode from weight</h1>
+    <p class="predictor-intro">Choose any saved item profile, enter its weight and check the barcode format learned from your confirmed labels. This tool is separate from scanning and testing existing barcodes.</p>
+    <p class="predictor-disclaimer">Predicted barcodes are experimental. They are not registered for checkout or approved for production records. Always compare with an actual printed sticker.</p>
+  </section>
+
+  <section id="predictorAuth" class="panel">
+    <h2>Staff sign-in</h2>
+    <p class="fineprint">Use the same account as Barcode Learning to access your private saved profiles.</p>
+    <form id="predictorLoginForm" class="predictor-form predictor-login-form">
+      <label>Email<input id="predictorEmail" type="email" autocomplete="email" required></label>
+      <label>Password<input id="predictorPassword" type="password" autocomplete="current-password" required></label>
+      <button id="predictorLogin" class="btn" type="submit">Sign in</button>
+    </form>
+    <p id="predictorAuthMessage" class="predictor-message" hidden role="status"></p>
+  </section>
+
+  <section id="predictorWorkspace" class="panel" hidden>
+    <div class="predictor-account">
+      <span>Signed in as <strong id="predictorUsername"></strong></span>
+      <button id="predictorSignOut" type="button" class="mini">Sign out</button>
+    </div>
+    <h2>Choose a saved profile</h2>
+    <form id="predictorForm" class="predictor-form">
+      <label>Saved item profile
+        <select id="predictorProfile" required>
+          <option value="">Select a saved item</option>
+        </select>
+      </label>
+      <div id="predictorProfileSummary" class="predictor-profile-summary" aria-live="polite">Select an item to view its saved unit price and barcode training status.</div>
+      <label>Weight (kg)
+        <input id="predictorWeight" type="number" min="0.001" max="100" step="0.001" inputmode="decimal" placeholder="e.g. 0.150" required>
+      </label>
+      <button id="predictorSubmit" type="submit" class="btn">Predict barcode</button>
+    </form>
+    <p id="predictorMessage" class="predictor-message" hidden role="status" aria-live="polite"></p>
+    <div id="predictorResult" class="predictor-result" hidden aria-live="polite">
+      <div class="predictor-result-top">
+        <h3 id="predictorResultTitle"></h3>
+        <span id="predictorResultState" class="predictor-status"></span>
+      </div>
+      <div class="predictor-result-grid">
+        <div><span>Entered weight</span><strong id="predictorResultWeight"></strong></div>
+        <div><span>Saved unit price</span><strong id="predictorResultRate"></strong></div>
+        <div><span>Calculated total</span><strong id="predictorResultPrice"></strong></div>
+      </div>
+      <div id="predictorBarcodeBlock" class="predictor-code-block" hidden>
+        <span>Predicted EAN-13 barcode</span>
+        <strong id="predictorResultBarcode"></strong>
+        <button id="predictorCopy" type="button" class="btn btn-light">Copy predicted barcode</button>
+      </div>
+      <p id="predictorResultExplanation" class="predictor-explanation"></p>
+    </div>
+    <p class="predictor-footer">
+      Missing or unvalidated profile? <a href="./barcode-learning.html">Open Barcode Learning</a> to add confirmed examples.
+      To check the weight and price of a barcode already printed on a label, use <a href="./weight-price-checker.html">Weight &amp; Price Checker</a>.
+    </p>
+  </section>
+</main>
+<script src="barcode-learning-core.js?v=barcode-predictor-1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="barcode-predictor.js?v=barcode-predictor-1"></script>
+</body>
+</html>
