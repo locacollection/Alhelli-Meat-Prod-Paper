@@ -149,6 +149,82 @@ function scaledImage(src){
   canvas.getContext("2d").drawImage(src,0,0,width,height);
   return canvas;
 }
+/* BarcodeDetector and ZXing can return a vertical barcode rectangle.
+   The sticker content is then to its SIDE, not above it. Normalize candidate
+   image rotations first so the old upright crop geometry works again. */
+function rotateCanvas(source,turns){
+  const t=((Number(turns)%4)+4)%4;
+  if(!t)return source;
+  const target=document.createElement("canvas");
+  target.width=t%2?source.height:source.width;
+  target.height=t%2?source.width:source.height;
+  const ctx=target.getContext("2d");
+  if(t===1){ctx.translate(source.height,0);ctx.rotate(Math.PI/2)}
+  if(t===2){ctx.translate(source.width,source.height);ctx.rotate(Math.PI)}
+  if(t===3){ctx.translate(0,source.width);ctx.rotate(-Math.PI/2)}
+  ctx.drawImage(source,0,0);
+  return target;
+}
+function rotatedBox(box,sourceW,sourceH,turns){
+  const t=((Number(turns)%4)+4)%4;
+  const {x,y,w,h}=box;
+  if(t===1)return {...box,x:sourceH-y-h,y:x,w:h,h:w};
+  if(t===2)return {...box,x:sourceW-x-w,y:sourceH-y-h};
+  if(t===3)return {...box,x:y,y:sourceW-x-w,w:h,h:w};
+  return {...box};
+}
+function candidateAngles(box){
+  if(!box)return [0];
+  // Vertical barcodes require a 90/270 rotation before using a
+  // sticker-above-barcode crop. Do not force the wrong orientation.
+  return box.h>box.w*1.18?[1,3]:[0,2];
+}
+function rotatedLabelCrop(source,box,others,parser,turns=0,cache=null){
+  const rotated=cache?.get(turns)||rotateCanvas(source,turns);
+  cache?.set(turns,rotated);
+  const oriented=rotatedBox(box,source.width,source.height,turns);
+  const neighbors=others.map(b=>b===box?oriented:rotatedBox(b,source.width,source.height,turns));
+  const region=cropCanvas(rotated,oriented,neighbors,parser);
+  return {...region,turns,sourceWidth:rotated.width,sourceHeight:rotated.height};
+}
+function labelRecognitionScore(result,parser,expectedPrice=null){
+  const data=result?.data||result||{};
+  const text=String(data.text||"").toUpperCase();
+  const printed=parser.detectPrinted(result);
+  let score=0;
+  if(/\bWEIGHT\b|\bUNIT\s*PRICE\b/.test(text))score+=3;
+  if(/\bTOTAL\b/.test(text))score+=2;
+  if(/\bSALMON\b|\bBEEF\b|\bCHEES\b|\bFISH\b/.test(text))score+=5;
+  if(printed.product_code)score+=4;
+  if(Number.isInteger(printed.weight_grams))score+=2;
+  if(Number.isInteger(printed.unit_price_fils))score+=2;
+  if(Number.isInteger(printed.total_price_fils)){
+    score+=2;
+    if(Number.isInteger(expectedPrice)&&printed.total_price_fils===expectedPrice)score+=4;
+  }
+  // Do not reward arbitrary date digits as evidence of a correct crop.
+  return {score,fields:printed};
+}
+async function chooseOrientedCrop(source,box,others,parser,worker,cache,expectedPrice=null){
+  const angles=candidateAngles(box);
+  let chosen=null;
+  for(const turns of angles){
+    const crop=rotatedLabelCrop(source,box,others,parser,turns,cache);
+    if(!worker){
+      if(!chosen)chosen={...crop,fields:null,score:0};
+      continue;
+    }
+    let result=null;
+    try{result=await worker.recognize(crop.canvas)}catch(_){}
+    const scored=labelRecognitionScore(result,parser,expectedPrice);
+    if(!chosen||scored.score>chosen.score)
+      chosen={...crop,fields:scored.fields,score:scored.score};
+    // A confident upright OCR read eliminates the cost of another pass.
+    if(scored.score>=16)break;
+  }
+  return chosen;
+}
+
 function cropCanvas(canvas,region,regions,parser){
   const box=parser.labelCropRegion(canvas.width,canvas.height,region,regions);
   const cropped=document.createElement("canvas");
@@ -222,15 +298,20 @@ async function fromCanvas(canvas,core,parser,progress){
   try{worker=await(await ocrLibrary()).createWorker("eng")}
   catch(err){ocrError=err.message||"OCR engine unavailable";}
   const results=[];
+  const canvasCache=new Map([[0,canvas]]);
+  const sheetBlob=await makeBlob(canvas);
+  const sheetPhotoUrl=sheetBlob?URL.createObjectURL(sheetBlob):"";
   const tasks=regions.length?regions:[{barcode:"",x:canvas.width*.2,y:canvas.height*.73,
     w:canvas.width*.46,h:canvas.height*.06,precision:0,noBarcode:true}];
   // If no barcode, inspect the whole image as ONE label; sheet geometry is
   // unknown, so the user must type the 13-digit barcode manually.
   for(const [i,region] of tasks.entries()){
     progress?.("Reading printed label "+(i+1)+"/"+tasks.length);
-    const cropped=region.noBarcode?canvas:cropCanvas(canvas,region,regions,parser).canvas;
-    const localBox=region.noBarcode?null:
-      parser.labelCropRegion(canvas.width,canvas.height,region,regions).barcodeBox;
+    const expectedPrice=region.barcode?Number(region.barcode.slice(7,12)):null;
+    const candidate=region.noBarcode?null:await chooseOrientedCrop(
+      canvas,region,regions,parser,worker,canvasCache,expectedPrice);
+    const cropped=candidate?.canvas||canvas;
+    const localBox=candidate?.barcodeBox||null;
     let fields={weight_grams:null,unit_price_fils:null,total_price_fils:null,
       product_code:null,read_from_photo:{weight:false,unit:false,total:false}};
     let note=ocrError;
@@ -245,9 +326,14 @@ async function fromCanvas(canvas,core,parser,progress){
         }
       }catch(err){note=err.message||"Could not read printed values";}
     }
+    if(candidate?.score<3&&region.barcode)
+      note=[note,"Crop may be incomplete. Use View original sheet to check the sticker."]
+        .filter(Boolean).join(" ");
     const blob=await makeBlob(cropped);
     results.push({barcode:region.barcode,fields,
       photoUrl:blob?URL.createObjectURL(blob):"",
+      sheetPhotoUrl,rotation:(candidate?.turns||0)*90,
+      cropScore:candidate?.score??0,
       notes:note,needsBarcode:!!region.noBarcode});
   }
   try{await worker?.terminate()}catch(_){}
@@ -290,14 +376,15 @@ async function readCameraFrame(video,barcode,region,core,parser,progress){
     return other?{...other,barcode,notes:"Check this full image and all printed values."}:
       {barcode,photoUrl:"",fields:{},notes:"Barcode captured. Check printed values manually."};
   }
-  const crop=cropCanvas(frame,target,boxes,parser);
   progress?.("Reading weight, unit price and total from captured sticker…");
   let fields={weight_grams:null,unit_price_fils:null,total_price_fils:null,
     product_code:null,read_from_photo:{weight:false,unit:false,total:false}};
-  let notes="";
-  let worker=null;
+  let notes="",worker=null,crop=null;
   try{
     worker=await(await ocrLibrary()).createWorker("eng");
+    const cache=new Map([[0,frame]]);
+    crop=await chooseOrientedCrop(frame,target,boxes,parser,worker,cache,
+      Number(barcode.slice(7,12)));
     const recognized=await worker.recognize(crop.canvas);
     fields=parser.detectPrinted(recognized,{barcodeBox:crop.barcodeBox});
     const targeted=await readNumberBoxes(worker,crop.canvas,crop.barcodeBox,parser,progress,fields);
@@ -305,10 +392,15 @@ async function readCameraFrame(video,barcode,region,core,parser,progress){
     if(targeted.notes.length)notes=targeted.notes.join(" ");
   }catch(err){notes="Printed values need manual review: "+(err.message||"OCR unavailable")}
   finally{try{await worker?.terminate()}catch(_){}}
+  crop||=rotatedLabelCrop(frame,target,boxes,parser,candidateAngles(target)[0]);
   const blob=await makeBlob(crop.canvas);
-  return {barcode,photoUrl:blob?URL.createObjectURL(blob):"",fields,notes};
+  const full=await makeBlob(frame);
+  return {barcode,photoUrl:blob?URL.createObjectURL(blob):"",
+    sheetPhotoUrl:full?URL.createObjectURL(full):"",rotation:crop.turns*90,
+    fields,notes};
 }
 
 return {MAX_LABELS,uniquePositions,barcodeFromZXing,scaledImage,detectRegions,
-  enhanceNumberRegion,readNumberBoxes,cropCanvas,fromCanvas,readFile,readCameraFrame};
+  rotateCanvas,rotatedBox,candidateAngles,rotatedLabelCrop,labelRecognitionScore,
+  chooseOrientedCrop,enhanceNumberRegion,readNumberBoxes,cropCanvas,fromCanvas,readFile,readCameraFrame};
 });
