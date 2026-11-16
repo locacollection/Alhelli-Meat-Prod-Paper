@@ -129,6 +129,7 @@ async function loadProfiles(preferred=null){
 }
 function setUser(next){
   user=next||null;
+  if(!user)closeSavedSamples();
   $("learnLoginForm").hidden=!!user;
   $("learnSignedIn").hidden=!user;
   $("learnUsername").textContent=user?.email||"";
@@ -260,6 +261,7 @@ async function importSalmonExamples(){
 }
 
 async function chooseProfile(id){
+  closeSavedSamples();
   active=profiles.find(p=>p.id===id)||null;
   samples=[];analysis=null;renderPending();renderSamples();renderAnalysis();
   updateControls();
@@ -268,6 +270,7 @@ async function chooseProfile(id){
 async function deleteProfile(){
   if(!user||!active)return;
   if(!confirm("Delete this learning profile AND all its saved training examples?"))return;
+  closeSavedSamples();
   const id=active.id;
   const {error}=await client.from(PROFILES).delete().eq("id",id).eq("owner_id",user.id);
   if(error)return msg("learnProfileInfo","Could not delete profile: "+error.message,true);
@@ -292,8 +295,22 @@ async function loadSamples(){
     await refreshAnalysis();
   }catch(err){if(token===sampleToken)msg("learnSampleMessage","Could not load samples: "+err.message,true)}
 }
+function openSavedSamples(){
+  if(!user||!active)return;
+  renderSamples();
+  const windowNode=$("learnSavedSamplesDialog");
+  if(windowNode.open)return;
+  if(typeof windowNode.showModal==="function")windowNode.showModal();
+  else windowNode.setAttribute("open","");
+}
+function closeSavedSamples(){
+  const windowNode=$("learnSavedSamplesDialog");
+  if(windowNode.open&&typeof windowNode.close==="function")windowNode.close();
+  else windowNode.removeAttribute("open");
+}
 function renderSamples(){
   $("learnCount").textContent=String(samples.length);
+  $("learnViewSamples").disabled=!user||!active;
   const holder=$("learnSamples");holder.replaceChildren();
   if(!samples.length){
     holder.append(make("p","fineprint",active?
@@ -966,6 +983,9 @@ $("learnImportSalmon").addEventListener("click",()=>void importSalmonExamples())
 $("learnProfiles").addEventListener("change",e=>void chooseProfile(e.target.value));
 $("learnDeleteProfile").addEventListener("click",()=>void deleteProfile());
 $("learnSampleForm").addEventListener("submit",e=>void saveExample(e));
+$("learnViewSamples").addEventListener("click",openSavedSamples);
+$("learnSavedSamplesClose").addEventListener("click",closeSavedSamples);
+$("learnSavedSamplesDialog").addEventListener("cancel",e=>{e.preventDefault();closeSavedSamples()});
 for(const id of ["learnBarcode","learnWeight","learnTotal"]){
   $(id).addEventListener("input",updateControls);
 }
