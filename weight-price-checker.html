@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#183c32">
+<meta name="description" content="Independent weight and price checker for saved product barcodes and trained kg barcode patterns.">
+<title>Weight &amp; Price Checker | Meat Production</title>
+<link rel="stylesheet" href="scanner.css?v=checker-1">
+<link rel="stylesheet" href="weight-price-checker.css?v=checker-1">
+</head>
+<body>
+<header class="site-head noprint"><div class="container header-row">
+  <div class="brand"><div class="brandmark">WP</div><div><strong>Weight &amp; Price Checker</strong></div></div>
+  <nav><a href="./index.html">Production Paper</a><a href="./fish-production.html">Fish Production</a><a href="./custom-barcodes.html">Saved Barcodes</a><a href="./barcode-learning.html">Barcode Learning</a></nav>
+</div></header>
+<main class="container checker-page">
+  <section class="panel checker-intro">
+    <h1>Weight &amp; Price Checker</h1>
+    <p>Scan a product barcode to look up the saved quantity, unit price and total. This is a separate lookup tool. It never adds a barcode to a production paper, changes recipe totals or saves scanned labels automatically.</p>
+    <div class="checker-shortcuts">
+      <a class="btn btn-light" href="./custom-barcodes.html">Manage individual barcodes</a>
+      <a class="btn btn-outline" href="./barcode-learning.html">Train a weight-based item</a>
+    </div>
+  </section>
+
+  <section class="panel" id="checkerAuthCard">
+    <h2>Staff sign-in</h2>
+    <p class="fineprint">Use the same private Supabase account as your Barcode Manager and Barcode Learning pages.</p>
+    <form id="checkerLoginForm" class="checker-form checker-login">
+      <label>Email<input id="checkerEmail" type="email" autocomplete="email" required></label>
+      <label>Password<input id="checkerPassword" type="password" autocomplete="current-password" required></label>
+      <button type="submit" id="checkerLoginButton" class="btn">Sign in</button>
+    </form>
+    <p id="checkerAuthMessage" class="checker-message" hidden role="status" aria-live="polite"></p>
+  </section>
+
+  <div id="checkerWorkspace" hidden>
+    <section class="panel checker-signed-in">
+      <span>Signed in as <strong id="checkerUsername"></strong></span>
+      <button id="checkerSignOut" type="button" class="mini">Sign out</button>
+    </section>
+    <div class="checker-grid">
+      <section class="panel">
+        <h2>Check a barcode</h2>
+        <p class="fineprint">Scan a label with your camera or enter its 13-digit EAN-13 number. Checks are read-only.</p>
+        <form id="checkerLookupForm" class="checker-form">
+          <label>13-digit barcode
+            <input id="checkerBarcode" type="text" inputmode="numeric" pattern="[0-9]{13}" maxlength="13" autocomplete="off" spellcheck="false" placeholder="Scan or enter a barcode" required>
+          </label>
+          <div class="checker-actions">
+            <button id="checkerCameraButton" class="btn btn-light" type="button">Scan barcode</button>
+            <button id="checkerCheckButton" class="btn" type="submit">Check weight &amp; price</button>
+          </div>
+        </form>
+        <p id="checkerLookupMessage" class="checker-message" hidden role="status" aria-live="polite"></p>
+        <article id="checkerResult" class="checker-result" hidden aria-live="polite">
+          <div class="checker-result-heading"><h3 id="checkerResultTitle"></h3><span id="checkerResultSource" class="checker-tag"></span></div>
+          <p id="checkerResultCode" class="checker-code"></p>
+          <div class="checker-values">
+            <div><span id="checkerQuantityLabel">Weight</span><strong id="checkerQuantity"></strong></div>
+            <div><span id="checkerUnitLabel">Unit price</span><strong id="checkerUnitPrice"></strong></div>
+            <div><span id="checkerTotalLabel">Total price</span><strong id="checkerTotal"></strong></div>
+          </div>
+          <p id="checkerResultNote" class="checker-result-note"></p>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>Add a weight-based item</h2>
+        <p class="fineprint">Register a product and its unit price in your private database. Then train its barcode format using confirmed labels. Registering an item alone does not make an unknown barcode decodable.</p>
+        <form id="checkerItemForm" class="checker-form">
+          <label>Item code / PLU<input id="checkerItemCode" type="text" maxlength="32" placeholder="e.g. 6376" required></label>
+          <label>Product name<input id="checkerItemName" type="text" maxlength="120" placeholder="e.g. Atlantic Salmon" required></label>
+          <label>Price per kg (BD)<input id="checkerItemRate" type="number" inputmode="decimal" min="0.001" max="999.999" step="0.001" placeholder="e.g. 4.500" required></label>
+          <div class="checker-field-pair">
+            <label>Weight increment
+              <select id="checkerItemStep"><option value="5">5 g</option><option value="2">2 g</option><option value="1">1 g</option><option value="10">10 g</option></select>
+            </label>
+            <label>Price rounding
+              <select id="checkerItemRounding"><option value="5">5 fils</option><option value="1">1 fil</option></select>
+            </label>
+          </div>
+          <button id="checkerAddItem" type="submit" class="btn">Add item to database</button>
+        </form>
+        <p id="checkerItemMessage" class="checker-message" hidden role="status" aria-live="polite"></p>
+        <p class="fineprint">For a specific barcode with a known weight or piece count, use <a href="./custom-barcodes.html">Saved Barcodes</a> instead. Both methods work in this checker.</p>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="checker-list-heading"><div><h2>My registered items</h2><p class="fineprint">These items come from Barcode Learning and this page, not from Production Paper.</p></div><button id="checkerRefresh" type="button" class="mini">Refresh</button></div>
+      <div id="checkerItemsList" class="checker-items"></div>
+    </section>
+    <p class="checker-disclaimer">Barcode results are reference information, not proof that a label will scan at store checkout. Check printed weight and price before use.</p>
+  </div>
+</main>
+<dialog id="checkerCameraDialog" class="checker-camera" aria-labelledby="checkerCameraHeading">
+  <div class="checker-camera-header"><h2 id="checkerCameraHeading">Scan a barcode</h2><button type="button" class="mini" id="checkerCloseCamera">Close</button></div>
+  <div class="checker-video"><video id="checkerVideo" playsinline autoplay muted aria-label="Live rear camera barcode scanner"></video><div class="checker-guide" aria-hidden="true"></div></div>
+  <p id="checkerCameraStatus" role="status" aria-live="polite">Opening camera…</p>
+</dialog>
+<script src="barcode-learning-core.js?v=ready-check-5"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="weight-price-checker.js?v=checker-1"></script>
+</body>
+</html>
