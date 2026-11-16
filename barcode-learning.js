@@ -19,9 +19,72 @@ function make(tag,cls,text){
   if(text!==undefined)node.textContent=String(text);
   return node;
 }
+/* A label can only be confirmed when every entered value agrees. Reuse
+   this exact rule on the button and immediately before the database insert. */
+function scannedAgreement(p){
+  const profile=profiles.find(x=>x.id===p.profileId);
+  const barcode=core.cleanBarcode(p.barcode||"");
+  const fish=Object.values(window.SalmonBarcodeSamples?.PRODUCTS||{})
+    .find(x=>barcode.startsWith(x.barcode_prefix));
+  const result=core.labelAgreement({
+    barcode,weight_grams:core.parseAmount(p.weight),
+    unit_price_fils:core.parseAmount(p.unit),
+    total_price_fils:core.parseAmount(p.total)
+  },profile,{
+    expected_product_code:fish?.item_code||"",
+    printed_product_code:p.fields?.product_code||"",
+    verified_price_prefix:labelPrefix(p,profile)
+  });
+  if(result.ok&&p.weightConflict&&
+    core.parseAmount(p.weight)===p.weightConflict.ocr_weight_grams)
+    return {ok:false,state:"mismatch",message:
+      "OCR weight conflicts with the printed total. Correct the weight after checking the sticker."};
+  return result;
+}
+function syncConfirmation(p){
+  const result=scannedAgreement(p);
+  const enabled=!!user&&!busy&&result.ok;
+  if(p.saveControl){
+    p.saveControl.disabled=!enabled;
+    p.saveControl.classList.toggle("is-ready",enabled);
+    p.saveControl.classList.toggle("is-not-ready",!enabled);
+  }
+  if(p.readyNode){
+    p.readyNode.textContent=!user?"Sign in to confirm this label.":result.message;
+    p.readyNode.className="learn-confirm-status"+(result.ok?" is-ready":
+      result.state==="mismatch"?" is-mismatch":" is-incomplete");
+  }
+  if(p.cardNode)p.cardNode.classList.toggle("learn-card-ready",enabled);
+  if(p.conflictNode&&p.weightConflict){
+    const incorrect=core.parseAmount(p.weight)===p.weightConflict.ocr_weight_grams;
+    p.conflictNode.className=incorrect?"learn-review-alert":"learn-review-corrected";
+    if(p.conflictHeading)p.conflictHeading.textContent=incorrect?
+      "Weight mismatch detected":"Weight corrected · verify sticker";
+  }
+  return result;
+}
+function manualAgreement(){
+  const profile=active;
+  const barcode=core.cleanBarcode($("learnBarcode").value||"");
+  const known=Object.values(window.SalmonBarcodeSamples?.PRODUCTS||{})
+    .find(x=>barcode.startsWith(x.barcode_prefix));
+  const verifiedPrefix=known?.barcode_prefix||
+    (profile?.review_status==="validated"&&barcode.startsWith(profile.barcode_prefix||"")?
+      profile.barcode_prefix:"");
+  return core.labelAgreement({
+    barcode,weight_grams:core.parseAmount($("learnWeight").value),
+    unit_price_fils:profile?.unit_price_fils??null,
+    total_price_fils:core.parseAmount($("learnTotal").value)
+  },profile,{expected_product_code:known?.item_code||"",
+    verified_price_prefix:verifiedPrefix});
+}
+
 function updateControls(){
   $("learnImportSalmon").disabled=!user||busy;
-  $("learnAddSample").disabled=!user||!active||busy;
+  const manual=manualAgreement();
+  $("learnAddSample").disabled=!user||busy||!manual.ok;
+  $("learnAddSample").classList.toggle("is-ready",!!user&&!busy&&manual.ok);
+  for(const pending of pendingLabels)syncConfirmation(pending);
   $("learnCreate").disabled=!user||busy;
   $("learnDeleteProfile").hidden=!user||!active;
   $("learnProfiles").disabled=!user||busy;
@@ -59,6 +122,7 @@ async function loadProfiles(preferred=null){
     if(!profiles.some(p=>p.id===desired))desired="";
     active=profiles.find(p=>p.id===desired)||null;
     displayProfileList();updateControls();
+    renderPending();
     await loadSamples();
   }catch(error){if(token===profileToken)msg("learnProfileInfo","Cannot load profiles: "+error.message,true)}
 }
@@ -296,6 +360,8 @@ async function refreshAnalysis(){
 async function saveExample(e){
   e.preventDefault();
   if(!client||!user||!active)return msg("learnSampleMessage","Choose a signed-in profile first.",true);
+  const agreement=manualAgreement();
+  if(!agreement.ok)return msg("learnSampleMessage",agreement.message,true);
   let sample;
   try{
     const checked=core.sampleCheck({
@@ -515,18 +581,18 @@ function editableField(label,p,key,value,placeholder){
   input.addEventListener("input",e=>{
     p[key]=key==="barcode"?core.cleanBarcode(e.target.value):e.target.value;
     input.classList.toggle("learn-missing-reading",!p[key]);
-    if(key==="weight"&&p.saveControl){
-      p.saveControl.disabled=!user||!p.profileId||busy||
-        Boolean(p.weightConflict&&core.parseAmount(p.weight)===p.weightConflict.ocr_weight_grams);
-    }
+    p.status="";
+    if(p.errorNode){p.errorNode.hidden=true;p.errorNode.textContent=""}
+    syncConfirmation(p);
   });
   wrapper.append(input);return wrapper;
 }
 async function saveScannedLabel(p){
   if(!client||!user)return showError(p,"Sign in to save examples.");
   if(busy)return;
+  const agreement=scannedAgreement(p);
+  if(!agreement.ok)return showError(p,agreement.message);
   const profile=profiles.find(x=>x.id===p.profileId);
-  if(!profile)return showError(p,"Choose a learning profile for this label.");
   const fish=Object.values(window.SalmonBarcodeSamples?.PRODUCTS||{})
     .find(x=>p.barcode.startsWith(x.barcode_prefix));
   if(fish?.item_code!==undefined&&fish.item_code!==profile.item_code)
@@ -576,6 +642,7 @@ renderPending=function(){
   panel.append(make("h3","","Review "+pendingLabels.length+" scanned label(s)"));
   for(const [idx,p] of pendingLabels.entries()){
     const card=make("article","learn-review-card");
+    p.cardNode=card;
     const title=make("strong","", "Label "+(idx+1)+" · "+(p.barcode||"Barcode unreadable"));
     card.append(title);
     if(p.photoUrl){
@@ -609,6 +676,7 @@ renderPending=function(){
       const heading=make("strong","",stillWrong?"Weight mismatch detected":"Weight corrected · verify sticker");
       const explanation=make("p","",conflict.message);
       notice.append(heading,explanation);
+      p.conflictNode=notice;p.conflictHeading=heading;
       if(Number.isInteger(conflict.suggested_weight_grams)){
         const fix=make("button","mini","Use "+core.formatAmount(conflict.suggested_weight_grams)+" kg");
         fix.type="button";
@@ -631,16 +699,18 @@ renderPending=function(){
     const notes=[...p.review?.warnings||[]];
     if(p.notes)notes.push(p.notes);
     if(notes.length)card.append(make("p","learn-review-warning",notes.join(" ")));
-    if(p.status)card.append(make("p","learn-notice is-error",p.status));
+    const error=make("p","learn-notice is-error",p.status||"");
+    error.hidden=!p.status;p.errorNode=error;card.append(error);
+    const readiness=make("p","learn-confirm-status");
+    p.readyNode=readiness;card.append(readiness);
     const actions=make("div","learn-review-actions");
-    const save=make("button","btn","Confirm & save label");save.type="button";
-    save.disabled=!user||!p.profileId||busy||
-      Boolean(p.weightConflict&&core.parseAmount(p.weight)===p.weightConflict.ocr_weight_grams);
-    p.saveControl=save;
+    const save=make("button","btn learn-confirm-button is-not-ready","Confirm & save label");
+    save.type="button";p.saveControl=save;
     save.addEventListener("click",()=>void saveScannedLabel(p));
     const remove=make("button","mini","Remove");remove.type="button";
     remove.addEventListener("click",()=>discardLabel(p));
     actions.append(save,remove);card.append(actions);panel.append(card);
+    syncConfirmation(p);
   }
 };
 scanPhotos=async function(files){
@@ -773,6 +843,9 @@ $("learnImportSalmon").addEventListener("click",()=>void importSalmonExamples())
 $("learnProfiles").addEventListener("change",e=>void chooseProfile(e.target.value));
 $("learnDeleteProfile").addEventListener("click",()=>void deleteProfile());
 $("learnSampleForm").addEventListener("submit",e=>void saveExample(e));
+for(const id of ["learnBarcode","learnWeight","learnTotal"]){
+  $(id).addEventListener("input",updateControls);
+}
 $("learnTestForm").addEventListener("submit",testBarcode);
 $("learnPredictForm").addEventListener("submit",predictBarcode);
 $("learnLiveScan").addEventListener("click",()=>void startCamera());
