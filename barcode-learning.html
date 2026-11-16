@@ -109,11 +109,15 @@
 </section>
 <section class="panel learner-panel">
   <h2>4. Test a new barcode</h2>
-  <p class="fineprint">After validation, check a new barcode against the learned format. Ambiguous weights remain blocked.</p>
+  <p class="fineprint">After validation, type a barcode or scan it with your camera to check the learned weight and price. Scanned barcodes are tested without being saved as training examples.</p>
   <form id="learnTestForm" class="learn-form">
     <label class="learn-field">Barcode to decode<input id="learnTestBarcode" type="text" inputmode="numeric" pattern="[0-9]{13}" maxlength="13" placeholder="13-digit barcode" required></label>
-    <button type="submit" class="btn">Check weight</button>
+    <div class="learn-buttons">
+      <button id="learnTestScan" type="button" class="btn btn-light">Scan barcode</button>
+      <button type="submit" class="btn">Check weight</button>
+    </div>
   </form>
+  <p id="learnTestScanMessage" class="learn-notice" hidden role="status" aria-live="polite"></p>
   <div id="learnTestResult" class="learn-test-result" hidden role="status"></div>
 </section>
 <section class="panel learner-panel">
@@ -148,5 +152,5 @@
 <script src="barcode-learning-labels.js?v=weight-ocr-9"></script>
 <script src="barcode-learning-scan.js?v=weight-ocr-9"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="barcode-learning.js?v=weight-ocr-9"></script>
+<script src="barcode-learning.js?v=test-scan-1"></script>
 </body></html>
