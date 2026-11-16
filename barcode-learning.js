@@ -89,6 +89,7 @@ function updateControls(){
   $("learnCreate").disabled=!user||busy;
   $("learnDeleteProfile").hidden=!user||!active;
   $("learnProfiles").disabled=!user||busy;
+  window.BarcodeLearningPriceUI?.refresh?.();
 }
 function configFromForm(){
   const unit_price_fils=core.parseAmount($("learnRate").value);
@@ -105,7 +106,7 @@ function displayProfileList(){
   select.append(make("option","","Create or select an item"));
   select.children[0].value="";
   for(const p of profiles){
-    const opt=make("option","",p.item_code+" · "+p.product_name+" · "+core.formatAmount(p.unit_price_fils)+" BD/kg");
+    const opt=make("option","",p.item_code+" · "+p.product_name+" · "+core.formatAmount(p.unit_price_fils)+" BD/kg · v"+(p.price_version||1));
     opt.value=p.id;select.append(opt);
   }
   select.value=selected;
@@ -118,13 +119,15 @@ async function loadProfiles(preferred=null){
       .eq("owner_id",user.id).order("updated_at",{ascending:false}).limit(100);
     if(error)throw error;
     if(token!==profileToken)return;
-    profiles=data||[];
+    profiles=(data||[]).filter(p=>!p.archived_at);
     let desired=preferred||active?.id||"";
     if(!profiles.some(p=>p.id===desired))desired="";
     active=profiles.find(p=>p.id===desired)||null;
     displayProfileList();updateControls();
     renderPending();
     await loadSamples();
+    window.BarcodeLearningPriceUI?.refresh?.();
+    window.BarcodeLearningPriceUI?.checkDeepLink?.();
   }catch(error){if(token===profileToken)msg("learnProfileInfo","Cannot load profiles: "+error.message,true)}
 }
 function setUser(next){
@@ -988,5 +991,7 @@ document.addEventListener("visibilitychange",()=>{if(document.hidden&&camActive)
 window.addEventListener("pagehide",stopCamera);
 updateControls();renderSamples();renderAnalysis();void init();
 window.BarcodeLearningChecks={capturedBarcode,stopCamera,scanPhotos,model,
-  getSamples:()=>samples,getActive:()=>active,getAnalysis:()=>analysis,getPending:()=>pendingLabels};
+  getSamples:()=>samples,getActive:()=>active,getAnalysis:()=>analysis,getPending:()=>pendingLabels,
+  getClient:()=>client,getUser:()=>user,refreshProfiles:loadProfiles,
+  clearPendingLabels:()=>{for(const p of [...pendingLabels])discardLabel(p);pendingCodes=[];renderPending();}};
 })();
