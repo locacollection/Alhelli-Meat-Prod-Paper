@@ -8,7 +8,7 @@ const URL_PROJECT="https://tvaqcbzmzpyltbbelwbw.supabase.co";
 const PUBLIC_KEY="sb_publishable_yqrAl20jwQlW4J8furYn3Q_kjQFIFrr";
 const PROFILES="barcode_learning_profiles",EXAMPLES="barcode_learning_examples";
 let client=null,user=null,profiles=[],active=null,samples=[],analysis=null,busy=false;
-let profileToken=0,sampleToken=0,pendingCodes=[];
+let profileToken=0,sampleToken=0,pendingCodes=[],pendingLabels=[],readingPhotos=false,pendingId=0;
 let camStream=null,camReader=null,camDetector=null,camToken=0,camTimer=null,camActive=false,ZXingLoader=null;
 function msg(id,text,error=false){
   const node=$(id);node.textContent=text||"";node.hidden=!text;
@@ -70,6 +70,8 @@ function setUser(next){
   if(!user){
     profileToken++;sampleToken++;
     profiles=[];active=null;samples=[];analysis=null;pendingCodes=[];
+    for(const p of pendingLabels)if(p.photoUrl)URL.revokeObjectURL(p.photoUrl);
+    pendingLabels=[];
     displayProfileList();renderPending();renderSamples();renderAnalysis();
     msg("learnProfileInfo","Sign in to save and reuse your learning examples.");
   }else{
@@ -190,7 +192,7 @@ async function importSalmonExamples(){
 
 async function chooseProfile(id){
   active=profiles.find(p=>p.id===id)||null;
-  samples=[];analysis=null;pendingCodes=[];renderPending();renderSamples();renderAnalysis();
+  samples=[];analysis=null;renderPending();renderSamples();renderAnalysis();
   updateControls();
   await loadSamples();
 }
@@ -427,6 +429,182 @@ async function scanPhotos(files){
     "Found "+pendingCodes.length+" unique barcode(s). Confirm printed weight and total for each.":
     "No valid EAN-13 barcodes found. Use the live camera or clearer photos.",!pendingCodes.length);
 }
+
+/* Label OCR review: separate cropped images prevent numbers crossing between
+   stickers. These suggestions NEVER get saved without explicit confirmation. */
+const ocrParser=window.BarcodeLabelOCR,photoEngine=window.LearningPhotoScanner;
+function chosenProfile(p){
+  const fish=Object.values(window.SalmonBarcodeSamples?.PRODUCTS||{})
+    .find(x=>p.barcode.startsWith(x.barcode_prefix));
+  const code=fish?.item_code||p.fields?.product_code||"";
+  const matches=profiles.filter(x=>code&&x.item_code===code);
+  if(matches.length===1)return matches[0];
+  if(active&&(!code||active.item_code===code))return active;
+  return null;
+}
+function labelPrefix(p,profile){
+  const fish=Object.values(window.SalmonBarcodeSamples?.PRODUCTS||{})
+    .find(x=>p.barcode.startsWith(x.barcode_prefix));
+  if(fish)return fish.barcode_prefix;
+  if(profile?.review_status==="validated"&&p.barcode.startsWith(profile.barcode_prefix))
+    return profile.barcode_prefix;
+  return "";
+}
+function prefill(p,profile,keep=false){
+  p.review=ocrParser.review(p.fields,profile,p.barcode,core,labelPrefix(p,profile));
+  for(const [key,value] of [["weight",p.review.weight_grams],
+    ["unit",p.review.unit_price_fils],["total",p.review.total_price_fils]]){
+    if(!keep||!p[key])p[key]=Number.isInteger(value)?core.formatAmount(value):"";
+  }
+}
+function queueLabel(raw){
+  const p={...raw,id:++pendingId,barcode:core.cleanBarcode(raw.barcode||""),
+    fields:raw.fields||{},photoUrl:raw.photoUrl||"",status:"",weight:"",unit:"",total:"",profileId:""};
+  const profile=chosenProfile(p);
+  p.profileId=profile?.id||"";
+  prefill(p,profile);
+  pendingLabels.push(p);
+  renderPending();return p;
+}
+function discardLabel(p){
+  pendingLabels=pendingLabels.filter(x=>x!==p);
+  if(p.photoUrl)try{URL.revokeObjectURL(p.photoUrl)}catch(_){}
+  renderPending();
+}
+function editableField(label,p,key,value,placeholder){
+  const wrapper=make("label","learn-field",label);
+  const input=make("input");
+  input.value=value||"";
+  input.placeholder=placeholder||"";
+  if(key==="barcode"){input.inputMode="numeric";input.maxLength=13}
+  else{input.type="number";input.inputMode="decimal";input.min="0";input.step=".001"}
+  input.addEventListener("input",e=>{p[key]=key==="barcode"?core.cleanBarcode(e.target.value):e.target.value});
+  wrapper.append(input);return wrapper;
+}
+async function saveScannedLabel(p){
+  if(!client||!user)return showError(p,"Sign in to save examples.");
+  if(busy)return;
+  const profile=profiles.find(x=>x.id===p.profileId);
+  if(!profile)return showError(p,"Choose a learning profile for this label.");
+  const fish=Object.values(window.SalmonBarcodeSamples?.PRODUCTS||{})
+    .find(x=>p.barcode.startsWith(x.barcode_prefix));
+  if(fish?.item_code!==undefined&&fish.item_code!==profile.item_code)
+    return showError(p,"Barcode belongs to "+fish.item_code+". Select that product.");
+  if(p.fields.product_code&&p.fields.product_code!==profile.item_code)
+    return showError(p,"Printed product looks like "+p.fields.product_code+
+      ". Check the item before saving.");
+  const unit=core.parseAmount(p.unit);
+  if(unit===null||unit!==profile.unit_price_fils)
+    return showError(p,"Printed unit rate must match this profile ("+
+      core.formatAmount(profile.unit_price_fils)+" BD/kg).");
+  const check=core.sampleCheck({
+    barcode:p.barcode,weight_grams:core.parseAmount(p.weight),
+    total_price_fils:core.parseAmount(p.total)
+  },profile);
+  if(!check.ok)return showError(p,check.reason);
+  const encoded=ocrParser.derivePriceFromBarcode(p.barcode,core,labelPrefix(p,profile));
+  if(encoded!==null&&encoded!==check.price)
+    return showError(p,"Barcode price "+core.formatAmount(encoded)+
+      " BD differs from entered total. Recheck this sticker.");
+  if(samples.some(x=>x.barcode===check.barcode&&
+    (x.weight_grams!==check.weight||x.total_price_fils!==check.price))&&
+    !confirm("This barcode already appears with a different printed weight or total. "+
+      "That may mean a price barcode cannot identify an exact weight. Save anyway?"))return;
+  busy=true;updateControls();
+  try{
+    const record={owner_id:user.id,profile_id:profile.id,barcode:check.barcode,
+      weight_grams:check.weight,total_price_fils:check.price,verified_from_label:true};
+    const {error}=await client.from(EXAMPLES).insert(record);
+    if(error)throw error;
+    discardLabel(p);
+    if(active?.id!==profile.id)await chooseProfile(profile.id);
+    else await loadSamples();
+    msg("learnSampleMessage","Saved "+check.barcode+" · "+
+      core.formatAmount(check.weight)+" kg · "+core.formatAmount(check.price)+" BD.");
+  }catch(err){showError(p,err.code==="23505"?"Already saved.":err.message)}
+  finally{busy=false;updateControls();renderPending()}
+}
+function showError(p,text){p.status=text;renderPending()}
+renderPending=function(){
+  const panel=$("learnPending");
+  panel.replaceChildren();panel.hidden=!pendingLabels.length;
+  if(!pendingLabels.length)return;
+  panel.append(make("h3","","Review "+pendingLabels.length+" scanned label(s)"));
+  for(const [idx,p] of pendingLabels.entries()){
+    const card=make("article","learn-review-card");
+    const title=make("strong","", "Label "+(idx+1)+" · "+(p.barcode||"Barcode unreadable"));
+    card.append(title);
+    if(p.photoUrl){
+      const img=make("img","learn-review-photo");
+      img.src=p.photoUrl;img.alt="Cropped sticker for label "+(idx+1);
+      img.loading="lazy";card.append(img);
+    }
+    const profileLabel=make("label","learn-field","Product profile");
+    const select=make("select");
+    const empty=make("option","","Select correct item");empty.value="";select.append(empty);
+    for(const x of profiles){
+      const option=make("option","",x.item_code+" · "+x.product_name+
+        " · "+core.formatAmount(x.unit_price_fils)+" BD/kg");
+      option.value=x.id;select.append(option);
+    }
+    select.value=p.profileId;select.addEventListener("change",()=>{
+      p.profileId=select.value;
+      prefill(p,profiles.find(x=>x.id===p.profileId)||null,true);renderPending();
+    });
+    profileLabel.append(select);card.append(profileLabel);
+    card.append(editableField("13-digit barcode",p,"barcode",p.barcode,"Scan or type EAN-13"));
+    const pair=make("div","learn-review-pair");
+    pair.append(editableField("Weight (kg)",p,"weight",p.weight,"0.020"));
+    pair.append(editableField("Unit price (BD/kg)",p,"unit",p.unit,"8.750"));
+    card.append(pair);
+    card.append(editableField("Total (BD)",p,"total",p.total,"0.175"));
+    const sources=p.review?.read_from_photo||{};
+    card.append(make("p","learn-review-source","Read from photo: "+
+      (["weight","unit","total"].filter(k=>sources[k]).join(", ")||"unclear")+
+      (p.review?.source_total==="barcode"?" · Total from barcode":"")+
+      (p.review?.source_unit==="profile"?" · Rate from profile":"")));
+    const notes=[...p.review?.warnings||[]];
+    if(p.notes)notes.push(p.notes);
+    if(notes.length)card.append(make("p","learn-review-warning",notes.join(" ")));
+    if(p.status)card.append(make("p","learn-notice is-error",p.status));
+    const actions=make("div","learn-review-actions");
+    const save=make("button","btn","Confirm & save label");save.type="button";
+    save.disabled=!user||!p.profileId||busy;
+    save.addEventListener("click",()=>void saveScannedLabel(p));
+    const remove=make("button","mini","Remove");remove.type="button";
+    remove.addEventListener("click",()=>discardLabel(p));
+    actions.append(save,remove);card.append(actions);panel.append(card);
+  }
+};
+scanPhotos=async function(files){
+  if(readingPhotos)return;
+  const images=[...(files||[])].filter(x=>x.type.startsWith("image/"));
+  if(!images.length)return;
+  if(!photoEngine||!ocrParser)return msg("learnSampleMessage","OCR library is unavailable.",true);
+  readingPhotos=true;$("learnLiveScan").disabled=true;
+  let added=0,missing=0;
+  msg("learnScanProgress","Starting label scan…");
+  try{
+    for(let i=0;i<images.length;i++){
+      if(pendingLabels.length>=50)break;
+      try{
+        const parsed=await photoEngine.readFile(images[i],core,ocrParser,
+          t=>msg("learnScanProgress","Photo "+(i+1)+"/"+images.length+" · "+t));
+        for(const label of parsed.labels.slice(0,50-pendingLabels.length)){
+          queueLabel(label);added++;if(!label.barcode)missing++;
+        }
+      }catch(err){msg("learnSampleMessage","Cannot read "+images[i].name+": "+err.message,true)}
+    }
+  }finally{
+    readingPhotos=false;$("learnLiveScan").disabled=false;
+    msg("learnScanProgress","");
+    msg("learnSampleMessage",added?
+      added+" label(s) ready. Review each cropped photo and confirm the weight and prices."+
+      (missing?" "+missing+" barcode(s) need manual entry.":""):
+      "No readable labels. Try a closer image.",!added);
+  }
+};
+
 const dialog=$("learnCameraDialog"),video=$("learnVideo");
 function stopCamera(){
   camToken++;camActive=false;
@@ -437,14 +615,21 @@ function stopCamera(){
   video.srcObject=null;
   if(dialog.open)dialog.close();
 }
-function capturedBarcode(raw){
+function capturedBarcode(raw,box=null){
   if(!camActive)return false;
   const barcode=core.cleanBarcode(raw);
   if(!core.validBarcode(barcode))return false;
+  const reading=photoEngine?.readCameraFrame?.(video,barcode,box,core,ocrParser);
   stopCamera();
-  $("learnBarcode").value=barcode;
-  $("learnWeight").focus();
-  msg("learnSampleMessage","Captured "+barcode+". Confirm the printed weight and total.");
+  msg("learnScanProgress","Reading the captured sticker…");
+  void Promise.resolve(reading).then(data=>{
+    queueLabel({...data,barcode});
+    msg("learnScanProgress","");
+    msg("learnSampleMessage","Label captured. Review the photo, weight, unit price and total.");
+  }).catch(err=>{
+    queueLabel({barcode,notes:"Printed fields unreadable: "+err.message});
+    msg("learnScanProgress","");
+  });
   return true;
 }
 async function zxing(){
@@ -467,7 +652,7 @@ async function nativeLoop(token){
     if(video.readyState>=2){
       const results=await camDetector.detect(video);
       if(!camActive||camToken!==token)return;
-      for(const q of results)if(capturedBarcode(q.rawValue))return;
+      for(const q of results)if(capturedBarcode(q.rawValue,q.boundingBox))return;
     }
   }catch(_){}
   if(camActive&&camToken===token)camTimer=setTimeout(()=>void nativeLoop(token),170);
@@ -527,9 +712,10 @@ $("learnLiveScan").addEventListener("click",()=>void startCamera());
 $("learnCameraStop").addEventListener("click",stopCamera);
 dialog.addEventListener("cancel",e=>{e.preventDefault();stopCamera()});
 $("learnPhoto").addEventListener("change",e=>{void scanPhotos(e.target.files);e.target.value=""});
+$("learnSinglePhoto").addEventListener("change",e=>{void scanPhotos(e.target.files);e.target.value=""});
 document.addEventListener("visibilitychange",()=>{if(document.hidden&&camActive)stopCamera()});
 window.addEventListener("pagehide",stopCamera);
 updateControls();renderSamples();renderAnalysis();void init();
 window.BarcodeLearningChecks={capturedBarcode,stopCamera,scanPhotos,model,
-  getSamples:()=>samples,getActive:()=>active,getAnalysis:()=>analysis};
+  getSamples:()=>samples,getActive:()=>active,getAnalysis:()=>analysis,getPending:()=>pendingLabels};
 })();
