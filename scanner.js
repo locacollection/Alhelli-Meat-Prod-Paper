@@ -115,7 +115,9 @@ function catalogFromBarcode(barcode,fields={}){
     reason:"This barcode price does not match a known historical rate. Enter the weight and unit price printed on the label to verify it."};
 }
 function fromBarcode(barcode,original={}){
-  const result=catalogFromBarcode(barcode,{weight:original.weight,unit:original.unit});
+  // A uniquely decoded catalog label overrides stale browser/manual figures.
+  // Ambiguous codes remain pending until the real sticker is inspected.
+  const result=catalogFromBarcode(barcode);
   if(!result.ok){
     return {...original,barcode,
       printed:original.printed||(!result.info?.error?fmtMoney(result.info?.price):""),
@@ -1058,11 +1060,15 @@ function ocrFields(text,decoded){
   const normalized=text.replace(/,/g,".");
   const nums=[...normalized.matchAll(/(^|[^\d])(\d{1,2}\.\d{3})(?!\d)/gm)].map(x=>x[2]);
   const values=nums.map(x=>({s:x,n:fixed3(x)}));
-  const standardRate=RATE[decoded.code];
-  const candidates=values.filter(v=>v.n>0&&v.n<=10000&&roundedPrice(v.n,standardRate)===decoded.price);
-  const weights=[...new Set(candidates.map(v=>v.n))];
-  const weight=weights.length===1?fmtKg(weights[0]):"";
-  const rate=values.some(v=>v.n===standardRate)?fmtMoney(standardRate):"";
+  const matched=supportedRates(decoded.code).flatMap(rate=>
+    values.filter(v=>v.n>=5&&v.n<=10000&&v.n%5===0&&
+      roundedPrice(v.n,rate)===decoded.price&&
+      encodeFromPrinted(decoded.code,v.n,rate)===decoded.barcode)
+      .map(v=>({weight:v.n,rate})));
+  const weightSet=[...new Set(matched.map(v=>v.weight))];
+  const weight=weightSet.length===1?fmtKg(weightSet[0]):"";
+  const rateCandidates=supportedRates(decoded.code).filter(rate=>values.some(v=>v.n===rate));
+  const rate=rateCandidates.length===1?fmtMoney(rateCandidates[0]):"";
   const printed=values.some(v=>v.n===decoded.price)?fmtMoney(decoded.price):"";
   const minHint=/\bMIN(CED)?\b|MIN\s+KG/i.test(text);
   const bonelessHint=/W\s*[/\\]?\s*OUT\s*BONE|WITHOUT\s+BONE/i.test(text);
@@ -1172,20 +1178,21 @@ async function scanPhotos(){
             added++;
             if(entry.confirmed)ready++;else review++;
             show("scanMsg","Scanning "+(i+1)+"/"+batch.length+" · "+(j+1)+"/"+regions.length+" labels…");
-            if(!entry.confirmed){
-              setScanTargetState(j,"review",region.barcode);
-              continue;
-            }
+            // Scan the crop even when barcode-only lookup is ambiguous or the
+            // rate is new. OCR may identify weight, rate and total on THIS label.
             try{
               if(!worker)worker=await(await loadOCR()).createWorker("eng");
               const fields=await readFieldsForBarcode(worker,canvas,region,decoded);
+              const wasConfirmed=entry.confirmed;
               const verified=matchPrintedOCR(entry,fields);
               Object.assign(entry,verified);
               if(entry.ocrChecked)ocrChecks++;
-              if(!entry.confirmed){ready--;review++}
+              if(wasConfirmed&&!entry.confirmed){ready--;review++}
+              else if(!wasConfirmed&&entry.confirmed){review--;ready++}
               persist();render();
             }catch(err){
-              // OCR failure is not a barcode failure; leave the derived weight.
+              // OCR failure does not invalidate a uniquely decoded known label,
+              // but ambiguous prices stay pending for manual printed-value review.
               errors++;
             }
             setScanTargetState(j,entry.confirmed?"verified":"review",region.barcode);
@@ -1269,8 +1276,9 @@ $("manualSource").addEventListener("change",updateManualInsertionOptions);
 $("manualBarcodeForm").addEventListener("submit",event=>{
   event.preventDefault();
   const raw=$("manualBarcode").value.replace(/\s/g,"");
-  const lookup=catalogFromBarcode(raw);
-  if(!lookup.ok){$("manualBarcodeError").textContent=lookup.reason;return}
+  const decoded=decode(raw);
+  if(decoded.error){$("manualBarcodeError").textContent=decoded.error;return}
+  // A valid old/new/unknown-price code can be queued for manual review.
   const result=insertManualEntry(raw);
   if(result.error){$("manualBarcodeError").textContent=result.error;return}
   $("manualBarcode").value="";
