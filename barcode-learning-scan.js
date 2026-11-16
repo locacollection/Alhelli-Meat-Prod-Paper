@@ -113,6 +113,29 @@ async function detectRegions(canvas,core,progress){
       }catch(_){}
     }
   }
+  if(native&&candidates.length===0){
+    // Some Android browsers expose BarcodeDetector but cannot resolve small
+    // labels in photos. Use the ZXing backup rather than returning no labels.
+    try{
+      const zx2=await zxingLibrary();
+      const hints=new Map([[zx2.DecodeHintType.POSSIBLE_FORMATS,[zx2.BarcodeFormat.EAN_13]]]);
+      const fallbackReader=new zx2.BrowserMultiFormatReader(hints,120);
+      for(const windowBox of windows){
+        try{
+          const tile=document.createElement("canvas");
+          tile.width=windowBox.w;tile.height=windowBox.h;
+          tile.getContext("2d").drawImage(canvas,windowBox.x,windowBox.y,
+            windowBox.w,windowBox.h,0,0,windowBox.w,windowBox.h);
+          const img=document.createElement("img");img.src=tile.toDataURL("image/png");
+          if(img.decode)await img.decode();
+          const scanned=await fallbackReader.decodeFromImageElement(img);
+          const pos=barcodeFromZXing(scanned,windowBox.x,windowBox.y);
+          if(pos&&core.validBarcode(pos.barcode))candidates.push(pos);
+        }catch(_){}
+      }
+      try{fallbackReader.reset()}catch(_){}
+    }catch(_){}
+  }
   try{reader?.reset()}catch(_){}
   return uniquePositions(candidates).slice(0,MAX_LABELS);
 }
@@ -192,6 +215,7 @@ async function readFile(file,core,parser,progress){
 async function readCameraFrame(video,barcode,region,core,parser,progress){
   const frame=document.createElement("canvas");
   frame.width=video.videoWidth||1280;frame.height=video.videoHeight||720;
+  // Take the snapshot before the live camera stream is stopped.
   frame.getContext("2d").drawImage(video,0,0,frame.width,frame.height);
   let boxes=[];
   if(region?.width>0){
@@ -199,19 +223,30 @@ async function readCameraFrame(video,barcode,region,core,parser,progress){
   }
   if(!boxes.length)boxes=await detectRegions(frame,core,progress);
   const target=boxes.find(x=>x.barcode===barcode);
-  const result=await fromCanvas(frame,core,parser,progress);
-  const matched=result.labels.find(e=>e.barcode===barcode);
-  if(matched)return matched;
-  if(target){
-    const crop=cropCanvas(frame,target,[target],parser);
-    const blob=await makeBlob(crop.canvas);
-    return {barcode,photoUrl:blob?URL.createObjectURL(blob):"",fields:{
-      weight_grams:null,unit_price_fils:null,total_price_fils:null,
-      product_code:null,read_from_photo:{weight:false,unit:false,total:false}},
-      notes:"Barcode captured. Verify weight, unit price and total from the photo."};
+  if(!target){
+    const full=await fromCanvas(frame,core,parser,progress);
+    const matched=full.labels.find(x=>x.barcode===barcode);
+    if(matched)return matched;
+    const other=full.labels[0];
+    return other?{...other,barcode,notes:"Check this full image and all printed values."}:
+      {barcode,photoUrl:"",fields:{},notes:"Barcode captured. Check printed values manually."};
   }
-  return result.labels[0]?{...result.labels[0],barcode}:{barcode,photoUrl:"",fields:{}};
+  const crop=cropCanvas(frame,target,boxes,parser);
+  progress?.("Reading weight, unit price and total from captured sticker…");
+  let fields={weight_grams:null,unit_price_fils:null,total_price_fils:null,
+    product_code:null,read_from_photo:{weight:false,unit:false,total:false}};
+  let notes="";
+  let worker=null;
+  try{
+    worker=await(await ocrLibrary()).createWorker("eng");
+    const recognized=await worker.recognize(crop.canvas);
+    fields=parser.detectPrinted(recognized,{barcodeBox:crop.barcodeBox});
+  }catch(err){notes="Printed values need manual review: "+(err.message||"OCR unavailable")}
+  finally{try{await worker?.terminate()}catch(_){}}
+  const blob=await makeBlob(crop.canvas);
+  return {barcode,photoUrl:blob?URL.createObjectURL(blob):"",fields,notes};
 }
+
 return {MAX_LABELS,uniquePositions,barcodeFromZXing,scaledImage,detectRegions,
   cropCanvas,fromCanvas,readFile,readCameraFrame};
 });
