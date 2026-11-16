@@ -50,6 +50,43 @@ const verticalDuplicates=[
 const deduped=photo.uniquePositions(verticalDuplicates);
 assert.equal(deduped.length,2,
   "Two readings from the same vertical EAN should merge, but separate labels remain distinct.");
+
+// Regression for Android: stacked sheets with 6-9 labels and overlapping
+// detection rectangles must never produce the thin one-column preview.
+const stacked=Array.from({length:9},(_,i)=>({
+  barcode:String(9667800000000+i),x:345+(i%2)*5,y:300+i*255,w:160,h:22,precision:3
+}));
+const mislocated={...stacked[2],barcode:"9667804093020",
+  x:stacked[2].x+9,y:stacked[2].y+6,w:142,h:23};
+for(const [i,region] of stacked.entries()){
+  const crop=parser.labelCropRegion(1100,2800,region,[...stacked,mislocated]);
+  assert.ok(crop.w>=1.85*region.w,
+    "Label "+i+" crop must not be narrowed by a neighbouring barcode: "+JSON.stringify(crop));
+  assert.ok(crop.h>=.93*region.w,
+    "Label "+i+" crop should show its printed weight above the EAN: "+JSON.stringify(crop));
+  assert.ok(crop.barcodeBox.x>=0&&crop.barcodeBox.x<=crop.w,
+    "Barcode must remain inside the preview");
+  assert.ok(crop.y<=region.y&&crop.y+crop.h>=region.y+region.h);
+}
+const crowded=parser.labelCropRegion(1100,1600,
+  {x:300,y:700,w:150,h:19},
+  [{x:311,y:704,w:150,h:20,barcode:"a"},
+   {x:318,y:708,w:140,h:24,barcode:"b"},
+   {x:300,y:440,w:150,h:20,barcode:"c"},
+   {x:300,y:970,w:150,h:20,barcode:"d"}]);
+assert.ok(crowded.w>=275&&crowded.h>140,
+  "Same-location barcode hits cannot clip the whole product label.");
+const thinDetectorBox=parser.labelCropRegion(1000,1600,
+  {x:350,y:900,w:9,h:16},
+  [{x:354,y:902,w:7,h:13}]);
+assert.ok(thinDetectorBox.w>=190&&thinDetectorBox.h>=100,
+  "Tiled barcode detector may see only a narrow stripe; show the surrounding sticker.");
+const stackedRotated=photo.rotatedLabelCrop(rootSheet,
+  {barcode:"9667804093020",x:260,y:515,w:21,h:143,precision:3},
+  [{barcode:"other",x:261,y:510,w:20,h:145}],parser,3);
+assert.ok(stackedRotated.canvas.width>=225&&stackedRotated.canvas.height>=130,
+  "Sideways sticker must have a complete preview, not a narrow strip.");
+
 const horizontal={...vertical,w:143,h:21};
 assert.deepEqual(photo.candidateAngles(horizontal),[0,2]);
 assert.ok(photo.labelRecognitionScore({data:{text:
