@@ -24,10 +24,10 @@ const testResult={data:{text:printText,words:[
 const box={x:20,y:180,w:100,h:12};
 const extracted=parser.detectPrinted(testResult,{barcodeBox:box});
 assert.equal(extracted.weight_grams,20);
-assert.equal(extracted.unit_price_fils,8750);
+assert.equal(extracted.unit_price_fils,null,"OCR must not scan unit price");
 assert.equal(extracted.total_price_fils,175);
 assert.equal(extracted.product_code,"6668");
-assert.deepEqual(extracted.read_from_photo,{weight:true,unit:true,total:true});
+assert.deepEqual(extracted.read_from_photo,{weight:true,unit:false,total:true});
 const review=parser.review(extracted,p,"9666684001750",core,"966668");
 assert.equal(review.complete,true,JSON.stringify(review.warnings));
 assert.equal(review.barcode_price_fils,175);
@@ -38,21 +38,22 @@ assert.equal(parser.derivePriceFromBarcode("9666684001751",core,"966668"),null);
 const fallback=parser.detectPrinted({data:{text:
   "SALMON FILLET WITH SKIN\nWEIGHT 0.006\nUNIT PRICE 8.750\nTOTAL PRICE 0.055"}});
 assert.equal(fallback.weight_grams,6);
-assert.equal(fallback.unit_price_fils,8750);
+assert.equal(fallback.unit_price_fils,null);
 assert.equal(fallback.total_price_fils,55);
 const missing=parser.detectPrinted({data:{text:"SALMON FILLET WITH SKIN\nWEIGHT 0.020"}});
 const missingChecked=parser.review(missing,p,"9666684001750",core,"966668");
 assert.equal(missingChecked.weight_grams,20);
 assert.equal(missingChecked.unit_price_fils,8750);
 assert.equal(missingChecked.total_price_fils,175);
-assert.ok(missingChecked.warnings.some(x=>x.includes("saved item rate")));
+assert.equal(missingChecked.source_unit,"profile");
 assert.ok(missingChecked.warnings.some(x=>x.includes("barcode")));
 const conflicting=parser.review({...extracted,total_price_fils:180},p,"9666684001750",core,"966668");
 assert.ok(conflicting.warnings.some(x=>/differs.*barcode/i.test(x)));
 assert.equal(conflicting.complete,false);
 const wrongRate=parser.review({...extracted,unit_price_fils:8800},p,
   "9666684001750",core,"966668");
-assert.ok(wrongRate.warnings.some(x=>/unit price differs/i.test(x)));
+assert.equal(wrongRate.unit_price_fils,8750,"Saved product profile overrides scanned unit rate");
+assert.equal(wrongRate.source_unit,"profile");
 const unknown=parser.review({weight_grams:null,unit_price_fils:null,total_price_fils:null,
   read_from_photo:{}},null,"",core,"");
 assert.ok(unknown.warnings.some(x=>/weight unreadable/i.test(x)));
@@ -70,7 +71,7 @@ assert.equal(bounds.barcodeBox.x,current.x-bounds.x);
 const cheese=parser.detectPrinted({data:{text:
   "CHEES BRAMIL W/PEPR\nWEIGHT 0.460\nUNIT PRICE 2.100\nTOTAL PRICE 0.965"}});
 assert.equal(cheese.weight_grams,460);
-assert.equal(cheese.unit_price_fils,2100);
+assert.equal(cheese.unit_price_fils,null);
 assert.equal(cheese.total_price_fils,965);
 assert.deepEqual(parser.numericCandidates(" 0.460 "),[460]);
 assert.deepEqual(parser.numericCandidates(" .965 BD "),[965]);
@@ -87,9 +88,9 @@ const improved=parser.supplementPrinted({
   read_from_photo:{weight:false,unit:false,total:false}
 },{weight:460,unit:2100,total:965});
 assert.equal(improved.weight_grams,460);
-assert.equal(improved.unit_price_fils,2100);
+assert.equal(improved.unit_price_fils,null,"Focused OCR cannot change the profile unit rate");
 assert.equal(improved.total_price_fils,965);
-assert.deepEqual(improved.read_from_photo,{weight:true,unit:true,total:true});
+assert.deepEqual(improved.read_from_photo,{weight:true,unit:false,total:true});
 const mismatchOCR=parser.supplementPrinted({
   weight_grams:460,unit_price_fils:2100,total_price_fils:965,
   read_from_photo:{weight:true,unit:true,total:true}
