@@ -170,3 +170,9 @@
 #learnOriginalImage{cursor:crosshair;touch-action:pan-x pan-y}
 .learn-original-scroll img.is-zoomed{width:auto;height:auto;max-width:none;min-width:900px}
 @media(min-width:900px){.learn-original-scroll img.is-zoomed{min-width:1250px}}
+
+/* Label-to-sheet navigation after automatic crop or OCR fails. */
+.learn-sheet-locate{margin:9px 0;min-height:43px;background:#e6f8ea!important;
+  border-color:#79bd8d!important;color:#185535!important;font-weight:800}
+.learn-review-card .learn-view-original,.learn-review-card .learn-sheet-locate{max-width:100%}
+@media print{.learn-sheet-locate{display:none!important}}
