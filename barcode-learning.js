@@ -9,6 +9,7 @@ const PUBLIC_KEY="sb_publishable_yqrAl20jwQlW4J8furYn3Q_kjQFIFrr";
 const PROFILES="barcode_learning_profiles",EXAMPLES="barcode_learning_examples";
 let client=null,user=null,profiles=[],active=null,samples=[],analysis=null,busy=false;
 let profileToken=0,sampleToken=0,pendingCodes=[],pendingLabels=[],readingPhotos=false,pendingId=0;
+let linkedPriceProfile=String(window.location?.search||"").match(/[?&]profile=([a-f0-9-]{36})(?:&|$)/i)?.[1]||"";
 let camStream=null,camReader=null,camDetector=null,camToken=0,camTimer=null,camActive=false,ZXingLoader=null;
 let camMode="label";
 function msg(id,text,error=false){
@@ -120,7 +121,8 @@ async function loadProfiles(preferred=null){
     if(error)throw error;
     if(token!==profileToken)return;
     profiles=(data||[]).filter(p=>!p.archived_at);
-    let desired=preferred||active?.id||"";
+    let desired=preferred||linkedPriceProfile||active?.id||"";
+    linkedPriceProfile="";
     if(!profiles.some(p=>p.id===desired))desired="";
     active=profiles.find(p=>p.id===desired)||null;
     displayProfileList();updateControls();
