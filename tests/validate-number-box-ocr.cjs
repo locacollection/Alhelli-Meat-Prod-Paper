@@ -55,6 +55,16 @@ global.document={
     async setParameters(){},
     async recognize(){boneReads++;return {data:{text:"0.200"}}}
   };
+  // Reconstructed relative positions from the 7144 screenshot, where the
+  // weight 0.200 sits below the packing date and directly above barcode.
+  const photographBox={x:64,y:195,w:145,h:16};
+  const windows=labels.numericWindows("weight",photographBox,453,265);
+  assert.equal(windows.length,2);
+  assert.ok(windows[0].y>=140,"Weight OCR must exclude the packing date row");
+  assert.ok(windows[0].y+windows[0].h>=180,"Weight OCR must include the bottom of 0.200 digits");
+  assert.ok(windows[0].x>=105&&windows[0].x<120,"Crop weight number, not the total on the right");
+  assert.ok(windows[0].x+windows[0].w<250,
+    "The weight window must not overlap the total-price box");
   const bone=await photo.readNumberBoxes(boneWorker,canvas,anchor,labels,()=>{},{
     unit_price_fils:1000,total_price_fils:200
   });
