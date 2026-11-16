@@ -65,3 +65,22 @@
 .learn-salmon-import strong{font-size:14px;color:#214e34}
 .learn-salmon-import p{font-size:12px;line-height:1.45;color:#536d5a;margin:6px 0 12px}
 .learn-salmon-import .btn{min-height:42px}
+
+/* Cropped per-label review, designed for small Android screens. */
+.learn-pending{display:grid;gap:12px;margin:14px 0;padding:12px;border:1px solid #b8d7c2;border-radius:13px;background:#f4faf5}
+.learn-pending[hidden],#learnScanProgress[hidden]{display:none!important}
+.learn-pending>h3{margin:0;font-size:15px;color:#275b3e}
+.learn-review-card{display:grid;gap:11px;background:white;border:1px solid #ceded2;border-radius:12px;padding:12px;min-width:0}
+.learn-review-card>strong{font-size:13px;color:#245840;overflow-wrap:anywhere}
+.learn-review-photo{width:100%;max-height:240px;object-fit:contain;background:#f3f6f3;border:1px solid #dce6de;border-radius:10px}
+.learn-review-card .learn-field{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:#3b5a46}
+.learn-review-card .learn-field input,.learn-review-card .learn-field select{width:100%;min-width:0;min-height:43px;padding:10px;border:1px solid #bfcfc4;border-radius:9px;background:#fff;font-size:14px;color:#1f4532}
+.learn-review-pair{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.learn-review-source{margin:0;color:#607d66;font-size:11px;line-height:1.5}
+.learn-review-warning{background:#fff6e6;border:1px solid #eddab6;border-radius:9px;padding:9px;font-size:11px;color:#825e30;line-height:1.5;margin:0}
+.learn-review-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.learn-review-actions .btn{min-height:43px;flex:1 1 130px}
+.learn-review-actions .mini{min-height:43px}
+#learnManualEntry{margin-top:15px}
+#learnManualEntry[open]>summary{margin-bottom:12px}
+@media(max-width:450px){.learn-review-pair{grid-template-columns:1fr}.learn-review-photo{max-height:205px}}
