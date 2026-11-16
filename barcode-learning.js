@@ -476,9 +476,13 @@ function editableField(label,p,key,value,placeholder){
   const input=make("input");
   input.value=value||"";
   input.placeholder=placeholder||"";
+  if(!value)input.classList.add("learn-missing-reading");
   if(key==="barcode"){input.inputMode="numeric";input.maxLength=13}
   else{input.type="number";input.inputMode="decimal";input.min="0";input.step=".001"}
-  input.addEventListener("input",e=>{p[key]=key==="barcode"?core.cleanBarcode(e.target.value):e.target.value});
+  input.addEventListener("input",e=>{
+    p[key]=key==="barcode"?core.cleanBarcode(e.target.value):e.target.value;
+    input.classList.toggle("learn-missing-reading",!p[key]);
+  });
   wrapper.append(input);return wrapper;
 }
 async function saveScannedLabel(p){
@@ -554,10 +558,10 @@ renderPending=function(){
     profileLabel.append(select);card.append(profileLabel);
     card.append(editableField("13-digit barcode",p,"barcode",p.barcode,"Scan or type EAN-13"));
     const pair=make("div","learn-review-pair");
-    pair.append(editableField("Weight (kg)",p,"weight",p.weight,"0.020"));
-    pair.append(editableField("Unit price (BD/kg)",p,"unit",p.unit,"8.750"));
+    pair.append(editableField("Weight (kg)",p,"weight",p.weight,"Not detected"));
+    pair.append(editableField("Unit price (BD/kg)",p,"unit",p.unit,"Not detected"));
     card.append(pair);
-    card.append(editableField("Total (BD)",p,"total",p.total,"0.175"));
+    card.append(editableField("Total (BD)",p,"total",p.total,"Not detected"));
     const sources=p.review?.read_from_photo||{};
     card.append(make("p","learn-review-source","Read from photo: "+
       (["weight","unit","total"].filter(k=>sources[k]).join(", ")||"unclear")+
