@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#183c32">
+  <meta name="description" content="Test any EAN-13 barcode against saved learning profiles, confirmed labels, price history, and saved barcodes without selecting an item.">
+  <title>Barcode Tester | Alhelli Meat Production</title>
+  <link rel="stylesheet" href="scanner.css?v=barcode-tester-1">
+  <link rel="stylesheet" href="barcode-tester.css?v=barcode-tester-1">
+</head>
+<body>
+<header class="site-head noprint">
+  <div class="container header-row">
+    <div class="brand"><div class="brandmark">BT</div><div><strong>Barcode Tester</strong></div></div>
+    <nav>
+      <a href="./barcode-learning.html">Barcode Learning</a>
+      <a href="./barcode-predictor.html">Barcode Predictor</a>
+      <a href="./weight-price-checker.html">Weight &amp; Price Checker</a>
+      <a href="./index.html">Production Paper</a>
+    </nav>
+  </div>
+</header>
+<main class="container barcode-tester-layout">
+  <section class="panel">
+    <h1>Test any saved barcode</h1>
+    <p class="tester-intro">Scan or enter an EAN-13 barcode. The tester automatically checks your saved training labels, current and previous price profiles, and other saved barcode records. <strong>No product selection needed.</strong></p>
+    <p class="tester-fineprint">Read-only testing. This page does not add training examples or change Production Paper. A learned barcode pattern is not proof of the sticker's exact weight.</p>
+  </section>
+  <section id="testerAuth" class="panel">
+    <h2>Staff sign-in</h2>
+    <p class="fineprint">Sign in with the same account used in Barcode Learning to access your private saved examples.</p>
+    <form id="testerLoginForm" class="tester-form tester-login">
+      <label>Email<input id="testerEmail" type="email" autocomplete="email" required></label>
+      <label>Password<input id="testerPassword" type="password" autocomplete="current-password" required></label>
+      <button id="testerLoginButton" class="btn" type="submit">Sign in</button>
+    </form>
+    <p id="testerAuthMessage" class="tester-notice" hidden role="status" aria-live="polite"></p>
+  </section>
+  <section id="testerWorkspace" class="panel" hidden>
+    <div class="tester-user">
+      <span>Signed in as <strong id="testerUsername"></strong></span>
+      <button id="testerSignOut" type="button" class="mini">Sign out</button>
+    </div>
+    <h2>Scan or enter barcode</h2>
+    <p id="testerProfileCount" class="fineprint">Loading saved learning profiles…</p>
+    <form id="testerForm" class="tester-form">
+      <label>13-digit EAN-13 barcode
+        <input id="testerBarcode" type="text" inputmode="numeric" pattern="[0-9]{13}" maxlength="13"
+          placeholder="e.g. 9667812095207" autocomplete="off" spellcheck="false" required>
+      </label>
+      <div class="tester-actions">
+        <button id="testerScan" class="btn btn-light" type="button">Scan barcode</button>
+        <button id="testerCheck" class="btn" type="submit">Test barcode</button>
+      </div>
+    </form>
+    <p id="testerMessage" class="tester-notice" hidden role="status" aria-live="polite"></p>
+    <div id="testerResults" class="tester-results" hidden role="status" aria-live="polite">
+      <h3 id="testerResultsTitle">Barcode results</h3>
+      <p id="testerResultsIntro" class="fineprint"></p>
+      <div id="testerNotes" class="tester-notes"></div>
+      <div id="testerMatches" class="tester-matches"></div>
+    </div>
+    <p class="tester-footer">Need to add confirmed examples? <a href="./barcode-learning.html">Open Barcode Learning</a>. Want to predict a barcode from a known weight? <a href="./barcode-predictor.html">Open Barcode Predictor</a>.</p>
+  </section>
+</main>
+<dialog id="testerCameraDialog" class="tester-camera" aria-labelledby="testerCameraHeading">
+  <div class="tester-camera-head">
+    <h2 id="testerCameraHeading">Scan a barcode</h2>
+    <button id="testerCameraClose" class="mini" type="button">Close</button>
+  </div>
+  <div class="tester-camera-video">
+    <video id="testerVideo" playsinline autoplay muted aria-label="Rear camera for EAN-13 barcode testing"></video>
+    <div class="tester-camera-guide" aria-hidden="true"></div>
+  </div>
+  <p id="testerCameraStatus" role="status" aria-live="polite">Point the camera at one complete barcode.</p>
+</dialog>
+<script src="barcode-learning-core.js?v=barcode-tester-1"></script>
+<script src="barcode-tester-core.js?v=barcode-tester-1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="barcode-tester.js?v=barcode-tester-1"></script>
+</body>
+</html>
