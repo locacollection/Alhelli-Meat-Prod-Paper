@@ -121,6 +121,53 @@ assert.equal(verify({barcode:"9667806157508",weight:"3.400",unit:"4.500",printed
 assert.equal(verify({barcode:"9667806157500",weight:"3.500",unit:"4.500",printed:"15.750"}).ok,false);
 assert.equal(verify({barcode:"9667770031903",weight:"1.000",unit:"3.190",printed:"3.190"}).ok,true);
 
+// The same 6777 product can be priced differently on separate stickers.
+const lastPriceLabel={
+  barcode:encodeFromPrinted("6777",3230,3190),weight:"3.230",unit:"3.190",printed:"10.305"
+};
+const currentPriceLabel={
+  barcode:encodeFromPrinted("6777",5995,3500),weight:"5.995",unit:"3.500",printed:"20.985"
+};
+assert.equal(verify(lastPriceLabel).ok,true,"Previous 6777 price must remain valid");
+assert.equal(verify(currentPriceLabel).ok,true,"Current 6777 price must be valid");
+assert.equal(decode(lastPriceLabel.barcode).price,10305);
+assert.equal(decode(currentPriceLabel.barcode).price,20985);
+assert.equal(verify({...currentPriceLabel,unit:"3.190"}).ok,false,
+  "A label's unit price cannot be replaced by yesterday's rate");
+assert.equal(verify({...lastPriceLabel,unit:"3.500"}).ok,false,
+  "Yesterday's printed label must retain its own rate");
+assert.equal(verify({...currentPriceLabel,printed:"20.980"}).ok,false);
+const currentInCatalog=catalogFromBarcode(currentPriceLabel.barcode);
+if(currentInCatalog.ok){
+  assert.equal(currentInCatalog.unit,3500);
+  assert.equal(currentInCatalog.grams,5995);
+  assert.equal(fromBarcode(currentPriceLabel.barcode).confirmed,true);
+} else {
+  const pending=fromBarcode(currentPriceLabel.barcode);
+  assert.equal(pending.confirmed,false);
+  assert.match(pending.ocrConflict,/weight|price|rate/i);
+  const read=matchPrintedOCR(pending,{
+    weight:"5.995",unit:"3.500",printed:"20.985",ocrProduct:"6777"
+  });
+  assert.equal(read.confirmed,true,"Real printed details resolve the new rate");
+  assert.equal(read.unit,"3.500");
+  assert.equal(read.weight,"5.995");
+}
+const bothPricesTogether=[
+  {...lastPriceLabel,confirmed:true,autoConfirmed:false,
+    weightSource:"manual-checked",kind:"bone",sheetId:"mixed-6777"},
+  {...currentPriceLabel,confirmed:true,autoConfirmed:false,
+    weightSource:"manual-checked",kind:"bone",sheetId:"mixed-6777"}
+];
+assert.ok(bothPricesTogether.every(x=>verify(x).ok),
+  "Old/new rates are validated per sticker, not per paper");
+assert.equal(bothPricesTogether.reduce((n,x)=>n+fixed3(x.weight),0),9225);
+assert.equal(verify({barcode:encodeFromPrinted("6780",225,4500),
+  weight:"0.225",unit:"4.500",printed:"1.015"}).ok,true);
+assert.equal(verify({barcode:encodeFromPrinted("6781",1175,4500),
+  weight:"1.175",unit:"4.500",printed:"5.290"}).ok,true);
+console.log("Mixed 6777 price test passed: 3.190 and 3.500 labels, printed price protection, 6780/6781 unaffected.");
+
 const printedLabelExamples=[
   ["6777",5,3190,"9667778000154"],
   ["6777",100,3190,"9667771003206"],
@@ -275,8 +322,21 @@ assert.equal(verify(explicitWrongWeight).ok,true);
 console.log("Barcode-first scanner checks passed: catalog 0.400 + 0.810 kg, OCR optional, GRN/issue 1.210 kg.");
 
 // Combined paper: normal 8 kg output plus separately labelled bone-in 5 -> 3 kg.
-const scanEntry=(item,grams,kind,sheetId)=>fromBarcode(encodeFromPrinted(item,grams,item==="6777"?3190:4500),
-  {kind,sheetId,source:"test"});
+const scanEntry=(item,grams,kind,sheetId)=>{
+  const rate=item==="6777"?3190:4500;
+  const barcode=encodeFromPrinted(item,grams,rate);
+  const raw=fromBarcode(barcode,{kind,sheetId,source:"test"});
+  // Batch/position tests represent labels whose printed fields were checked.
+  // A barcode may have the same total under two different historic rates.
+  if(raw.confirmed)return raw;
+  const checked={...raw,barcode,kind,sheetId,
+    weight:(grams/1000).toFixed(3),unit:(rate/1000).toFixed(3),
+    printed:(roundedPrice(grams,rate)/1000).toFixed(3),
+    confirmed:true,autoConfirmed:false,ocrConflict:"",
+    weightSource:"manual-checked",unitSource:"manual-checked"};
+  assert.equal(verify(checked).ok,true,"Verified printed values for batch test: "+barcode);
+  return checked;
+};
 const mixedEntries=[
   scanEntry("6780",2000,"normal","normal-1"),
   scanEntry("6781",6000,"normal","normal-1"),
