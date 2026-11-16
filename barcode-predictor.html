@@ -7,7 +7,7 @@
   <meta name="description" content="Check a predicted EAN-13 barcode from a selected saved learning profile and weight.">
   <title>Barcode Predictor | Meat Production</title>
   <link rel="stylesheet" href="scanner.css?v=barcode-predictor-1">
-  <link rel="stylesheet" href="barcode-predictor.css?v=barcode-predictor-1">
+  <link rel="stylesheet" href="barcode-predictor.css?v=barcode-verify-1">
 </head>
 <body>
 <header class="site-head noprint">
@@ -70,9 +70,37 @@
       <div id="predictorBarcodeBlock" class="predictor-code-block" hidden>
         <span id="predictorBarcodeLabel">Predicted EAN-13 barcode</span>
         <strong id="predictorResultBarcode"></strong>
-        <button id="predictorCopy" type="button" class="btn btn-light">Copy predicted barcode</button>
+        <div class="predictor-barcode-actions">
+          <button id="predictorCopy" type="button" class="btn btn-light">Copy predicted barcode</button>
+          <button id="predictorOpenVerify" type="button" class="btn">Verify with real label</button>
+        </div>
       </div>
       <p id="predictorResultExplanation" class="predictor-explanation"></p>
+      <section id="predictorVerifyPanel" class="predictor-verification" hidden aria-labelledby="predictorVerifyHeading">
+        <h4 id="predictorVerifyHeading">Verify with a printed label</h4>
+        <p class="fineprint">Scan the barcode on a real sticker, then read and enter its printed weight and total price independently. This checks whether the actual label details agree with the predicted code. A matching barcode alone does not prove the weight.</p>
+        <form id="predictorVerifyForm" class="predictor-form">
+          <label>Real printed barcode (EAN-13)
+            <input id="predictorActualBarcode" type="text" maxlength="13" inputmode="numeric" pattern="[0-9]{13}" placeholder="Scan the sticker or enter 13 digits" autocomplete="off" required>
+          </label>
+          <button id="predictorScanActual" type="button" class="btn btn-light">Scan real barcode</button>
+          <div class="predictor-verify-fields">
+            <label>Weight printed on label (kg)
+              <input id="predictorActualWeight" type="number" inputmode="decimal" min="0.001" max="100" step="0.001" placeholder="e.g. 0.150" required>
+            </label>
+            <label>Total price printed on label (BD)
+              <input id="predictorActualTotal" type="number" inputmode="decimal" min="0" max="999.999" step="0.001" placeholder="e.g. 0.110" required>
+            </label>
+          </div>
+          <button id="predictorVerifySubmit" class="btn" type="submit">Compare with prediction</button>
+        </form>
+        <p id="predictorCameraFeedback" class="predictor-message" role="status" aria-live="polite" hidden></p>
+        <div id="predictorVerificationResult" class="predictor-verification-result" role="status" aria-live="polite" hidden>
+          <strong id="predictorVerificationTitle"></strong>
+          <p id="predictorVerificationDetails"></p>
+        </div>
+        <p class="fineprint">Verification is local to this page. No scan or printed values are automatically saved to Supabase or Production Paper. A match does not mean store checkout will accept the barcode.</p>
+      </section>
     </div>
     <p class="predictor-footer">
       Missing or unvalidated profile? <a href="./barcode-learning.html">Open Barcode Learning</a> to add confirmed examples.
@@ -80,8 +108,19 @@
     </p>
   </section>
 </main>
+<dialog id="predictorCameraDialog" class="predictor-camera-dialog" aria-labelledby="predictorCameraHeading">
+  <div class="predictor-camera-head">
+    <h2 id="predictorCameraHeading">Scan the real sticker</h2>
+    <button id="predictorCameraClose" type="button" class="mini">Close</button>
+  </div>
+  <div class="predictor-camera-preview">
+    <video id="predictorCameraVideo" autoplay muted playsinline aria-label="Rear camera for printed EAN-13 barcode"></video>
+    <div class="predictor-camera-target" aria-hidden="true"></div>
+  </div>
+  <p id="predictorCameraStatus" class="fineprint" role="status">Aim at one barcode printed on the label.</p>
+</dialog>
 <script src="barcode-learning-core.js?v=barcode-predictor-2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="barcode-predictor.js?v=barcode-predictor-2"></script>
+<script src="barcode-predictor.js?v=barcode-verify-1"></script>
 </body>
 </html>
