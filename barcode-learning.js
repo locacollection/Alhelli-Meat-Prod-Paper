@@ -610,7 +610,7 @@ async function prepareLearningPhotos(list){
     }
     const result=await window.SheetCropEditor.open({
       source:file,title:"Choose a label or full sheet before learning",
-      allowWhole:true,cropLabel:"Crop selected label & scan",
+      allowWhole:true,cropLabel:"Crop selected area & scan",
       details:file.name+" · Select the entire sticker if scanning just one label"
     });
     if(!result)continue;
