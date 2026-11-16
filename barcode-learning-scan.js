@@ -134,8 +134,10 @@ function cropCanvas(canvas,region,regions,parser){
   return {canvas:cropped,barcodeBox:box.barcodeBox};
 }
 function makeBlob(canvas){
-  return new Promise(resolve=>canvas.toBlob?.(resolve,"image/jpeg",.88)||
-    resolve(null));
+  return new Promise(resolve=>{
+    if(typeof canvas.toBlob==="function")canvas.toBlob(blob=>resolve(blob),"image/jpeg",.88);
+    else resolve(null);
+  });
 }
 async function fromCanvas(canvas,core,parser,progress){
   const regions=await detectRegions(canvas,core,progress);
