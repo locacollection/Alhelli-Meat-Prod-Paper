@@ -1014,7 +1014,7 @@ async function chooseProductionSheetCrop(list){
     const choice=await window.SheetCropEditor.open({
       source:file,title:"Choose full sheet or crop before Production Paper scan",
       details:file.name+" · Scan all labels or focus on one selected label",
-      allowWhole:true,cropLabel:"Crop selected label & scan"
+      allowWhole:true,cropLabel:"Crop selected area & scan"
     });
     if(!choice)continue;
     const selections=choice.mode==="multi"?choice.crops:[choice];
