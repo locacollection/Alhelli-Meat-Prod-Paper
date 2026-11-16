@@ -8,6 +8,8 @@ on:
       - "barcode-learning.css"
       - "barcode-learning-core.js"
       - "barcode-learning.js"
+      - "barcode-learning-price.js"
+      - "supabase/price-history.sql"
       - "barcode-learning-labels.js"
       - "barcode-learning-scan.js"
       - "fish-production.html"
@@ -55,7 +57,7 @@ jobs:
       - name: Assemble static site
         run: |
           mkdir -p _site
-          cp index.html barcode-learning.html barcode-learning.css barcode-learning-core.js barcode-learning.js barcode-learning-labels.js barcode-learning-scan.js fish-production.html fish-production.css fish-core.js fish-barcode-samples.js fish-production.js fish-store.js custom-barcodes.html barcode-catalog.html weight-price-checker.html weight-price-checker.css weight-price-checker.js barcode-predictor.html barcode-predictor.css barcode-predictor.js scanner.js custom-barcodes.js live-barcode.js paper-store.js scanner.css manual-worksheet.html _site/
+          cp index.html barcode-learning.html barcode-learning.css barcode-learning-core.js barcode-learning.js barcode-learning-labels.js barcode-learning-scan.js barcode-learning-price.js fish-production.html fish-production.css fish-core.js fish-barcode-samples.js fish-production.js fish-store.js custom-barcodes.html barcode-catalog.html weight-price-checker.html weight-price-checker.css weight-price-checker.js barcode-predictor.html barcode-predictor.css barcode-predictor.js scanner.js custom-barcodes.js live-barcode.js paper-store.js scanner.css manual-worksheet.html _site/
           touch _site/.nojekyll
 
       - name: Configure GitHub Pages
