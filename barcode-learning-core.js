@@ -246,6 +246,37 @@ function decodeLearned(raw,profile){
     unit_price_fils:Number(profile.unit_price_fils),item_code:profile.item_code,
     product_name:profile.product_name,mode,source:"Learned barcode pattern; verify printed label"};
 }
+/* A price-based barcode can be calculable without proving a unique weight.
+   Only expose a candidate after a fully validated price-encoding rule and a
+   verified EAN-13 checksum. This NEVER counts as a confirmed weight. */
+function suggestBarcodeCandidate(weight,profile){
+  if(!profile||profile.review_status!=="validated")
+    return {ok:false,error:"Train and validate a profile first."};
+  const grams=Number(weight),step=Number(profile.weight_step_grams);
+  if(!Number.isSafeInteger(grams)||grams<1||grams>100000||
+    ![1,2,5,10].includes(step)||grams%step!==0)
+    return {ok:false,error:"Weight must follow the selected gram increment."};
+  const mode=profile.pattern_mode,prefix=String(profile.barcode_prefix||"");
+  if(!["price5_verified","price6"].includes(mode)||!/^[0-9]{6}$/.test(prefix))
+    return {ok:false,error:"This profile has no validated price barcode format."};
+  const total=roundedPrice(grams,Number(profile.unit_price_fils),Number(profile.rounding_fils));
+  if(!Number.isSafeInteger(total)||total<0||
+      (mode==="price5_verified"&&total>99999)||(mode==="price6"&&total>999999))
+    return {ok:false,error:"Calculated price cannot fit this barcode format."};
+  const first12=mode==="price5_verified"?
+    prefix+priceVerifier(total)+String(total).padStart(5,"0"):
+    prefix+String(total).padStart(6,"0");
+  const barcode=first12+checkDigit(first12);
+  if(!validBarcode(barcode))return {ok:false,error:"Cannot verify the predicted EAN-13 check digit."};
+  const decoded=decodeLearned(barcode,profile);
+  if(!decoded.ambiguous||decoded.price_fils!==total)
+    return {ok:false,error:decoded.error||"The proposed barcode is not supported by the validated pattern."};
+  return {ok:true,ambiguous:true,barcode,total_price_fils:total,weight_grams:grams,
+    possible_grams:decoded.possible_grams||[],
+    warning:"Calculated barcode candidate only. The barcode encodes "+formatAmount(total)+
+      " BD, which can correspond to several weights. It does NOT verify "+
+      formatAmount(grams)+" kg. Compare it with a real printed label. Not valid evidence for checkout, stock or production records."};
+}
 function suggestBarcode(weight,profile){
   if(profile.review_status!=="validated")return {ok:false,error:"Train and validate a profile first."};
   const grams=Number(weight),step=Number(profile.weight_step_grams);
@@ -269,5 +300,5 @@ function suggestBarcode(weight,profile){
     warning:"Predicted by a learned pattern. Not authorized for checkout or stock recording."};
 }
 return {MODES,cleanBarcode,validBarcode,checkDigit,priceVerifier,parseAmount,formatAmount,
-  roundedPrice,profileConfig,sampleCheck,labelAgreement,candidateList,analyze,decodeLearned,suggestBarcode};
+  roundedPrice,profileConfig,sampleCheck,labelAgreement,candidateList,analyze,decodeLearned,suggestBarcode,suggestBarcodeCandidate};
 });
