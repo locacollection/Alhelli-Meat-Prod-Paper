@@ -39,3 +39,25 @@
 /* Display price-encoded candidates without suggesting an exact measured weight. */
 .predictor-result.is-unavailable .predictor-code-block{background:#fffaf0;border-color:#e8d4ae}
 .predictor-result.is-unavailable .predictor-code-block strong{color:#795523}
+
+/* Independent physical-label comparison. This is not POS or production verification. */
+.predictor-barcode-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
+.predictor-barcode-actions>.btn{flex:1 1 160px;min-height:44px}
+.predictor-verification{margin-top:20px;padding:16px;border:1px solid #c6ddce;border-radius:12px;background:#fff}
+.predictor-verification h4{margin:0 0 7px;font-size:17px;color:#23573c}
+.predictor-verification .fineprint{line-height:1.65;margin:7px 0 10px}
+.predictor-verify-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.predictor-verification-result{border-radius:10px;border:1px solid #c3dccb;background:#ecf8ef;color:#255b3e;padding:13px;margin:15px 0}
+.predictor-verification-result.is-mismatch{background:#fff4e7;color:#87552d;border-color:#e7c59c}
+.predictor-verification-result strong{display:block;font-size:15px;margin:0 0 5px}
+.predictor-verification-result p{font-size:13px;line-height:1.55;margin:0;white-space:pre-line}
+.predictor-camera-dialog{width:min(550px,calc(100vw - 20px));max-height:93dvh;overflow:auto;border:1px solid #bad8c5;border-radius:14px;background:#fff;padding:14px;color:#244d36}
+.predictor-camera-dialog::backdrop{background:#001b12b9}
+.predictor-camera-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px}
+.predictor-camera-head h2{margin:0;font-size:17px}
+.predictor-camera-preview{position:relative;background:#112a1d;border-radius:11px;overflow:hidden}
+.predictor-camera-preview video{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}
+.predictor-camera-target{pointer-events:none;position:absolute;left:9%;right:9%;top:37%;height:26%;border:3px solid #46f596;border-radius:8px;box-shadow:0 0 0 100vmax #00000033}
+.predictor-camera-dialog p{margin:11px 0 2px}
+[hidden]{display:none!important}
+@media(max-width:580px){.predictor-verify-fields{grid-template-columns:1fr}.predictor-barcode-actions>.btn{flex:1 1 100%}.predictor-camera-preview video{aspect-ratio:3/4}}
