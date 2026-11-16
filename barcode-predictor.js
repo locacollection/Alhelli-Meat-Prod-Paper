@@ -47,9 +47,12 @@ function renderProfileSummary(){
   const p=selectedProfile(),box=$("predictorProfileSummary");
   box.replaceChildren();
   if(!p){
+    $("predictorChangePrice").href="./barcode-learning.html";
     box.textContent="Select an item to view its saved unit price and barcode training status.";
     return;
   }
+  $("predictorChangePrice").href="./barcode-learning.html?profile="+
+    encodeURIComponent(p.id)+"&change-price=1";
   const heading=document.createElement("strong");
   heading.textContent=p.item_code+" · "+p.product_name;
   const meta=document.createElement("span");
@@ -80,12 +83,12 @@ async function loadProfiles(){
   message("predictorMessage","Loading saved profiles…");
   try{
     const {data,error}=await client.from(TABLE)
-      .select("id,owner_id,item_code,product_name,unit_price_fils,weight_step_grams,rounding_fils,barcode_prefix,pattern_mode,review_status,sample_count")
+      .select("id,owner_id,item_code,product_name,unit_price_fils,weight_step_grams,rounding_fils,barcode_prefix,pattern_mode,review_status,sample_count,archived_at,price_version")
       .eq("owner_id",owner)
       .order("product_name",{ascending:true}).limit(500);
     if(error)throw error;
     if(ticket!==profilesRequest||user?.id!==owner)return;
-    profiles=data||[];
+    profiles=(data||[]).filter(p=>!p.archived_at);
     renderProfiles(preferred);
     message("predictorMessage",profiles.length?"":"No saved profiles yet. Create one in Barcode Learning.",!profiles.length);
   }catch(err){
