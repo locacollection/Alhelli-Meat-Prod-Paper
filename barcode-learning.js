@@ -604,18 +604,27 @@ function discardLabel(p){
   }
   renderPending();
 }
+let originalSheetLabel=null;
 function showOriginalPhoto(label){
   const source=label.sheetPhotoUrl||label.photoUrl;
   if(!source)return;
+  originalSheetLabel=label;
   const dialog=$("learnOriginalPhotoDialog");
   $("learnOriginalTitle").textContent="Original photo · "+(label.barcode||"label");
-  $("learnOriginalImage").src=source;
+  const image=$("learnOriginalImage");
+  image.classList.remove("is-zoomed");
+  image.src=source;
+  $("learnOriginalZoom").textContent="Zoom in for small labels";
+  $("learnOriginalWeightStatus").textContent=
+    "Tap the printed weight on the sticker for "+(label.barcode||"this label")+
+    ". Verify the suggestion before confirming.";
   if(!dialog.open){
     if(dialog.showModal)dialog.showModal();
     else dialog.setAttribute("open","");
   }
 }
 function closeOriginalPhoto(){
+  originalSheetLabel=null;
   const dialog=$("learnOriginalPhotoDialog");
   if(dialog.open){
     if(dialog.close)dialog.close();
@@ -634,7 +643,7 @@ function imageTapPoint(event,img){
   if(x<0||x>1||y<0||y>1)return null;
   return {x,y};
 }
-async function readTappedWeight(p,img,event){
+async function readTappedWeight(p,img,event,sourceUrl=p.photoUrl){
   const point=imageTapPoint(event,img);
   if(!point)return;
   p.picking=false;
@@ -648,7 +657,7 @@ async function readTappedWeight(p,img,event){
       total_price_fils:core.parseAmount(p.total),
       rounding_fils:Number(profile?.rounding_fils)||5};
     const found=await photoEngine.readWeightAtPoint(
-      p.photoUrl,point.x,point.y,ocrParser,core,context);
+      sourceUrl,point.x,point.y,ocrParser,core,context);
     if(!pendingLabels.includes(p))return;
     if(!found.ok)throw new Error(found.error);
     p.fields={...p.fields,weight_grams:found.weight_grams,
@@ -989,6 +998,21 @@ $("learnLiveScan").addEventListener("click",()=>void startCamera("label"));
 $("learnTestScan").addEventListener("click",()=>void startCamera("test"));
 $("learnCameraStop").addEventListener("click",stopCamera);
 $("learnOriginalClose").addEventListener("click",closeOriginalPhoto);
+$("learnOriginalZoom").addEventListener("click",()=>{
+  const img=$("learnOriginalImage");
+  const zoom=img.classList.toggle("is-zoomed");
+  $("learnOriginalZoom").textContent=zoom?"Fit entire sheet":"Zoom in for small labels";
+});
+$("learnOriginalImage").addEventListener("click",async event=>{
+  const selected=originalSheetLabel;
+  if(!selected||!pendingLabels.includes(selected))return;
+  const photo=selected.sheetPhotoUrl||selected.photoUrl;
+  $("learnOriginalWeightStatus").textContent="Reading the weight you tapped…";
+  await readTappedWeight(selected,$("learnOriginalImage"),event,photo);
+  if(originalSheetLabel!==selected)return;
+  $("learnOriginalWeightStatus").textContent=selected.weightReadNote||
+    selected.status||"Could not read that weight. Zoom in and tap the number itself.";
+});
 $("learnOriginalPhotoDialog").addEventListener("cancel",e=>{
   e.preventDefault();closeOriginalPhoto();
 });
