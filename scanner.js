@@ -461,6 +461,62 @@ function buildRow(entry,i){
     ocrNote.textContent=entry.ocrWarning;priceDetails.append(ocrNote);
   }
 
+  if(!status.ok){
+    // No guessed weight is ever added to the production quantities. A staff
+    // member can confirm the three values printed on an older or newer label.
+    const review=document.createElement("details");
+    review.className="label-printed-review";
+    const reviewHeading=document.createElement("summary");
+    reviewHeading.textContent="Enter printed label details (old or new price)";
+    review.append(reviewHeading);
+    const form=document.createElement("form");
+    form.className="label-printed-form";
+    const inputs={};
+    for(const [field,title,existing] of [
+      ["weight","Weight printed (kg)",entry.weight],
+      ["unit","Unit price printed (BD/kg)",entry.unit],
+      ["printed","Total printed (BD)",entry.printed]
+    ]){
+      const label=document.createElement("label");
+      label.textContent=title;
+      const input=document.createElement("input");
+      input.type="number";input.inputMode="decimal";input.step=".001";input.min=field==="printed"?"0":".001";
+      input.max=field==="weight"?"10":"999.999";
+      input.value=String(existing||"");
+      input.placeholder=field==="weight"?"e.g. 5.995":
+        field==="unit"?"e.g. 3.500":"e.g. 20.985";
+      input.required=true;
+      label.append(input);form.append(label);
+      inputs[field]=input;
+    }
+    const confirm=document.createElement("button");
+    confirm.type="submit";confirm.className="btn";confirm.textContent="Confirm values from this sticker";
+    const note=document.createElement("p");note.className="label-printed-note";
+    note.textContent="Read all three numbers from the SAME sticker. The price and weight must reconstruct this exact EAN-13 barcode.";
+    form.append(note,confirm);
+    form.addEventListener("submit",event=>{
+      event.preventDefault();
+      const candidate={...entry,
+        weight:inputs.weight.value,unit:inputs.unit.value,
+        printed:inputs.printed.value,
+        weightSource:"manual-checked",unitSource:"manual-checked",
+        printedSource:"label",ocrConflict:"",ocrWarning:"",
+        ocrProduct:null,ocrChecked:true,autoConfirmed:false,confirmed:false};
+      const result=verify(candidate);
+      if(!result.ok){
+        note.textContent=result.reason;
+        note.className="label-printed-note is-error";
+        return;
+      }
+      Object.assign(entry,candidate,{confirmed:true,source:"Manually confirmed printed label"});
+      persist();render();
+      show("scanMsg","Confirmed "+result.info.code+" at "+
+        fmtMoney(result.unit)+" BD/kg · "+fmtKg(result.grams)+
+        " kg. Other stickers can have different prices.");
+    });
+    review.append(form);box.append(review);
+  }
+
   const actions=document.createElement("div");actions.className="label-actions read-only-actions";
   actions.append(preview);
   const fix=document.createElement("button");fix.type="button";fix.className="mini";
@@ -469,10 +525,10 @@ function buildRow(entry,i){
     const raw=prompt("Enter the 13-digit barcode printed on this sticker:",entry.barcode);
     if(raw===null)return;
     const barcode=String(raw).replace(/\s/g,"");
-    const info=catalogFromBarcode(barcode);
-    if(!info.ok){show("scanMsg",info.reason,"warn");return}
+    const info=decode(barcode);
+    if(info.error){show("scanMsg",info.error,"warn");return}
     const oldCode=decode(entry.barcode).code;
-    if(oldCode&&oldCode!==info.info.code){
+    if(oldCode&&oldCode!==info.code){
       show("scanMsg","The corrected barcode is for a different product. Remove this label and add it to the appropriate production sheet.","warn");return
     }
     Object.assign(entry,fromBarcode(barcode,{...entry,
@@ -1305,7 +1361,7 @@ function paperSnapshot(){
     const v=verify(e);
     if(!e.confirmed||!v.ok)throw new Error("An unverified barcode remains.");
     return {barcode:e.barcode,product_code:v.info.code,
-      weight_grams:v.grams,price_fils:v.printed,
+      weight_grams:v.grams,unit_price_fils:v.unit,price_fils:v.printed,
       source:sourceKind(e),sheet_id:String(e.sheetId||"").slice(0,100)};
   });
   const finishedValue=labels.filter(e=>finishedCode(e.product_code)).reduce((n,e)=>n+e.price_fils,0);
