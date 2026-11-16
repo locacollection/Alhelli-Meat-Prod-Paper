@@ -193,6 +193,35 @@ function inferUniqueWeight(barcode,profile,core){
     source:"Estimated using barcode price, saved rate and weight increment. Verify the printed label."};
 }
 
+/* Detect OCR's weight/total swap before any sample is saved. For a verified
+   price-encoded prefix, suggest only an unambiguous gram weight, never silently
+   overwrite OCR or certify it without a person's review. */
+function weightPriceConflict(fields,profile,barcode,core,knownPrefix=""){
+  if(!profile||!core)return null;
+  const grams=fields?.weight_grams;
+  const rate=Number(profile.unit_price_fils);
+  const rounding=Number(profile.rounding_fils);
+  const total=fields?.total_price_fils;
+  if(!Number.isInteger(grams)||!Number.isInteger(total)||
+    !Number.isInteger(rate)||![1,5].includes(rounding))return null;
+  const calculated=core.roundedPrice(grams,rate,rounding);
+  const barcodeTotal=derivePriceFromBarcode(barcode,core,knownPrefix);
+  const doesNotBalance=calculated!==total;
+  const barcodeDisagrees=barcodeTotal!==null&&barcodeTotal!==total;
+  if(!doesNotBalance&&!barcodeDisagrees)return null;
+  const inferred=knownPrefix?inferUniqueWeight(barcode,profile,core):null;
+  const suggested=inferred?.unique&&inferred.price_fils===total?
+    inferred.weight_grams:null;
+  return {ocr_weight_grams:grams,calculated_total_fils:calculated,
+    total_price_fils:total,barcode_total_fils:barcodeTotal,
+    suggested_weight_grams:suggested,doesNotBalance,barcodeDisagrees,
+    message:"OCR weight "+core.formatAmount(grams)+" kg would cost "+
+      core.formatAmount(calculated)+" BD at "+core.formatAmount(rate)+
+      " BD/kg, but the label total is "+core.formatAmount(total)+" BD."+
+      (Number.isInteger(suggested)?" Barcode and price suggest "+
+        core.formatAmount(suggested)+" kg.":" Check the printed weight.")};
+}
+
 function derivePriceFromBarcode(barcode,core,knownPrefix){
   const b=String(barcode||"").trim();
   if(!core?.validBarcode?.(b)||!knownPrefix||!b.startsWith(knownPrefix))return null;
@@ -275,5 +304,5 @@ function labelCropRegion(imageW,imageH,box,otherBoxes=[]){
 }
 return {nameFor,normalized,amount,detectProduct,boxesFromResult,extractLabeled,
   chooseByLocation,detectPrinted,numericWindow,numericCandidates,supplementPrinted,
-  inferUniqueWeight,derivePriceFromBarcode,review,labelCropRegion};
+  inferUniqueWeight,weightPriceConflict,derivePriceFromBarcode,review,labelCropRegion};
 });
