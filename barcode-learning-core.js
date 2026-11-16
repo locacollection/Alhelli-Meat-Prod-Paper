@@ -299,6 +299,44 @@ function suggestBarcode(weight,profile){
   return {ok:true,barcode,total_price_fils:total,weight_grams:grams,
     warning:"Predicted by a learned pattern. Not authorized for checkout or stock recording."};
 }
+/* Compare a prediction to independently read, physical sticker fields.
+   Checksum/pattern checks alone never authenticate a real store label. */
+function verifyPredictedAgainstLabel({
+  profile,predicted_barcode,requested_weight_grams,
+  printed_barcode,printed_weight_grams,printed_total_fils
+}={}){
+  const errors=[];
+  const predicted=cleanBarcode(predicted_barcode);
+  const printed=cleanBarcode(printed_barcode);
+  const grams=Number(requested_weight_grams);
+  const stickerGrams=Number(printed_weight_grams);
+  const stickerPrice=Number(printed_total_fils);
+  if(!profile||profile.review_status!=="validated")
+    return {ok:false,errors:["Select a validated item profile."]};
+  if(!validBarcode(predicted))errors.push("The predicted barcode has an invalid EAN-13 check digit.");
+  const strict=suggestBarcode(grams,profile);
+  const candidate=!strict.ok?suggestBarcodeCandidate(grams,profile):null;
+  const expected=strict.ok?strict:(candidate?.ok?candidate:null);
+  if(!expected||expected.barcode!==predicted)
+    errors.push("Prediction no longer matches the selected profile and entered weight. Predict again.");
+  if(!validBarcode(printed))
+    errors.push("The real sticker barcode must be 13 digits with a valid EAN-13 check digit.");
+  else if(printed!==predicted)
+    errors.push("Real sticker barcode differs from the predicted barcode.");
+  if(!Number.isSafeInteger(stickerGrams)||stickerGrams<1||stickerGrams>100000||
+      stickerGrams%Number(profile.weight_step_grams)!==0)
+    errors.push("Enter the actual printed weight in this item's valid gram increments.");
+  else if(stickerGrams!==grams)
+    errors.push("Real sticker weight differs from the predicted weight.");
+  const expectedPrice=roundedPrice(grams,Number(profile.unit_price_fils),Number(profile.rounding_fils));
+  if(!Number.isSafeInteger(stickerPrice)||stickerPrice<0||stickerPrice>999999)
+    errors.push("Enter the actual total price printed on the sticker.");
+  else if(stickerPrice!==expectedPrice)
+    errors.push("Real sticker total differs from the price calculated using the saved item rate.");
+  return {ok:errors.length===0,errors,
+    ambiguous_weight:!!expected?.ambiguous,expected_price_fils:expectedPrice,
+    barcode:predicted};
+}
 return {MODES,cleanBarcode,validBarcode,checkDigit,priceVerifier,parseAmount,formatAmount,
-  roundedPrice,profileConfig,sampleCheck,labelAgreement,candidateList,analyze,decodeLearned,suggestBarcode,suggestBarcodeCandidate};
+  roundedPrice,profileConfig,sampleCheck,labelAgreement,candidateList,analyze,decodeLearned,suggestBarcode,suggestBarcodeCandidate,verifyPredictedAgainstLabel};
 });
