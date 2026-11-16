@@ -105,7 +105,10 @@ for(const required of [
   "p.saveControl=save;","syncConfirmation(p);",
   "ocrParser.manualConflictStatus(p,core)",
   "p.manualCorrections={...p.manualCorrections,[key]:true};",
-  "p.conflictDescription.textContent=conflict.explanation"
+  "p.conflictDescription.textContent=conflict.explanation",
+  "p.warningNode.textContent=warning;",
+  "function displayedScanWarnings(p,agreement)",
+  "const warning=make(\"p\",\"learn-review-warning\",displayedScanWarnings(p,scannedAgreement(p)))"
 ]){
   assert.ok(js.includes(required),"Missing live confirmation condition: "+required);
 }
