@@ -8,6 +8,7 @@ on:
       - "barcode-learning.js"
       - "barcode-learning-price.js"
       - "tests/validate-barcode-price-history.cjs"
+      - "tests/validate-weight-price-history.cjs"
       - "barcode-learning-labels.js"
       - "barcode-learning-scan.js"
       - "tests/validate-barcode-learning-ocr.cjs"
@@ -47,6 +48,6 @@ jobs:
       - name: Check JavaScript syntax
         run: node --check barcode-learning-core.js && node --check barcode-learning-labels.js && node --check barcode-learning-scan.js && node --check barcode-learning.js && node --check barcode-learning-price.js && node --check scanner.js && node --check custom-barcodes.js && node --check weight-price-checker.js && node --check barcode-predictor.js && node --check live-barcode.js && node --check paper-store.js && node --check fish-core.js && node --check fish-barcode-samples.js && node --check fish-production.js && node --check fish-store.js
       - name: Test barcode and label calculations
-        run: node tests/validate-confirm-agreement.cjs && node tests/validate-fish-samples.cjs && node tests/validate-label-orientation.cjs && node tests/validate-barcode-learning-ocr.cjs && node tests/validate-number-box-ocr.cjs && node tests/validate-barcode-learning.cjs && node tests/validate-scanner.cjs && node tests/validate-live-barcode.cjs && node tests/validate-custom-barcodes.cjs && node tests/validate-fish.cjs && node tests/validate-barcode-predictor.cjs && node tests/validate-barcode-price-history.cjs
+        run: node tests/validate-confirm-agreement.cjs && node tests/validate-fish-samples.cjs && node tests/validate-label-orientation.cjs && node tests/validate-barcode-learning-ocr.cjs && node tests/validate-number-box-ocr.cjs && node tests/validate-barcode-learning.cjs && node tests/validate-scanner.cjs && node tests/validate-live-barcode.cjs && node tests/validate-custom-barcodes.cjs && node tests/validate-fish.cjs && node tests/validate-barcode-predictor.cjs && node tests/validate-barcode-price-history.cjs && node tests/validate-weight-price-history.cjs
       - name: Test paper saving and preview
         run: node tests/validate-paper-store.cjs
