@@ -5,7 +5,7 @@
 <meta name="description" content="Learn kg barcode patterns from confirmed printed labels and test predicted weights safely.">
 <title>Barcode Learning | Meat Production</title>
 <link rel="stylesheet" href="barcode-learning.css?v=manual-sheet-crop-1">
-<link rel="stylesheet" href="sheet-crop.css?v=manual-sheet-crop-1">
+<link rel="stylesheet" href="sheet-crop.css?v=rotate-multi-1">
 </head><body>
 <header class="site-head"><div class="container header-row">
   <div class="brand"><div class="brandmark">BL</div><strong>Barcode Learning</strong></div>
@@ -73,7 +73,7 @@
 </section>
 <section class="panel learner-panel">
   <h2>2. Add label examples</h2>
-  <p class="fineprint">Choose a full sheet or draw a crop before scanning. Each detected barcode can later be located on the original sheet with a green highlight, zoomed, enhanced and recropped. Confirm the actual weight and total before saving.</p>
+  <p class="fineprint">Rotate sideways photos 90° left or right, scan a full sheet of labels, or add several manually selected crop areas for one scan. Each detected barcode can be located on the original sheet with a green highlight, zoomed, enhanced and recropped. Confirm the printed weight and total before saving.</p>
   <div class="learn-buttons">
     <label class="btn btn-light learn-file-button" for="learnSinglePhoto">Photograph 1 label<input id="learnSinglePhoto" type="file" accept="image/*" capture="environment" hidden></label>
     <label class="btn btn-light learn-file-button" for="learnPhoto">Scan sheet photo<input id="learnPhoto" type="file" accept="image/*" multiple hidden></label>
@@ -189,9 +189,9 @@
 <script src="barcode-learning-core.js?v=ready-check-5"></script>
 <script src="fish-barcode-samples.js?v=fish-samples-1"></script>
 <script src="barcode-learning-labels.js?v=multi-label-crop-2"></script>
-<script src="sheet-crop.js?v=manual-sheet-crop-1"></script>
+<script src="sheet-crop.js?v=rotate-multi-1"></script>
 <script src="barcode-learning-scan.js?v=manual-sheet-crop-1"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="barcode-learning.js?v=manual-sheet-crop-1"></script>
+<script src="barcode-learning.js?v=rotate-multi-1"></script>
 <script src="barcode-learning-price.js?v=price-version-1"></script>
 </body></html>
