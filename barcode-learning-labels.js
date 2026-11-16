@@ -110,28 +110,43 @@ function detectPrinted(result,options={}){
 }
 /* Individual numeric boxes are much more reliable than OCR of the whole
    multilingual sticker. All coordinates are relative to its detected EAN. */
-function numericWindow(kind,barcodeBox,canvasWidth,canvasHeight){
+function numericWindows(kind,barcodeBox,canvasWidth,canvasHeight){
   if(!barcodeBox||!Number.isFinite(barcodeBox.x)||!Number.isFinite(barcodeBox.y)||
-     !(barcodeBox.w>0))return null;
+     !(barcodeBox.w>0))return [];
   const b=barcodeBox,w=b.w;
-  // The previous windows were too tall: the weight region included the
-  // packed/use-by dates. A single-line OCR engine cannot read both rows.
-  // Ratios are relative to the EAN-13 bars, not to the whole photo.
+  // The green table has two rows: dates ABOVE, printed values BELOW.
+  // Keep OCR strictly inside the value row. Earlier [-.49,-.10] included
+  // date text and cut through the printed digits near the bottom.
   const areas={
-    weight:[.24,-.49,1.13,-.10],
-    unit:[1.30,-.49,2.49,-.10],
-    total:[1.23,-.04,2.65,.46]
+    weight:[
+      [.31,-.365,1.08,-.018], // just the weight number, not its title or date
+      [.24,-.405,1.18,.003]  // wider fallback when a label is slightly skewed
+    ],
+    unit:[
+      [1.52,-.365,2.48,-.018],
+      [1.36,-.405,2.68,.003]
+    ],
+    total:[
+      [1.46,.005,2.62,.38],
+      [1.28,-.055,2.79,.48]
+    ]
   };
-  const a=areas[kind];
-  if(!a)return null;
-  const x=Math.max(0,Math.floor(b.x+a[0]*w));
-  const y=Math.max(0,Math.floor(b.y+a[1]*w));
-  const right=Math.min(canvasWidth,Math.ceil(b.x+a[2]*w));
-  const bottom=Math.min(canvasHeight,Math.ceil(b.y+a[3]*w));
-  return right>x+10&&bottom>y+5?{x,y,w:right-x,h:bottom-y}:null;
+  return (areas[kind]||[]).map(a=>{
+    const x=Math.max(0,Math.floor(b.x+a[0]*w));
+    const y=Math.max(0,Math.floor(b.y+a[1]*w));
+    const right=Math.min(canvasWidth,Math.ceil(b.x+a[2]*w));
+    const bottom=Math.min(canvasHeight,Math.ceil(b.y+a[3]*w));
+    return right>x+10&&bottom>y+5?{x,y,w:right-x,h:bottom-y}:null;
+  }).filter(Boolean);
+}
+function numericWindow(kind,barcodeBox,canvasWidth,canvasHeight){
+  return numericWindows(kind,barcodeBox,canvasWidth,canvasHeight)[0]||null;
 }
 function numericCandidates(text){
-  const t=normalized(text).replace(/(?<=\d)[oO](?=[.,\d])/g,"0")
+  const t=normalized(text)
+    .replace(/\b[Oo](?=[.,]\s*\d{3})/g,"0")
+    .replace(/(?<=\d)[oO](?=[.,\d])/g,"0")
+    .replace(/(\d)\s+([.,])\s*(\d{3})/g,"$1$2$3")
     .replace(/[٠-٩]/g,x=>String("٠١٢٣٤٥٦٧٨٩".indexOf(x)));
   const values=[];
   const regex=/(?:^|[^\d])((?:\d{1,3})?[.,]\s*\d{3})(?!\d)/g;
@@ -303,6 +318,6 @@ function labelCropRegion(imageW,imageH,box,otherBoxes=[]){
   return {x,y,w,h,barcodeBox:{x:box.x-x,y:box.y-y,w:box.w,h:box.h}};
 }
 return {nameFor,normalized,amount,detectProduct,boxesFromResult,extractLabeled,
-  chooseByLocation,detectPrinted,numericWindow,numericCandidates,supplementPrinted,
+  chooseByLocation,detectPrinted,numericWindow,numericWindows,numericCandidates,supplementPrinted,
   inferUniqueWeight,weightPriceConflict,derivePriceFromBarcode,review,labelCropRegion};
 });
