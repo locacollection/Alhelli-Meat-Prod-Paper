@@ -510,6 +510,8 @@ async function scanPhotos(files){
 /* Label OCR review: separate cropped images prevent numbers crossing between
    stickers. These suggestions NEVER get saved without explicit confirmation. */
 const ocrParser=window.BarcodeLabelOCR,photoEngine=window.LearningPhotoScanner;
+// Selected pre-scan crops retain a reference to the unmodified original sheet.
+const photoSourceMeta=new WeakMap();
 function chosenProfile(p){
   const barcode=String(p?.barcode||"");
   // Match a saved learning prefix without waiting for OCR to read the item name.
@@ -595,6 +597,80 @@ function queueLabel(raw){
   prefill(p,profile);
   pendingLabels.push(p);
   renderPending();return p;
+}
+
+async function prepareLearningPhotos(list){
+  if(readingPhotos)return;
+  const files=[...(list||[])].filter(f=>f.type.startsWith("image/"));
+  const ready=[];
+  for(const file of files){
+    if(!window.SheetCropEditor?.open){
+      photoSourceMeta.set(file,{original:file,rect:{x:0,y:0,w:1,h:1}});
+      ready.push(file);continue;
+    }
+    const result=await window.SheetCropEditor.open({
+      source:file,title:"Choose a label or full sheet before learning",
+      allowWhole:true,cropLabel:"Crop selected label & scan",
+      details:file.name+" · Select the entire sticker if scanning just one label"
+    });
+    if(!result)continue;
+    const incoming=result.mode==="full"?file:result.file;
+    photoSourceMeta.set(incoming,{original:file,rect:result.rect});
+    ready.push(incoming);
+  }
+  if(ready.length)await scanPhotos(ready);
+}
+async function rereadManuallyCroppedLabel(p){
+  if(!pendingLabels.includes(p)||!window.SheetCropEditor?.open)return;
+  const source=p.sheetPhotoUrl||p.photoUrl;
+  if(!source)return;
+  const input=await window.SheetCropEditor.open({
+    source,title:"Label "+(p.barcode||p.id)+" · locate and recrop",
+    initialRegion:p.sheetBox||null,barcodeRegion:p.barcodeBox||null,
+    details:"Scanned: "+(p.barcode||"unreadable")+" · Weight "+(p.weight||"not detected")+
+      " kg · Total "+(p.total||"not detected")+" BD",
+    cropLabel:"Use selected crop & read again"
+  });
+  if(!input||!pendingLabels.includes(p))return;
+  p.status="Reading manually selected crop…";renderPending();
+  try{
+    const parsed=await photoEngine.readFile(input.file,core,ocrParser,
+      t=>msg("learnScanProgress","Manual recrop · "+t),scanProfileForBarcode);
+    const found=parsed.labels.find(x=>x.barcode&&x.barcode===p.barcode)||
+      parsed.labels.find(x=>!x.barcode);
+    const conflicting=parsed.labels.find(x=>x.barcode&&x.barcode!==p.barcode);
+    if(!found){
+      // An unrelated barcode is never silently attached to this training item.
+      if(conflicting)throw Error("Crop includes barcode "+conflicting.barcode+
+        " instead of "+p.barcode+". Select only the intended sticker.");
+      throw Error("Could not read the selected label. Try a larger crop.");
+    }
+    const cropUrl=URL.createObjectURL(input.file);
+    const prior=p.photoUrl;
+    p.photoUrl=cropUrl;
+    p.sheetBox=input.rect;
+    p.barcodeBox=found.barcodeBox?
+      window.SheetCropEditor.mapRect(found.barcodeBox,input.rect):null;
+    p.rotation=0;
+    p.fields=found.fields||{};
+    p.notes="Manually selected high-resolution crop. Confirm printed weight and total before saving.";
+    p.picking=false;
+    prefill(p,profiles.find(x=>x.id===p.profileId)||chosenProfile(p),false);
+    p.status="";
+    p.weightReadNote="";
+    if(prior&&prior!==p.sheetPhotoUrl)try{URL.revokeObjectURL(prior)}catch(_){}
+    // The OCR engine's temporary cropped images are separate from our source.
+    for(const label of parsed.labels){
+      if(label.photoUrl)try{URL.revokeObjectURL(label.photoUrl)}catch(_){}
+    }
+    if(parsed.labels[0]?.sheetPhotoUrl)
+      try{URL.revokeObjectURL(parsed.labels[0].sheetPhotoUrl)}catch(_){}
+  }catch(err){
+    p.status="Manual crop could not be read: "+(err?.message||err);
+  }finally{
+    msg("learnScanProgress","");
+    if(pendingLabels.includes(p))renderPending();
+  }
 }
 function discardLabel(p){
   pendingLabels=pendingLabels.filter(x=>x!==p);
@@ -769,7 +845,10 @@ renderPending=function(){
       const full=make("button","mini learn-view-original","View original sheet");
       full.type="button";
       full.addEventListener("click",()=>showOriginalPhoto(p));
-      card.append(full);
+      const locate=make("button","mini learn-sheet-locate","Find label & adjust crop");
+      locate.type="button";
+      locate.addEventListener("click",()=>void rereadManuallyCroppedLabel(p));
+      card.append(full,locate);
     }
     const profileLabel=make("label","learn-field","Product profile");
     const select=make("select");
@@ -852,11 +931,29 @@ scanPhotos=async function(files){
     for(let i=0;i<images.length;i++){
       if(pendingLabels.length>=50)break;
       try{
-        const parsed=await photoEngine.readFile(images[i],core,ocrParser,
+        const selected=images[i],meta=photoSourceMeta.get(selected)||
+          {original:selected,rect:{x:0,y:0,w:1,h:1}};
+        const parsed=await photoEngine.readFile(selected,core,ocrParser,
           t=>msg("learnScanProgress","Photo "+(i+1)+"/"+images.length+" · "+t),
           scanProfileForBarcode);
+        // The original resolution and position are kept for later green-box
+        // inspection, rather than the scanner's downscaled sheet thumbnail.
+        const fullUrl=URL.createObjectURL(meta.original);
+        const temporaryUrl=parsed.labels[0]?.sheetPhotoUrl||"";
+        let used=0;
         for(const label of parsed.labels.slice(0,50-pendingLabels.length)){
-          queueLabel(label);added++;if(!label.barcode)missing++;
+          if(window.SheetCropEditor?.mapRect){
+            if(label.sheetBox)label.sheetBox=window.SheetCropEditor.mapRect(label.sheetBox,meta.rect);
+            if(label.barcodeBox)label.barcodeBox=window.SheetCropEditor.mapRect(label.barcodeBox,meta.rect);
+          }
+          label.sheetPhotoUrl=fullUrl;
+          queueLabel(label);added++;used++;if(!label.barcode)missing++;
+        }
+        if(temporaryUrl&&temporaryUrl!==fullUrl)try{URL.revokeObjectURL(temporaryUrl)}catch(_){}
+        if(!used)URL.revokeObjectURL(fullUrl);
+        // Release any labels that couldn't fit the review queue.
+        for(const extra of parsed.labels.slice(used)){
+          if(extra.photoUrl)try{URL.revokeObjectURL(extra.photoUrl)}catch(_){}
         }
       }catch(err){msg("learnSampleMessage","Cannot read "+images[i].name+": "+err.message,true)}
     }
@@ -1017,8 +1114,14 @@ $("learnOriginalPhotoDialog").addEventListener("cancel",e=>{
   e.preventDefault();closeOriginalPhoto();
 });
 dialog.addEventListener("cancel",e=>{e.preventDefault();stopCamera()});
-$("learnPhoto").addEventListener("change",e=>{void scanPhotos(e.target.files);e.target.value=""});
-$("learnSinglePhoto").addEventListener("change",e=>{void scanPhotos(e.target.files);e.target.value=""});
+$("learnPhoto").addEventListener("change",e=>{
+  const files=[...e.target.files];e.target.value="";
+  void prepareLearningPhotos(files);
+});
+$("learnSinglePhoto").addEventListener("change",e=>{
+  const files=[...e.target.files];e.target.value="";
+  void prepareLearningPhotos(files);
+});
 document.addEventListener("visibilitychange",()=>{if(document.hidden&&camActive)stopCamera()});
 window.addEventListener("pagehide",stopCamera);
 updateControls();renderSamples();renderAnalysis();void init();
