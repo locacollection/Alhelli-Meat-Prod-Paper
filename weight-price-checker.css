@@ -47,3 +47,6 @@
 [hidden]{display:none!important}
 @media(max-width:840px){.checker-grid{grid-template-columns:1fr}}
 @media(max-width:650px){.checker-login{grid-template-columns:1fr}.checker-values{grid-template-columns:1fr}.checker-values>div{display:flex;align-items:center;justify-content:space-between}.checker-values span{margin-bottom:0}.checker-field-pair{grid-template-columns:1fr}.checker-camera video{aspect-ratio:3/4}}
+
+.checker-item-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.checker-item-actions .mini{display:inline-flex;text-decoration:none;align-items:center;justify-content:center}
