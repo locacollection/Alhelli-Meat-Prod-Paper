@@ -162,6 +162,26 @@ const bothPricesTogether=[
 assert.ok(bothPricesTogether.every(x=>verify(x).ok),
   "Old/new rates are validated per sticker, not per paper");
 assert.equal(bothPricesTogether.reduce((n,x)=>n+fixed3(x.weight),0),9225);
+// Same mixed-price production photo: each original 6777 is followed by its
+// own minced output; price never changes the Recipe Issue/GRN weight rules.
+const mixedPricePaper=[
+  {...bothPricesTogether[0],sheetId:"one-mixed-price-photo"},
+  {barcode:encodeFromPrinted("6780",2630,4500),weight:"2.630",
+    unit:"4.500",printed:"11.835",kind:"bone",sheetId:"one-mixed-price-photo",
+    confirmed:true,autoConfirmed:false,weightSource:"manual-checked"},
+  {...bothPricesTogether[1],sheetId:"one-mixed-price-photo"},
+  {barcode:encodeFromPrinted("6780",4630,4500),weight:"4.630",
+    unit:"4.500",printed:"20.835",kind:"bone",sheetId:"one-mixed-price-photo",
+    confirmed:true,autoConfirmed:false,weightSource:"manual-checked"}
+];
+const mixedPriceTotals=productionCalculation(mixedPricePaper);
+assert.equal(mixedPriceTotals.error,"",JSON.stringify(mixedPriceTotals.errors));
+assert.equal(mixedPriceTotals.original,9225);
+assert.equal(mixedPriceTotals.m,7260);
+assert.equal(mixedPriceTotals.waste,1965);
+assert.equal(mixedPriceTotals.batches.length,2);
+assert.deepEqual([...mixedPriceTotals.batches.map(x=>x.waste)],[600,1365]);
+
 assert.equal(verify({barcode:encodeFromPrinted("6780",225,4500),
   weight:"0.225",unit:"4.500",printed:"1.015"}).ok,true);
 assert.equal(verify({barcode:encodeFromPrinted("6781",1175,4500),
