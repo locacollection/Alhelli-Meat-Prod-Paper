@@ -64,11 +64,11 @@ async function loadProfiles(){
   const ticket=++profileTicket,owner=user.id;
   try{
     const {data,error}=await client.from(PROFILES)
-      .select("id,item_code,product_name,weight_step_grams,unit_price_fils,rounding_fils,barcode_prefix,pattern_mode,review_status,sample_count")
+      .select("id,item_code,product_name,weight_step_grams,unit_price_fils,rounding_fils,barcode_prefix,pattern_mode,review_status,sample_count,archived_at")
       .eq("owner_id",owner).order("product_name",{ascending:true}).limit(500);
     if(error)throw error;
     if(ticket!==profileTicket||user?.id!==owner)return;
-    profiles=data||[];
+    profiles=(data||[]).filter(p=>!p.archived_at);
     renderItems();
   }catch(err){if(ticket===profileTicket)message("checkerItemMessage","Cannot load registered items: "+err.message,true)}
 }
