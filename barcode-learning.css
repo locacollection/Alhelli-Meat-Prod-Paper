@@ -162,3 +162,11 @@
 .learn-price-history-samples .learn-sample{display:block}
 .learn-price-history-samples .learn-sample strong{word-break:break-all}
 @media(max-width:570px){.learn-price-actions{flex-direction:column}.learn-price-actions>*{width:100%}}
+
+/* Backup when an automatic multi-label crop is unreadable: zoom and tap the
+   correct sticker's printed weight directly on the original full sheet. */
+#learnOriginalZoom{margin:8px 0 10px;min-height:38px}
+#learnOriginalWeightStatus{margin:0 0 9px;color:#42664f}
+#learnOriginalImage{cursor:crosshair;touch-action:pan-x pan-y}
+.learn-original-scroll img.is-zoomed{width:auto;height:auto;max-width:none;min-width:900px}
+@media(min-width:900px){.learn-original-scroll img.is-zoomed{min-width:1250px}}
