@@ -80,6 +80,53 @@ function sampleCheck(sample,config){
       " BD, not "+formatAmount(price)+" BD. Check the original label or price setting."};
   return {ok:true,barcode,weight,price,prefix:barcode.slice(0,6)};
 }
+/* One source of truth for the label's Save button and the actual save action.
+   A correct EAN check digit alone does NOT prove a price-encoding rule.
+   verified_price_prefix must come from a verified item format. */
+function labelAgreement(fields,profile,options={}){
+  const missing=(message)=>({ok:false,state:"missing",message});
+  const invalid=(message)=>({ok:false,state:"mismatch",message});
+  if(!profile)return missing("Select an item profile.");
+  const b=cleanBarcode(fields?.barcode);
+  if(!b)return missing("Scan or enter the 13-digit barcode.");
+  if(!validBarcode(b))return invalid("Check the 13-digit barcode and check digit.");
+  if(options.expected_product_code&&String(options.expected_product_code)!==String(profile.item_code))
+    return invalid("This barcode belongs to item "+options.expected_product_code+". Select that product.");
+  if(options.printed_product_code&&String(options.printed_product_code)!==String(profile.item_code))
+    return invalid("Printed item name differs from the selected profile.");
+  const weight=Number(fields?.weight_grams),unit=Number(fields?.unit_price_fils);
+  const total=Number(fields?.total_price_fils);
+  if(fields?.weight_grams===null||fields?.weight_grams===undefined)
+    return missing("Enter the printed weight.");
+  if(fields?.unit_price_fils===null||fields?.unit_price_fils===undefined)
+    return missing("Enter the unit price.");
+  if(fields?.total_price_fils===null||fields?.total_price_fils===undefined)
+    return missing("Enter the printed total price.");
+  if(!Number.isSafeInteger(weight)||weight<1||weight>100000||
+      weight%Number(profile.weight_step_grams)!==0)
+    return invalid("Weight must follow the item's "+profile.weight_step_grams+" g increments.");
+  if(!Number.isSafeInteger(unit)||unit!==Number(profile.unit_price_fils))
+    return invalid("Unit price must match the selected item profile ("+
+      formatAmount(Number(profile.unit_price_fils))+" BD/kg).");
+  if(!Number.isSafeInteger(total)||total<0||total>999999)
+    return invalid("Enter a valid printed total.");
+  const expected=roundedPrice(weight,unit,Number(profile.rounding_fils));
+  if(expected!==total)return invalid(formatAmount(weight)+" kg × "+
+    formatAmount(unit)+" BD/kg rounds to "+formatAmount(expected)+
+    " BD, not "+formatAmount(total)+" BD.");
+  const prefix=String(options.verified_price_prefix||"");
+  if(prefix){
+    if(!/^\d{6}$/.test(prefix)||b.slice(0,6)!==prefix)
+      return invalid("Barcode prefix does not match this item.");
+    const price=Number(b.slice(7,12));
+    if(Number(b[6])!==priceVerifier(price))
+      return invalid("Barcode internal price check does not match.");
+    if(price!==total)return invalid("Barcode encodes "+formatAmount(price)+
+      " BD, not "+formatAmount(total)+" BD.");
+  }
+  return {ok:true,state:"ready",message:prefix?
+    "All values match. Ready to confirm.":"Weight, rate and total match. EAN verified; price encoding not yet learned."};
+}
 function candidateMatches(mode,sample){
   const b=sample.barcode,w=sample.weight,p=sample.price;
   if(mode==="price5_verified")
@@ -222,5 +269,5 @@ function suggestBarcode(weight,profile){
     warning:"Predicted by a learned pattern. Not authorized for checkout or stock recording."};
 }
 return {MODES,cleanBarcode,validBarcode,checkDigit,priceVerifier,parseAmount,formatAmount,
-  roundedPrice,profileConfig,sampleCheck,candidateList,analyze,decodeLearned,suggestBarcode};
+  roundedPrice,profileConfig,sampleCheck,labelAgreement,candidateList,analyze,decodeLearned,suggestBarcode};
 });
