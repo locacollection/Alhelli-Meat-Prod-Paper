@@ -412,3 +412,9 @@ main.container{padding-top:16px}
 .label-printed-note.is-error{color:#9a3323;font-weight:750}
 .label-printed-form>.btn{grid-column:1/-1;min-height:44px}
 @media(max-width:600px){.label-printed-form{grid-template-columns:1fr}}
+
+/* A green-mask locator is available for every label with a source sheet. */
+.label-locate-sheet{display:inline-flex;justify-content:center;align-items:center;
+  min-height:42px;background:#e6f8e9!important;border:1px solid #76be91!important;
+  color:#175a38!important;font-weight:800;font-size:12px;white-space:normal}
+@media print{.label-locate-sheet{display:none!important}}
