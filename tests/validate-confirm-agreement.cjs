@@ -2,6 +2,7 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
 const core=require("../barcode-learning-core.js");
+const ocr=require("../barcode-learning-labels.js");
 const root=path.resolve(__dirname,"..");
 const salmon={item_code:"6668",product_name:"Salmon Fillet Fish (With Skin)",
   weight_step_grams:2,unit_price_fils:8750,rounding_fils:5};
@@ -41,6 +42,58 @@ assert.equal(check(cheese,"5874046009656",460,2100,965,{verified_price_prefix:"5
   "Known cheese price verifier and total must agree");
 assert.equal(check(cheese,"5874046009656",450,2100,965).ok,false);
 assert.equal(check(cheese,"5874046009656",460,2100,970).ok,false);
+// Reported live case: OCR 3.450 BD total is wrong, 0.900 kg at the saved
+// 3.500 BD/kg rate means 3.150 BD, which the 6777 barcode actually encodes.
+const beef={item_code:"6777",product_name:"Pakistani Beef With Bone",
+  unit_price_fils:3500,weight_step_grams:5,rounding_fils:5,
+  review_status:"validated",barcode_prefix:"966777",pattern_mode:"price5_verified"};
+const currentBarcode="9667777031500";
+assert.equal(core.validBarcode(currentBarcode),true);
+assert.equal(core.roundedPrice(900,3500,5),3150);
+assert.equal(ocr.derivePriceFromBarcode(currentBarcode,core,"966777"),3150);
+const originalOCR=ocr.review({
+  weight_grams:900,total_price_fils:3450,unit_price_fils:null,
+  read_from_photo:{weight:true,unit:false,total:true}
+},beef,currentBarcode,core,"966777");
+const disagreement=ocr.weightPriceConflict(originalOCR,beef,currentBarcode,core,"966777");
+assert.ok(disagreement,"3.450 OCR must be flagged as inconsistent");
+assert.equal(disagreement.ocr_weight_grams,900);
+assert.equal(disagreement.total_price_fils,3450);
+assert.equal(disagreement.barcode_total_fils,3150);
+const scanned={
+  barcode:currentBarcode,weight:"0.900",total:"3.450",
+  weightConflict:disagreement,manualCorrections:{}
+};
+assert.equal(ocr.manualConflictStatus(scanned,core).unresolved,true,
+  "Uncorrected inconsistent OCR must remain blocked");
+assert.equal(check(beef,currentBarcode,900,3500,3450,
+  {verified_price_prefix:"966777"}).ok,false,
+  "Wrong 3.450 reading must never be saved");
+
+scanned.total="3.150";
+scanned.manualCorrections.total=true;
+const corrected=ocr.manualConflictStatus(scanned,core);
+assert.equal(corrected.unresolved,false,
+  "Changing the OCR total alone must resolve the stale OCR conflict");
+assert.equal(corrected.corrected,true);
+assert.match(corrected.explanation,/3\.450 BD/);
+assert.match(corrected.explanation,/3\.150 BD/);
+assert.equal(check(beef,currentBarcode,900,3500,3150,
+  {verified_price_prefix:"966777"}).ok,true,
+  "Corrected printed total must validate with original weight and barcode");
+
+scanned.total="3.450";
+scanned.manualCorrections={total:true};
+assert.equal(ocr.manualConflictStatus(scanned,core).unresolved,true,
+  "Re-entering the same invalid OCR amount must remain blocked");
+scanned.total="3.150";scanned.manualCorrections={};
+assert.equal(ocr.manualConflictStatus(scanned,core).unresolved,true,
+  "A correction must be an explicit user edit, not an unexplained auto-change");
+assert.equal(check(beef,currentBarcode,900,3500,3155,
+  {verified_price_prefix:"966777"}).ok,false,
+  "Even 0.005 BD price differences must be rejected");
+console.log("OCR correction test passed: manually correcting 3.450 to 3.150 resolves stale mismatch while preserving EAN, rate and weight validation.");
+
 const js=fs.readFileSync(path.join(root,"barcode-learning.js"),"utf8");
 const css=fs.readFileSync(path.join(root,"barcode-learning.css"),"utf8");
 for(const required of [
@@ -49,7 +102,10 @@ for(const required of [
   "p.readyNode.textContent","input.addEventListener(\"input\",e=>{",
   "syncConfirmation(p);","const agreement=scannedAgreement(p);",
   "if(!agreement.ok)return showError(p,agreement.message);",
-  "p.saveControl=save;","syncConfirmation(p);"
+  "p.saveControl=save;","syncConfirmation(p);",
+  "ocrParser.manualConflictStatus(p,core)",
+  "p.manualCorrections={...p.manualCorrections,[key]:true};",
+  "p.conflictDescription.textContent=conflict.explanation"
 ]){
   assert.ok(js.includes(required),"Missing live confirmation condition: "+required);
 }
