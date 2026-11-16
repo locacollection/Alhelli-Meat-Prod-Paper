@@ -4,7 +4,7 @@
 <meta name="theme-color" content="#143b31">
 <meta name="description" content="Learn kg barcode patterns from confirmed printed labels and test predicted weights safely.">
 <title>Barcode Learning | Meat Production</title>
-<link rel="stylesheet" href="barcode-learning.css?v=ready-check-5">
+<link rel="stylesheet" href="barcode-learning.css?v=rotation-fix-6">
 </head><body>
 <header class="site-head"><div class="container header-row">
   <div class="brand"><div class="brandmark">BL</div><strong>Barcode Learning</strong></div>
@@ -128,6 +128,16 @@
 </div>
 </div>
 </main>
+<dialog id="learnOriginalPhotoDialog" class="learn-original-dialog" aria-labelledby="learnOriginalTitle">
+  <div class="learn-camera-head">
+    <h2 id="learnOriginalTitle">Original scanned photo</h2>
+    <button id="learnOriginalClose" type="button" class="mini">Close</button>
+  </div>
+  <p class="fineprint">Check the entire label if the automatic crop misses any information.</p>
+  <div class="learn-original-scroll">
+    <img id="learnOriginalImage" alt="Original sheet photograph with the scanned labels">
+  </div>
+</dialog>
 <dialog id="learnCameraDialog" class="learn-camera-dialog" aria-labelledby="learnCameraHeading">
   <div class="learn-camera-head"><h2 id="learnCameraHeading">Scan a full label</h2><button id="learnCameraStop" type="button" class="mini">Close</button></div>
   <div class="learn-camera-preview"><video id="learnVideo" autoplay muted playsinline aria-label="Rear camera barcode scanner"></video><div class="learn-camera-target" aria-hidden="true"></div></div>
@@ -136,7 +146,7 @@
 <script src="barcode-learning-core.js?v=ready-check-5"></script>
 <script src="fish-barcode-samples.js?v=fish-samples-1"></script>
 <script src="barcode-learning-labels.js?v=weight-check-4"></script>
-<script src="barcode-learning-scan.js?v=weight-check-4"></script>
+<script src="barcode-learning-scan.js?v=rotation-fix-6"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="barcode-learning.js?v=ready-check-5"></script>
+<script src="barcode-learning.js?v=rotation-fix-6"></script>
 </body></html>
