@@ -120,10 +120,15 @@ assert.ok(photo.labelRecognitionScore({data:{text:
   assert.ok(runs<=2);
   const html=require("node:fs").readFileSync(require("node:path").join(__dirname,"../barcode-learning.html"),"utf8");
   const app=require("node:fs").readFileSync(require("node:path").join(__dirname,"../barcode-learning.js"),"utf8");
-  for(const id of ["learnOriginalPhotoDialog","learnOriginalImage","learnOriginalClose"]){
+  for(const id of ["learnOriginalPhotoDialog","learnOriginalImage","learnOriginalClose",
+    "learnOriginalZoom","learnOriginalWeightStatus"]){
     assert.ok(html.includes('id="'+id+'"'),"Missing full sheet review element "+id);
   }
   assert.ok(app.includes("View original sheet"));
   assert.ok(app.includes("showOriginalPhoto(p)"));
+  assert.ok(app.includes('readTappedWeight(selected,$("learnOriginalImage"),event,photo)'),
+    "Original sheet must permit reading printed weight if automatic cropping fails");
+  assert.ok(app.includes('img.classList.toggle("is-zoomed")'),
+    "Full sheet zoom must be available for small phone screens");
   console.log("Label rotation passed: vertical barcode normalization, OCR-picked upright crop, deduplication, and original-sheet review.");
 })().catch(e=>{console.error(e);process.exitCode=1});
