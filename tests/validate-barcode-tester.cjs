@@ -70,8 +70,59 @@ const custom=tester.evaluate("9667812095207",{
     product_name:"Saved item",unit_type:"kg",weight_grams:2115,
     unit_price_fils:4500,total_price_fils:9520}]
 },core);
-assert.ok(custom.results.some(r=>r.source==="custom"));
-assert.ok(custom.results.some(r=>r.source==="pattern"));
+assert.equal(custom.results.length,1,
+  "A saved barcode and matching learned pattern should display once");
+assert.equal(custom.results[0].source,"custom");
+assert.ok(custom.results[0].otherSources.includes("Learned pattern"));
+// Real reported examples: the SAME 6781 weight/price was stored in both
+// learning and catalog, and 5 wrongly assigned 6780 examples have 6781 prefixes.
+const correct6781=item("real6781","6781",4500);
+const wrong6780={...item("wrong6780","6780",4500),
+  barcode_prefix:"",review_status:"ambiguous",pattern_mode:"unknown"};
+const oneBarcode="9667819096108";
+const duplicate=tester.evaluate(oneBarcode,{
+  profiles:[wrong6780,correct6781],
+  examples:[
+    {profile_id:"wrong6780",barcode:oneBarcode,weight_grams:2135,
+      total_price_fils:9610,verified_from_label:true},
+    {profile_id:"real6781",barcode:oneBarcode,weight_grams:2135,
+      total_price_fils:9610,verified_from_label:true}
+  ],
+  catalog:[{ean13:oneBarcode,item_code:"6781",product_name:"Pakistani Beef Without Bone",
+    weight_grams:2135,unit_price_fils_per_kg:4500,total_price_fils:9610,label_verified:false}]
+},core);
+assert.equal(duplicate.results.length,1,"Wrong 6780 and duplicate 6781 must not create extra result cards");
+assert.equal(duplicate.results[0].itemCode,"6781");
+assert.equal(duplicate.results[0].weightGrams,2135);
+assert.equal(duplicate.results[0].verified,true);
+assert.ok(duplicate.results[0].otherSources.includes("Unverified catalog record"));
+assert.ok(duplicate.notes.some(n=>n.includes("assigned to 6780")),
+  "Wrong item assignment needs a visible warning");
+const tiny="9667812000454";
+const tinyDup=tester.evaluate(tiny,{
+  profiles:[correct6781],
+  examples:[{profile_id:"real6781",barcode:tiny,weight_grams:10,total_price_fils:45,
+    verified_from_label:true}],
+  catalog:[{ean13:tiny,item_code:"6781",product_name:"Pakistani Beef Without Bone",
+    weight_grams:10,unit_price_fils_per_kg:4500,total_price_fils:45,label_verified:false}]
+},core);
+assert.equal(tinyDup.results.length,1);
+assert.equal(tinyDup.results[0].totalFils,45);
+assert.equal(tinyDup.results[0].verified,true);
+assert.deepEqual(tinyDup.results[0].otherSources,["Unverified catalog record"]);
+assert.equal(tinyDup.notes.length,0,"Identical values across tables are not a conflict");
+const misfiledOnly=tester.evaluate("9667819096108",{
+  profiles:[wrong6780],examples:[{profile_id:"wrong6780",barcode:oneBarcode,
+    weight_grams:2135,total_price_fils:9610,verified_from_label:true}]
+},core);
+assert.equal(misfiledOnly.results.length,0);
+assert.ok(misfiledOnly.notes.some(n=>n.includes("excluded")));
+assert.equal(core.sampleCheck({barcode:oneBarcode,weight_grams:2135,total_price_fils:9610},
+  wrong6780).ok,false,"Learning must not accept another meat item's barcode");
+assert.equal(core.sampleCheck({barcode:oneBarcode,weight_grams:2135,total_price_fils:9610},
+  correct6781).ok,true,"Learning must accept the correct meat item");
+console.log("Actual duplicate scans passed: 9667819096108 and 9667812000454 display once; wrong 6780 entry is excluded.");
+
 const catalog=tester.evaluate("9667800031057",{catalog:[{
   ean13:"9667800031057",item_code:"6780",product_name:"Pakistani Beef Minced",
   weight_grams:690,unit_price_fils_per_kg:4500,total_price_fils:3105,
