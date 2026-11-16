@@ -369,7 +369,7 @@ async function fromCanvas(canvas,core,parser,progress){
         fields=parser.detectPrinted(recognized,{barcodeBox:localBox});
         if(!region.noBarcode&&localBox){
           const targeted=await readNumberBoxes(worker,cropped,localBox,parser,progress,fields,core);
-          fields=parser.supplementPrinted(fields,targeted.values);
+          fields=parser.supplementPrinted(fields,targeted.values,{core});
           if(targeted.notes.length)note=[note,...targeted.notes].filter(Boolean).join(" ");
         }
       }catch(err){note=err.message||"Could not read printed values";}
@@ -436,7 +436,7 @@ async function readCameraFrame(video,barcode,region,core,parser,progress){
     const recognized=await worker.recognize(crop.canvas);
     fields=parser.detectPrinted(recognized,{barcodeBox:crop.barcodeBox});
     const targeted=await readNumberBoxes(worker,crop.canvas,crop.barcodeBox,parser,progress,fields,core);
-    fields=parser.supplementPrinted(fields,targeted.values);
+    fields=parser.supplementPrinted(fields,targeted.values,{core});
     if(targeted.notes.length)notes=targeted.notes.join(" ");
   }catch(err){notes="Printed values need manual review: "+(err.message||"OCR unavailable")}
   finally{try{await worker?.terminate()}catch(_){}}
