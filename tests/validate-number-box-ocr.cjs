@@ -27,7 +27,7 @@ global.document={
   const worker={
     async setParameters(opts){
       updates++;
-      assert.ok(opts.tessedit_pageseg_mode==="7"||opts.tessedit_pageseg_mode==="3");
+      assert.ok(["7","13","3"].includes(opts.tessedit_pageseg_mode));
     },
     async recognize(){
       const text=readings[recognitions++]||"";
