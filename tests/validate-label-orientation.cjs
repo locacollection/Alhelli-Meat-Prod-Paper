@@ -1,6 +1,15 @@
 const assert=require("node:assert/strict");
 const photo=require("../barcode-learning-scan.js");
 const parser=require("../barcode-learning-labels.js");
+const core=require("../barcode-learning-core.js");
+// A full 13-digit EAN checksum is not sufficient for the verified beef format.
+// This incorrect 6780 reading appeared on the Android screenshot with a thin
+// crop; reject it instead of presenting an impossible 9.302 BD total.
+assert.equal(core.validBarcode("9667804093020"),true);
+assert.equal(photo.consistentDetectedBarcode("9667804093020",core),false);
+assert.equal(photo.consistentDetectedBarcode("9667800031057",core),true);
+assert.equal(photo.consistentDetectedBarcode("9667770031903",core),true);
+assert.equal(photo.consistentDetectedBarcode("9667771209851",core),true);
 const rootSheet={width:1100,height:1600,angle:0,fromAngle:0,
   getContext(){return {drawImage(){}}}};
 function fakeCanvas(){
