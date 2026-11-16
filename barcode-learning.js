@@ -134,7 +134,11 @@ function setUser(next){
   if(!user){
     profileToken++;sampleToken++;
     profiles=[];active=null;samples=[];analysis=null;pendingCodes=[];
-    for(const p of pendingLabels)if(p.photoUrl)URL.revokeObjectURL(p.photoUrl);
+    const urls=new Set();
+    for(const p of pendingLabels)for(const url of [p.photoUrl,p.sheetPhotoUrl]){
+      if(url)urls.add(url);
+    }
+    for(const url of urls)URL.revokeObjectURL(url);
     pendingLabels=[];
     displayProfileList();renderPending();renderSamples();renderAnalysis();
     msg("learnProfileInfo","Sign in to save and reuse your learning examples.");
@@ -558,7 +562,9 @@ function prefill(p,profile,keep=false){
 }
 function queueLabel(raw){
   const p={...raw,id:++pendingId,barcode:core.cleanBarcode(raw.barcode||""),
-    fields:raw.fields||{},photoUrl:raw.photoUrl||"",status:"",weight:"",unit:"",total:"",profileId:""};
+    fields:raw.fields||{},photoUrl:raw.photoUrl||"",
+    sheetPhotoUrl:raw.sheetPhotoUrl||"",
+    status:"",weight:"",unit:"",total:"",profileId:""};
   const profile=chosenProfile(p);
   p.profileId=profile?.id||"";
   prefill(p,profile);
@@ -568,7 +574,29 @@ function queueLabel(raw){
 function discardLabel(p){
   pendingLabels=pendingLabels.filter(x=>x!==p);
   if(p.photoUrl)try{URL.revokeObjectURL(p.photoUrl)}catch(_){}
+  if(p.sheetPhotoUrl&&!pendingLabels.some(x=>x.sheetPhotoUrl===p.sheetPhotoUrl)){
+    try{URL.revokeObjectURL(p.sheetPhotoUrl)}catch(_){}
+  }
   renderPending();
+}
+function showOriginalPhoto(label){
+  const source=label.sheetPhotoUrl||label.photoUrl;
+  if(!source)return;
+  const dialog=$("learnOriginalPhotoDialog");
+  $("learnOriginalTitle").textContent="Original photo · "+(label.barcode||"label");
+  $("learnOriginalImage").src=source;
+  if(!dialog.open){
+    if(dialog.showModal)dialog.showModal();
+    else dialog.setAttribute("open","");
+  }
+}
+function closeOriginalPhoto(){
+  const dialog=$("learnOriginalPhotoDialog");
+  if(dialog.open){
+    if(dialog.close)dialog.close();
+    else dialog.removeAttribute("open");
+  }
+  $("learnOriginalImage").removeAttribute("src");
 }
 function editableField(label,p,key,value,placeholder){
   const wrapper=make("label","learn-field",label);
@@ -649,6 +677,12 @@ renderPending=function(){
       const img=make("img","learn-review-photo");
       img.src=p.photoUrl;img.alt="Cropped sticker for label "+(idx+1);
       img.loading="lazy";card.append(img);
+    }
+    if(p.sheetPhotoUrl){
+      const full=make("button","mini learn-view-original","View original sheet");
+      full.type="button";
+      full.addEventListener("click",()=>showOriginalPhoto(p));
+      card.append(full);
     }
     const profileLabel=make("label","learn-field","Product profile");
     const select=make("select");
@@ -850,6 +884,10 @@ $("learnTestForm").addEventListener("submit",testBarcode);
 $("learnPredictForm").addEventListener("submit",predictBarcode);
 $("learnLiveScan").addEventListener("click",()=>void startCamera());
 $("learnCameraStop").addEventListener("click",stopCamera);
+$("learnOriginalClose").addEventListener("click",closeOriginalPhoto);
+$("learnOriginalPhotoDialog").addEventListener("cancel",e=>{
+  e.preventDefault();closeOriginalPhoto();
+});
 dialog.addEventListener("cancel",e=>{e.preventDefault();stopCamera()});
 $("learnPhoto").addEventListener("change",e=>{void scanPhotos(e.target.files);e.target.value=""});
 $("learnSinglePhoto").addEventListener("change",e=>{void scanPhotos(e.target.files);e.target.value=""});
