@@ -77,9 +77,11 @@ function acceptSingleBarcode(raw,found){
   if(!barcode)return false;
   const app=window.MeatProductionChecks;
   const lookup=app.catalogFromBarcode(barcode);
-  if(!lookup.ok){
-    announce(lookup.reason||"Barcode is not in the supported catalog. Try another label.",true);
-    return false;
+  // Valid EAN-13 codes are accepted even when an old/new rate makes barcode
+  // weight ambiguous. Such labels remain pending for review, not guessed.
+  const decoded=app.decode(barcode);
+  if(decoded.error){
+    announce(decoded.error,true);return false;
   }
   // Existing insertion ensures 6777 starts a bone-in sheet and preserves
   // insertion order for 6780/6781 in previously selected bone-in groups.
@@ -94,7 +96,11 @@ function acceptSingleBarcode(raw,found){
   closeScanner(); // Switch off the camera immediately after exactly one label.
   $("manualBarcode").value="";
   $("manualBarcodeError").textContent="";
-  const summary="Added "+lookup.info.code+" · "+(lookup.grams/1000).toFixed(3)+" kg · "+(lookup.price/1000).toFixed(3)+" BD";
+  const summary=lookup.ok?
+    "Added "+decoded.code+" · "+(lookup.grams/1000).toFixed(3)+" kg · "+
+      (lookup.unit/1000).toFixed(3)+" BD/kg · "+(lookup.price/1000).toFixed(3)+" BD":
+    "Added "+decoded.code+" · "+(decoded.price/1000).toFixed(3)+
+      " BD encoded. Check the printed weight and unit price before creating a production paper.";
   feedback.textContent=summary;
   feedback.hidden=false;
   void attachPreview(result.entry,frame);
