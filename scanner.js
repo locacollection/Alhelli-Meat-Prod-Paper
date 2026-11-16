@@ -83,7 +83,7 @@ function fillCatalogUnit(decoded,fields){
     roundedPrice(grams,rate)===total&&
     encodeFromPrinted(decoded.code,grams,rate)===decoded.barcode);
   if(rates.length!==1)return {...fields};
-  return {...fields,unit:fmtMoney(rates[0]),unitSource:"price history"};
+  return {...fields,unit:fmtMoney(rates[0]),unitSource:"catalog"};
 }
 // EAN13 here encodes total price, not weight. Enumerate distinct possible
 // weight/rate pairs across every known price period for this item.
