@@ -1017,9 +1017,15 @@ async function chooseProductionSheetCrop(list){
       allowWhole:true,cropLabel:"Crop selected label & scan"
     });
     if(!choice)continue;
-    const scanFile=choice.mode==="full"?file:choice.file;
-    photoSelectionMeta.set(scanFile,{original:file,rect:choice.rect});
-    prepared.push(scanFile);
+    const selections=choice.mode==="multi"?choice.crops:[choice];
+    const sharedSheetId=choice.mode==="multi"?newSheetId(file):"";
+    for(const area of selections){
+      const scanFile=area.file||file;
+      photoSelectionMeta.set(scanFile,{original:file,rect:area.rect,
+        rotatedRect:area.rotatedRect||area.rect,rotation:area.rotation||0,
+        sharedSheetId});
+      prepared.push(scanFile);
+    }
   }
   if(prepared.length)addPhotos(prepared);
 }
@@ -1029,8 +1035,8 @@ function addPhotos(files){
     if(file.type.startsWith("image/")&&photos.length<30&&!scannedPhotoKeys.has(photoKey(file))){
       const meta=photoSelectionMeta.get(file)||{
         original:file,rect:{x:0,y:0,w:1,h:1}};
-      photos.push({file,sheetId:newSheetId(file),
-        originalFile:meta.original,baseRect:meta.rect});
+      photos.push({file,sheetId:meta.sharedSheetId||newSheetId(file),
+        originalFile:meta.original,baseRect:meta});
       count++;
     }
   }
@@ -1297,10 +1303,11 @@ async function scanPhotos(){
             }
             // PRIMARY: Add barcode and catalog-derived weight before OCR starts.
             const entry=addLabel({barcode:region.barcode,kind:perLabelKinds[j],sheetId,photoName:file.name,source:"Barcode + 5 g catalog"});
-            if(window.SheetCropEditor?.mapRect){
+            if(window.SheetCropEditor?.mapScanRect){
               const editor=window.SheetCropEditor;
-              entry.sheetBox=editor.mapRect(editor.barcodeRegion(region,canvas.width,canvas.height),baseRect);
-              entry.barcodeBox=editor.mapRect({
+              entry.sheetBox=editor.mapScanRect(
+                editor.barcodeRegion(region,canvas.width,canvas.height),baseRect);
+              entry.barcodeBox=editor.mapScanRect({
                 x:region.x/canvas.width,y:region.y/canvas.height,
                 w:region.w/canvas.width,h:region.h/canvas.height
               },baseRect);
