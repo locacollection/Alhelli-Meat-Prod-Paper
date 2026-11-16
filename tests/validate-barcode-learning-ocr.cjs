@@ -125,6 +125,37 @@ const lowRateBone=parser.inferUniqueWeight("9671449000053",{
 },core);
 assert.equal(lowRateBone.unique,false,
   "The system must not infer exact low-price bone weight if multiple weights match");
+// Regression from photographed salmon sticker: OCR swapped 0.002 kg
+// with 0.020 BD total. This must be a blocking mismatch, not a valid weight.
+const salmonProfile=samples.PRODUCTS["6668"];
+const wrongSalmon=parser.weightPriceConflict({
+  weight_grams:20,unit_price_fils:8750,total_price_fils:20
+},salmonProfile,"9666682000205",core,"966668");
+assert.ok(wrongSalmon,"Swapped weight must be rejected");
+assert.equal(wrongSalmon.ocr_weight_grams,20);
+assert.equal(wrongSalmon.calculated_total_fils,175,
+  "0.020 kg at 8.750 BD/kg costs 0.175 BD");
+assert.equal(wrongSalmon.total_price_fils,20);
+assert.equal(wrongSalmon.barcode_total_fils,20);
+assert.equal(wrongSalmon.suggested_weight_grams,2,
+  "Barcode price and 2 g increments uniquely indicate 0.002 kg");
+assert.match(wrongSalmon.message,/0\.020 kg would cost 0\.175 BD/);
+assert.match(wrongSalmon.message,/suggest 0\.002 kg/i);
+assert.equal(parser.weightPriceConflict({
+  weight_grams:2,unit_price_fils:8750,total_price_fils:20
+},salmonProfile,"9666682000205",core,"966668"),null,
+  "The correct 0.002 kg reading must be accepted");
+const swappedButUnknown=parser.weightPriceConflict({
+  weight_grams:20,unit_price_fils:8750,total_price_fils:20
+},{...salmonProfile,barcode_prefix:"123456"},"9666682000205",core,"");
+assert.ok(swappedButUnknown);
+assert.equal(swappedButUnknown.suggested_weight_grams,null,
+  "Unknown barcode family cannot silently provide a corrected gram weight");
+const userFacing=fs.readFileSync(path.join(__dirname,"..","barcode-learning.js"),"utf8");
+assert.ok(userFacing.includes("Weight mismatch detected"));
+assert.ok(userFacing.includes("Incorrect weight blocked:"));
+assert.ok(userFacing.includes("Use \"+core.formatAmount(conflict.suggested_weight_grams)"));
+
 const testLabels=[
   {barcode:"9666684001750",x:200,y:260,w:180,precision:3},
   {barcode:"9666684001750",x:201,y:265,w:180,precision:2},
