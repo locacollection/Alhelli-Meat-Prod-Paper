@@ -78,5 +78,28 @@ global.document={
   assert.equal(corrected.weight_grams,200,
     "A correct focused 0.200 kg reading must win over mistaken whole-label OCR 0.020");
   assert.ok(corrected.ocr_conflicts.some(x=>x.includes("Confirm weight on photo")));
+  // Fallback for stubborn labels: touch the printed number on the image
+  // and OCR a small patch around that point rather than typing it manually.
+  const originalCreate=global.document.createElement;
+  global.document.createElement=tag=>tag==="img"?{
+    naturalWidth:450,naturalHeight:250,decode:async()=>{},src:""
+  }:originalCreate(tag);
+  let terminated=false;
+  global.window={Tesseract:{createWorker:async()=>({
+    setParameters:async()=>{},
+    recognize:async()=>({data:{text:"0.200"}}),
+    terminate:async()=>{terminated=true}
+  })}};
+  const tapped=await photo.readWeightAtPoint("blob:mock-scanned-label",.37,.65,
+    labels,require("../barcode-learning-core.js"),
+    {step:2,unit_price_fils:1000,total_price_fils:200,rounding_fils:5});
+  assert.equal(tapped.ok,true,JSON.stringify(tapped));
+  assert.equal(tapped.weight_grams,200);
+  assert.equal(terminated,true);
+  assert.equal((await photo.readWeightAtPoint("blob:mock-scanned-label",.37,.65,
+    labels,require("../barcode-learning-core.js"),
+    {step:2,unit_price_fils:1000,total_price_fils:5,rounding_fils:5})).ok,false,
+    "Tapped OCR must not accept values that disagree with the printed total");
+  global.document.createElement=originalCreate;
   console.log("Numeric cell OCR passed: isolated sticker fields, high-contrast upscaling, and missing-field recovery.");
 })().catch(err=>{console.error(err);process.exitCode=1});
