@@ -448,7 +448,65 @@ async function readCameraFrame(video,barcode,region,core,parser,progress){
     fields,notes};
 }
 
+async function readWeightAtPoint(photoUrl,relativeX,relativeY,parser,core,context={}){
+  if(typeof document==="undefined"||!photoUrl)throw new Error("A cropped label photo is required.");
+  if(!Number.isFinite(relativeX)||!Number.isFinite(relativeY)||
+      relativeX<0||relativeX>1||relativeY<0||relativeY>1)
+    throw new Error("Tap inside the label photo.");
+  const image=document.createElement("img");
+  image.src=photoUrl;
+  if(image.decode)await image.decode();
+  else await new Promise((resolve,reject)=>{
+    image.onload=resolve;image.onerror=()=>reject(new Error("Could not open crop"));
+  });
+  const iw=image.naturalWidth||image.width,ih=image.naturalHeight||image.height;
+  if(!iw||!ih)throw new Error("No visible label image.");
+  const centerX=relativeX*iw,centerY=relativeY*ih;
+  // Let the employee select the number, rather than relying on an uncertain
+  // barcode-relative ROI. Keep the box small enough to exclude nearby dates.
+  const width=Math.min(iw,Math.max(45,iw*.30));
+  const height=Math.min(ih,Math.max(20,ih*.15));
+  const x=Math.min(iw-width,Math.max(0,centerX-width/2));
+  const y=Math.min(ih-height,Math.max(0,centerY-height/2));
+  const source=document.createElement("canvas");
+  source.width=Math.ceil(width);source.height=Math.ceil(height);
+  source.getContext("2d").drawImage(image,x,y,width,height,0,0,source.width,source.height);
+  let worker=null,reads=[];
+  try{
+    worker=await(await ocrLibrary()).createWorker("eng");
+    for(const mode of ["gray","threshold"]){
+      await worker.setParameters({tessedit_pageseg_mode:mode==="gray"?"7":"13",
+        tessedit_char_whitelist:"0123456789.,",
+        preserve_interword_spaces:"1"});
+      const recognized=await worker.recognize(enhanceNumberRegion(source,mode));
+      const candidates=parser.numericCandidates(recognized?.data?.text||"");
+      if(candidates.length===1)reads.push(candidates[0]);
+    }
+  }finally{try{await worker?.terminate()}catch(_){}}
+  let candidates=[...new Set(reads)];
+  const step=Number(context.step||1);
+  candidates=candidates.filter(n=>n>0&&n<=100000&&n%step===0);
+  if(candidates.length>1&&core&&
+      Number.isInteger(context.unit_price_fils)&&Number.isInteger(context.total_price_fils)){
+    const matched=candidates.filter(n=>
+      core.roundedPrice(n,context.unit_price_fils,context.rounding_fils||5)===
+        context.total_price_fils);
+    if(matched.length===1)candidates=matched;
+  }
+  if(candidates.length!==1)return {ok:false,
+    error:"Could not confidently read one weight. Tap the center of the printed number, or enter it manually.",
+    candidates};
+  const grams=candidates[0];
+  if(core&&Number.isInteger(context.unit_price_fils)&&
+      Number.isInteger(context.total_price_fils)&&
+      core.roundedPrice(grams,context.unit_price_fils,context.rounding_fils||5)!==
+        context.total_price_fils)
+    return {ok:false,error:"The tapped number doesn't agree with the label's price. Recheck the weight.",
+      candidates};
+  return {ok:true,weight_grams:grams,source:"Focused OCR of the printed number you tapped"};
+}
+
 return {MAX_LABELS,uniquePositions,barcodeFromZXing,scaledImage,detectRegions,
   rotateCanvas,rotatedBox,candidateAngles,rotatedLabelCrop,labelRecognitionScore,
-  chooseOrientedCrop,enhanceNumberRegion,readNumberBoxes,cropCanvas,fromCanvas,readFile,readCameraFrame};
+  chooseOrientedCrop,enhanceNumberRegion,readNumberBoxes,readWeightAtPoint,cropCanvas,fromCanvas,readFile,readCameraFrame};
 });
