@@ -31,6 +31,9 @@ on:
       - "paper-store.js"
       - "tests/validate-paper-store.cjs"
       - "tests/validate-scanner.cjs"
+      - "tests/validate-live-barcode.cjs"
+      - "index.html"
+      - "scanner.css"
       - ".github/workflows/test-scanner.yml"
   workflow_dispatch:
 
