@@ -322,6 +322,22 @@ async function readNumberBoxes(worker,canvas,barcodeBox,parser,progress,already=
     }
     progress?.("Checking printed "+key+"…");
   }
+  if(!Number.isInteger(got.weight)&&core){
+    const unit=Number.isInteger(got.unit)?got.unit:already.unit_price_fils;
+    const total=Number.isInteger(got.total)?got.total:already.total_price_fils;
+    if(Number.isInteger(unit)&&Number.isInteger(total)){
+      const guesses=[...new Set(rawCandidates.weight||[])];
+      const matched=guesses.filter(n=>core.roundedPrice(n,unit,5)===total);
+      if(matched.length===1){
+        got.weight=matched[0];
+        // It remains an OCR value: one localized print reading matches the
+        // unit rate and total, not a barcode-inferred fabricated weight.
+        const idx=notes.findIndex(x=>x.includes("Multiple readings disagree about weight"));
+        if(idx>=0)notes.splice(idx,1);
+        notes.push("Weight readings differed. The printed number matching the unit price and total was selected for review.");
+      }
+    }
+  }
   return {values:got,notes,candidates:rawCandidates};
 }
 async function fromCanvas(canvas,core,parser,progress){
