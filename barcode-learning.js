@@ -452,6 +452,33 @@ function labelPrefix(p,profile){
 }
 function prefill(p,profile,keep=false){
   p.review=ocrParser.review(p.fields,profile,p.barcode,core,labelPrefix(p,profile));
+  const estimate=profile?ocrParser.inferUniqueWeight(p.barcode,profile,core):null;
+  if(estimate){
+    const originalTotal=p.review.total_price_fils;
+    if(Number.isInteger(originalTotal)&&originalTotal!==estimate.price_fils){
+      p.review.warnings.push("The saved rate and encoded price disagree with the sticker. Check both.");
+    }else{
+      if(!Number.isInteger(originalTotal)){
+        p.review.total_price_fils=estimate.price_fils;
+        p.review.source_total="barcode_estimate";
+        p.review.warnings=p.review.warnings.filter(x=>!x.startsWith("Total price unreadable"));
+        p.review.warnings.push("Total price estimated from barcode format. Confirm on label.");
+      }
+      if(estimate.unique&&!Number.isInteger(p.review.weight_grams)){
+        p.review.weight_grams=estimate.weight_grams;
+        p.review.source_weight="barcode_estimate";
+        p.review.warnings=p.review.warnings.filter(x=>!x.startsWith("Printed weight unreadable"));
+        p.review.warnings.push("Weight inferred from barcode total, saved item rate and allowed gram step. Check printed weight.");
+        p.review.complete=false;
+      }else if(!estimate.unique&&!Number.isInteger(p.review.weight_grams)){
+        p.review.warnings.push("Barcode cannot determine one exact weight. Check printed weight.");
+      }else if(estimate.unique&&Number.isInteger(p.review.weight_grams)&&
+          p.review.weight_grams!==estimate.weight_grams){
+        p.review.warnings.push("OCR weight differs from barcode estimate. Verify the original label.");
+        p.review.complete=false;
+      }
+    }
+  }
   for(const [key,value] of [["weight",p.review.weight_grams],
     ["unit",p.review.unit_price_fils],["total",p.review.total_price_fils]]){
     if(!keep||!p[key])p[key]=Number.isInteger(value)?core.formatAmount(value):"";
@@ -565,7 +592,9 @@ renderPending=function(){
     const sources=p.review?.read_from_photo||{};
     card.append(make("p","learn-review-source","Read from photo: "+
       (["weight","unit","total"].filter(k=>sources[k]).join(", ")||"unclear")+
-      (p.review?.source_total==="barcode"?" · Total from barcode":"")+
+      (p.review?.source_weight==="barcode_estimate"?" · Weight estimated from barcode + rate":"")+
+      (p.review?.source_total==="barcode"?" · Total from trained barcode":"")+
+      (p.review?.source_total==="barcode_estimate"?" · Total estimated from barcode":"")+
       (p.review?.source_unit==="profile"?" · Rate from profile":"")));
     const notes=[...p.review?.warnings||[]];
     if(p.notes)notes.push(p.notes);
