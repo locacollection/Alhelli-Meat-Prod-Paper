@@ -751,6 +751,28 @@ function refreshSummary(){
   $("extraWeight").textContent=fmtKg(t.m+t.b)+" kg";
   $("extraPrice").textContent=fmtMoney(finishedValue)+" BD";
   show("paperWarning",t.error||"",t.error?"warn":"");
+  // Attach original scanned-sheet previews to production calculation errors.
+  const warningEl=$("paperWarning");
+  if(t.error&&sourceSheets.size){
+    const photoTools=document.createElement("div");
+    photoTools.className="paper-warning-photos";
+    for(const [sheetId,source] of sourceSheets){
+      if(!source?.url)continue;
+      const button=document.createElement("button");
+      button.type="button";button.className="btn btn-light btn-small";
+      button.textContent="View source photo: "+(source.name||sheetId);
+      button.addEventListener("click",()=>{
+        const dialog=$("cropDialog");
+        $("cropHeading").textContent="Source sheet · "+(source.name||sheetId);
+        $("cropImage").src=source.url;
+        $("cropImage").alt="Original sheet photo associated with production warning";
+        $("cropDetails").textContent=t.error+" · Source photo remains available only during this scanning session.";
+        if(dialog.showModal)dialog.showModal();else dialog.setAttribute("open","");
+      });
+      photoTools.append(button);
+    }
+    if(photoTools.childElementCount)warningEl.append(photoTools);
+  }
   const pair=trailingBonePairSuggestion(entries);
   const suggestion=$("reversePairSuggestion");
   if(suggestion){
