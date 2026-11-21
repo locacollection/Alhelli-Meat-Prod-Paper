@@ -591,11 +591,24 @@ function buildRow(entry,i){
 }
 function sourceKind(entry){return entry.kind==="bone"?"bone":"normal"}
 function finishedCode(code){return code==="6780"||code==="6781"}
+// Production Paper treats 6777 as weight-only so old (3.190) and new (3.500)
+ // unit-price barcode versions can coexist. Learning/Barcode Tester still uses strict verify().
+function verifyProductionEntry(entry){
+  if(entry.ocrConflict)return {ok:false,reason:entry.ocrConflict};
+  const info=decode(entry.barcode);
+  if(info.error)return {ok:false,reason:info.error};
+  const grams=fixed3(entry.weight);
+  if(grams===null||grams<1||grams>10000)return {ok:false,reason:"Printed weight must be between 0.001 and 10.000 kg."};
+  if(grams%5!==0)return {ok:false,reason:"Only 0.005 kg increments are valid in the production barcode format."};
+  if(entry.ocrProduct&&entry.ocrProduct!==info.code)return {ok:false,reason:"Printed product name differs from the barcode. Review the label."};
+  if(info.code==="6777")return {ok:true,info,grams,unit:null,printed:null,priceIgnored:true};
+  return verify(entry);
+}
 function productionCalculation(records){
   let normalM=0,normalB=0,boneM=0,boneB=0,boneOriginal=0,waste=0,c=0,pending=0;
   const errors=[],sheetGroups=new Map(),batches=[];
   for(const e of records){
-    const v=verify(e);
+    const v=verifyProductionEntry(e);
     if(!e.confirmed||!v.ok){
       pending++;errors.push("Label "+(records.indexOf(e)+1)+": "+(!v.ok?v.reason:"barcode not confirmed"));
       continue;
