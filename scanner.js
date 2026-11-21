@@ -620,7 +620,8 @@ function productionCalculation(records){
     function closeBatch(){
       if(!current)return;
       const out=current.minced+current.boneless;
-      if(out===0)errors.push("Bone-in sheet "+current.name+" has 6777 but no finished 6780/6781 label after it.");
+      if(current.outputCount===0)errors.push("Bone-in sheet "+current.name+" has 6777 but no finished 6780/6781 label after it.");
+      else if(current.outputCount>1)errors.push("Bone-in sheet "+current.name+" has more than one finished sticker. Each pair must contain exactly one 6777 and one 6780 or 6781.");
       else if(out>current.original)errors.push("Bone-in sheet "+current.name+" has more finished meat than its original 6777 weight.");
       else{
         boneOriginal+=current.original;boneM+=current.minced;boneB+=current.boneless;
@@ -632,13 +633,14 @@ function productionCalculation(records){
       if(item.code==="6777"){
         closeBatch();batchNumber++;
         current={sheetId,name:sheetId+" / pair "+batchNumber,original:item.grams,minced:0,boneless:0,
-          originalBarcode:item.entry.barcode,finishedBarcodes:[]};
+          outputCount:0,originalBarcode:item.entry.barcode,finishedBarcodes:[]};
       }else if(!current){
         errors.push("Bone-in sheet "+sheetId+" has a "+item.code+" label before its 6777 original. Recheck the sticker order.");
-      }else if(item.code==="6780"){
-        current.minced+=item.grams;current.finishedBarcodes.push(item.entry.barcode);
-      }else if(item.code==="6781"){
-        current.boneless+=item.grams;current.finishedBarcodes.push(item.entry.barcode);
+      }else{
+        current.outputCount++;
+        if(item.code==="6780")current.minced=item.grams;
+        if(item.code==="6781")current.boneless=item.grams;
+        current.finishedBarcodes.push(item.entry.barcode);
       }
     }
     closeBatch();
@@ -665,9 +667,11 @@ function groupBoneSheetRows(rows){
     if(code==="6777"){
       current={number:++portion,rows:[row],unpaired:false};
       groups.push(current);
-    }else if(current){
+    }else if(current&&current.rows.length===1&&["6780","6781"].includes(code)){
       current.rows.push(row);
+      current=null; // A pair is complete: no third sticker can join it.
     }else{
+      current=null;
       groups.push({number:null,rows:[row],unpaired:true});
     }
   }
