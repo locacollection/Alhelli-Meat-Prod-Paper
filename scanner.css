@@ -418,3 +418,5 @@ main.container{padding-top:16px}
   min-height:42px;background:#e6f8e9!important;border:1px solid #76be91!important;
   color:#175a38!important;font-weight:800;font-size:12px;white-space:normal}
 @media print{.label-locate-sheet{display:none!important}}
+
+.paper-warning-photos{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.paper-warning-photos .btn{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left}
