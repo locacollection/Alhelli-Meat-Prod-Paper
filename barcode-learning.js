@@ -222,7 +222,7 @@ async function importSalmonExamples(){
   const catalog=window.SalmonBarcodeSamples;
   if(!catalog||!catalog.checkExamples(core))
     return msg("learnImportStatus","Salmon example library is unavailable.",true);
-  if(!confirm("Import 11 label examples and create up to 3 salmon learning profiles in your private Supabase account? Existing examples will be kept."))return;
+  if(!confirm("Import "+catalog.EXAMPLES.length+" label examples and create up to 3 salmon learning profiles in your private Supabase account? Existing examples will be kept."))return;
   busy=true;updateControls();
   const owner=user.id;
   let saved=0,created=0,firstProfile=null;
