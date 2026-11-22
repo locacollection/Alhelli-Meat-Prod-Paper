@@ -32,8 +32,8 @@
     const code=String(input.product_code||"").trim();
     if(!allowed.includes(code))return {ok:false,reason:"Select 6376, 6668, or 7144."};
     const grams=Number(input.weight_grams);
-    if(!Number.isSafeInteger(grams)||grams<2||grams>MAX_GRAMS||grams%2!==0)
-      return {ok:false,reason:"Fish weight must be 0.002 to 100.000 kg in 0.002 kg (2 g) increments."};
+    if(!Number.isSafeInteger(grams)||grams<1||grams>MAX_GRAMS||grams%1!==0)
+      return {ok:false,reason:"Fish weight must be 0.001 to 100.000 kg in 1 g increments."};
     const barcode=String(input.barcode||"").trim().replace(/\s/g,"");
     if(barcode&&!validEAN(barcode))return {ok:false,reason:"Invalid 13-digit barcode or EAN-13 check digit."};
     if(barcode&&["966777","966780","966781"].some(prefix=>barcode.startsWith(prefix)))
