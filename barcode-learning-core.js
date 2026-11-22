@@ -83,7 +83,8 @@ function sampleCheck(sample,config){
   if(!Number.isSafeInteger(price)||price<0||price>999999)
     return {ok:false,reason:"Enter the total price printed on this exact label."};
   const expected=roundedPrice(weight,config.unit_price_fils,config.rounding_fils);
-  if(expected!==price)
+  const tolerance=Number(config.sample_price_tolerance_fils||0);
+  if(Math.abs(expected-price)>tolerance)
     return {ok:false,reason:"Printed weight × unit price gives "+formatAmount(expected)+
       " BD, not "+formatAmount(price)+" BD. Check the original label or price setting."};
   return {ok:true,barcode,weight,price,prefix:barcode.slice(0,6)};
