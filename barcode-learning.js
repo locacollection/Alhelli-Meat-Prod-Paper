@@ -99,14 +99,17 @@ function manualAgreement(){
 }
 
 function updateControls(){
-  $("learnImportSalmon").disabled=!user||busy;
+  const archived=!!active?.archived_at;
+  $("learnImportSalmon").disabled=!user||busy||archived;
   const manual=manualAgreement();
-  $("learnAddSample").disabled=!user||busy||!manual.ok;
+  $("learnAddSample").disabled=!user||busy||archived||!manual.ok;
   $("learnAddSample").classList.toggle("is-ready",!!user&&!busy&&manual.ok);
   for(const pending of pendingLabels)syncConfirmation(pending);
   $("learnCreate").disabled=!user||busy;
-  $("learnDeleteProfile").hidden=!user||!active;
+  $("learnDeleteProfile").hidden=!user||!active||archived;
   $("learnProfiles").disabled=!user||busy;
+  if(archived)msg("learnProfileInfo","This is a historical barcode version. You can review and test it, but cannot add training labels or import samples into it.",false);
+  else if(active)msg("learnProfileInfo","");
   window.BarcodeLearningPriceUI?.refresh?.();
 }
 function configFromForm(){
@@ -124,7 +127,7 @@ function displayProfileList(){
   select.append(make("option","","Create or select an item"));
   select.children[0].value="";
   for(const p of profiles){
-    const opt=make("option","",p.item_code+" · "+p.product_name+" · "+core.formatAmount(p.unit_price_fils)+" BD/kg · v"+(p.price_version||1));
+    const opt=make("option","",p.item_code+" · "+p.product_name+" · "+core.formatAmount(p.unit_price_fils)+" BD/kg · v"+(p.price_version||1)+(p.archived_at?" · archived":""));
     opt.value=p.id;select.append(opt);
   }
   select.value=selected;
@@ -137,7 +140,7 @@ async function loadProfiles(preferred=null){
       .eq("owner_id",user.id).order("updated_at",{ascending:false}).limit(100);
     if(error)throw error;
     if(token!==profileToken)return;
-    profiles=(data||[]).filter(p=>!p.archived_at);
+    profiles=(data||[]);
     let desired=preferred||linkedPriceProfile||active?.id||"";
     linkedPriceProfile="";
     if(!profiles.some(p=>p.id===desired))desired="";
