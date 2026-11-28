@@ -18,6 +18,19 @@
     <div class="buttons"><a class="btn btn-light" href="./barcode-tester.html">Test any saved barcode</a><a class="btn btn-light" href="./weight-price-checker.html">Open Weight &amp; Price Checker</a><a class="btn btn-light" href="./barcode-predictor.html">Predict from a saved profile</a></div>
   </section>
 
+  <section class="panel recipe-manager" aria-label="Recipe setup">
+    <div class="section-top"><div><h2>Production recipes</h2><p class="fineprint">Build and save a recipe from your trained barcode products. Historical price versions are grouped by item code.</p></div></div>
+    <div class="recipe-manager-grid">
+      <label>Saved recipe<select id="recipeSaved"><option value="">New recipe</option></select></label>
+      <label>Recipe name<input id="recipeName" maxlength="120" placeholder="e.g. Pakistani Beef Production"></label>
+      <label>Recipe Issue (input product)<select id="recipeIssue"><option value="">Loading trained products…</option></select></label>
+    </div>
+    <div class="recipe-output-head"><strong>Recipe GRN (output products)</strong><span class="fineprint">Select one or more trained products</span></div>
+    <div id="recipeOutputs" class="recipe-output-list"><p class="fineprint">Sign in to load your trained barcode products.</p></div>
+    <div class="buttons"><button id="recipeSave" class="btn" type="button" disabled>Save recipe</button><button id="recipeDelete" class="btn btn-outline" type="button" hidden>Delete recipe</button></div>
+    <p id="recipeStatus" class="message" role="status" aria-live="polite"></p>
+  </section>
+
   <div class="workgrid">
     <div class="maincol">
       <section class="panel">
@@ -213,5 +226,5 @@
 <script src="scanner.js?v=weight-only-6777-v1-v2-1"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="paper-store.js?v=saved-papers-19"></script>
-<script src="live-barcode.js?v=historical-6777-1"></script>
+<script src="live-barcode.js?v=historical-6777-1"></script>\n<script src="recipe-manager.js?v=recipe-manager-1"></script>
 </body></html>
