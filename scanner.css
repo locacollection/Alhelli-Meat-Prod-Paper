@@ -420,3 +420,14 @@ main.container{padding-top:16px}
 @media print{.label-locate-sheet{display:none!important}}
 
 .paper-warning-photos{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.paper-warning-photos .btn{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left}
+
+.recipe-manager-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:14px 0}
+.recipe-manager-grid label{display:grid;gap:6px;font-weight:600;font-size:.9rem}
+.recipe-manager-grid input,.recipe-manager-grid select{width:100%;min-width:0}
+.recipe-output-head{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin:16px 0 8px}
+.recipe-output-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.recipe-output-option{display:flex;align-items:flex-start;gap:9px;padding:10px;border:1px solid var(--line,#ddd);border-radius:10px}
+.recipe-output-option input{margin-top:3px}
+.recipe-output-option span{display:grid;gap:3px}
+.recipe-output-option small{opacity:.7;font-weight:400}
+.recipe-manager .message:empty{display:none}
